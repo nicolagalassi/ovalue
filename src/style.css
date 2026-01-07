@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Stili Globali OValue */
+body {
+    background-color: #0d1014; /* ogame-bg */
+    color: #c9d1d9; /* ogame-text */
+}
+
+/* Nasconde le frecce negli input number */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}

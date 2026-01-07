@@ -322,7 +322,6 @@ onMounted(() => {
                             <option value="facilities">{{ t('cat_facilities') }}</option>
                             <option value="research">{{ t('cat_research') }}</option>
                             <option value="fleet">{{ t('cat_fleet') }}</option>
-                            <option value="lf_rock">{{ t('cat_lf_rock') }}</option>
                         </select>
                     </div>
                     <div class="md:col-span-1">

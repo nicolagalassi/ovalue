@@ -238,7 +238,7 @@ const results = computed(() => {
 
 const euroOptimization = computed(() => {
     const targetMO = results.value.totalMO;
-    if (targetMO <= 0) return { totalCost: 0, packList: [] };
+    if (targetMO <= 0) return { totalCost: 0, packList: [], totalPurchasedMO: 0 };
 
     const bonusMult = 1 + (parseInt(settings.moBonus) / 100);
     const currentPacks = basePacks.map(p => ({
@@ -268,7 +268,15 @@ const euroOptimization = computed(() => {
 
     const result = findBest(targetMO, currentPacks);
     result.packList.sort((a,b) => b.pack.cost - a.pack.cost);
-    return result;
+
+    // CALCOLO MO TOTALE ACQUISTATA
+    const totalPurchasedMO = result.packList.reduce((acc, item) => acc + (item.count * item.pack.amount), 0);
+
+    return {
+        totalCost: result.totalCost,
+        packList: result.packList,
+        totalPurchasedMO // Esporto anche il totale acquistato
+    };
 });
 
 // --- UTILS ---
@@ -517,6 +525,15 @@ onMounted(() => {
                 <div class="flex justify-between items-end">
                      <span class="text-xs text-gray-500 uppercase font-bold">{{ t('lbl_total') }}</span>
                      <span class="text-2xl font-bold text-ogame-money">{{ euroOptimization.totalCost }} €</span>
+                </div>
+                
+                <div class="mt-3 pt-3 border-t border-gray-700/50 text-right space-y-1">
+                     <div class="text-xs text-gray-400">
+                         <span class="font-bold">Totale {{ dmLabel }}:</span> {{ formatNum(euroOptimization.totalPurchasedMO) }}
+                     </div>
+                     <div class="text-xs text-ogame-success font-bold" v-if="euroOptimization.totalPurchasedMO > results.totalMO">
+                         + {{ formatNum(euroOptimization.totalPurchasedMO - results.totalMO) }} {{ dmLabel }}
+                     </div>
                 </div>
             </div>
         </div>

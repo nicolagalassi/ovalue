@@ -7,7 +7,6 @@ import PlanetCard from '../components/PlanetCard.vue';
 const { t } = useLanguage();
 const { calcMineProduction, getPosMult, formatNum } = useOgameFormulas();
 
-// STATO GLOBALE (Settings)
 const settings = reactive({
     ecoSpeed: 8,
     playerClass: 'collector', 
@@ -18,14 +17,10 @@ const settings = reactive({
     lfBonus: 0
 });
 
-// LISTA PIANETI
 const planets = ref([]);
-
-// BULK EDIT
 const bulkTarget = ref('metal');
 const bulkValue = ref('');
 
-// --- LOGICA GESTIONE PIANETI (INVARIATA) ---
 const createPlanet = () => ({
     metal: 30, crystal: 25, deuterium: 20,
     pos: 8,
@@ -37,9 +32,14 @@ const createPlanet = () => ({
 const addPlanet = () => { planets.value.push(createPlanet()); };
 const clonePlanet = (index) => { planets.value.splice(index + 1, 0, JSON.parse(JSON.stringify(planets.value[index]))); };
 const removePlanet = (index) => { planets.value.splice(index, 1); };
-const resetAll = () => { if(confirm("Reset?")) { planets.value = [createPlanet()]; localStorage.removeItem('ovalue_metal_data'); localStorage.removeItem('ogameDailyMetal'); } };
+const resetAll = () => { 
+    if(confirm(t('btn_reset') + "?")) { 
+        planets.value = [createPlanet()]; 
+        localStorage.removeItem('ovalue_metal_data'); 
+        localStorage.removeItem('ogameDailyMetal'); 
+    } 
+};
 
-// --- LOGICA BULK EDIT (INVARIATA) ---
 const applyBulk = () => {
     const val = parseInt(bulkValue.value);
     if (isNaN(val)) return;
@@ -50,14 +50,13 @@ const applyBulk = () => {
     });
 };
 
-// --- CALCOLI TOTALI (INVARIATI) ---
 const totals = computed(() => {
     let hourly = 0;
     planets.value.forEach(p => {
         const met = parseInt(p.metal) || 0;
         const posMult = getPosMult(p.pos);
         const natProd = 30 * settings.ecoSpeed * posMult;
-        const mineBase = calcMineProduction(met, settings.ecoSpeed, posMult, 'metal');
+        const mineBase = calcMineProduction(met, settings.ecoSpeed, posMult);
         
         let totPerc = 0;
         totPerc += settings.plasma * 1;
@@ -87,7 +86,6 @@ const totals = computed(() => {
     return { hourly, daily: hourly * 24 };
 });
 
-// --- PERSISTENZA (INVARIATA) ---
 watch([planets, settings], () => {
     const data = { settings, planets: planets.value };
     localStorage.setItem('ovalue_metal_data', JSON.stringify(data));
@@ -99,10 +97,21 @@ onMounted(() => {
     if (saved) { try { const parsed = JSON.parse(saved); Object.assign(settings, parsed.settings); planets.value = parsed.planets; } catch(e) { addPlanet(); } } else { addPlanet(); }
 });
 
-// Export/Import (INVARIATO)
-const exportData = () => { const blob = new Blob([JSON.stringify({ settings, planets: planets.value }, null, 2)], {type: "application/json"}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `ovalue_metal.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
+const exportData = () => { 
+    const blob = new Blob([JSON.stringify({ settings, planets: planets.value }, null, 2)], {type: "application/json"}); 
+    const a = document.createElement('a'); 
+    a.href = URL.createObjectURL(blob); a.download = `ovalue_metal.json`; 
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); 
+};
 const triggerImport = () => document.getElementById('fileInput').click();
-const importData = (e) => { const r = new FileReader(); r.onload = ev => { try { const d = JSON.parse(ev.target.result); Object.assign(settings, d.settings); planets.value = d.planets; } catch(err){ alert("File non valido"); } }; r.readAsText(e.target.files[0]); e.target.value=''; };
+const importData = (e) => { 
+    const r = new FileReader(); 
+    r.onload = ev => { 
+        try { const d = JSON.parse(ev.target.result); Object.assign(settings, d.settings); planets.value = d.planets; } 
+        catch(err){ alert("File non valido"); } 
+    }; 
+    r.readAsText(e.target.files[0]); e.target.value=''; 
+};
 </script>
 
 <template>
@@ -122,15 +131,12 @@ const importData = (e) => { const r = new FileReader(); r.onload = ev => { try {
   </Teleport>
 
   <div class="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-32">
-    
     <div class="card-glass p-6 mb-8 relative overflow-hidden">
         <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 to-blue-600"></div>
-        
         <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-3">
             <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]"></span> 
             {{ t('settings_title') }}
         </h3>
-        
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="space-y-4">
                 <div>
@@ -190,10 +196,10 @@ const importData = (e) => { const r = new FileReader(); r.onload = ev => { try {
                 <option value="magma">{{ t('lbl_magma') }}</option>
                 <option value="human">{{ t('lbl_human') }}</option>
                 <option value="crawlers">{{ t('lbl_crawlers') }}</option>
-                <option value="overload">{{ t('lbl_overload') }} (1=Si,0=No)</option>
+                <option value="overload">{{ t('lbl_overload') }}</option>
             </select>
             <input type="number" v-model="bulkValue" @focus="$event.target.select()" :placeholder="t('bulk_placeholder')" class="input-glass w-full px-3 py-2 text-sm font-mono">
-            <button @click="applyBulk" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded-lg text-sm transition shadow-[0_0_15px_rgba(147,51,234,0.3)] hover:shadow-[0_0_25px_rgba(147,51,234,0.5)]">
+            <button @click="applyBulk" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded-lg text-sm transition shadow-[0_0_15px_rgba(147,51,234,0.3)]">
                 {{ t('btn_bulk_apply') }}
             </button>
         </div>
@@ -206,7 +212,7 @@ const importData = (e) => { const r = new FileReader(); r.onload = ev => { try {
                 {{ planets.length }}
             </span>
         </h2>
-        <button @click="addPlanet" class="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold rounded-xl shadow-lg hover:shadow-green-500/20 transition flex items-center gap-2 border border-white/10">
+        <button @click="addPlanet" class="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold rounded-xl shadow-lg transition flex items-center gap-2 border border-white/10">
             <span class="text-lg leading-none">+</span> 
             <span class="hidden md:inline">{{ t('btn_add_planet') }}</span>
         </button>
@@ -226,24 +232,20 @@ const importData = (e) => { const r = new FileReader(); r.onload = ev => { try {
 
     <div class="fixed bottom-0 left-0 w-full bg-[#050505]/80 backdrop-blur-xl border-t border-white/10 py-4 z-40 shadow-[0_-5px_30px_rgba(0,0,0,0.8)]">
         <div class="max-w-7xl mx-auto flex flex-row justify-around items-center px-4 gap-4">
-            
             <div class="text-center w-1/2 group cursor-default">
-                <div class="text-[10px] text-gray-500 uppercase tracking-[0.2em] mb-1 font-bold group-hover:text-cyan-400 transition">{{ t('footer_prod_hour') }}</div>
-                <div class="text-2xl md:text-4xl font-bold text-white font-mono tracking-tight drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
+                <div class="text-[10px] text-gray-500 uppercase tracking-[0.2em] mb-1 font-bold">{{ t('footer_prod_hour') }}</div>
+                <div class="text-2xl md:text-4xl font-bold text-white font-mono tracking-tight">
                     {{ formatNum(totals.hourly) }}
                 </div>
             </div>
-            
             <div class="h-12 w-px bg-white/10"></div>
-            
             <div class="text-center w-1/2 group cursor-default">
-                <div class="text-[10px] text-gray-500 uppercase tracking-[0.2em] mb-1 font-bold group-hover:text-amber-400 transition">{{ t('footer_pack_day') }}</div>
-                <div class="text-2xl md:text-4xl font-bold text-white font-mono tracking-tight drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]">
+                <div class="text-[10px] text-gray-500 uppercase tracking-[0.2em] mb-1 font-bold">{{ t('footer_pack_day') }}</div>
+                <div class="text-2xl md:text-4xl font-bold text-white font-mono tracking-tight">
                     {{ formatNum(totals.daily) }}
                 </div>
             </div>
         </div>
     </div>
-
   </div>
 </template>

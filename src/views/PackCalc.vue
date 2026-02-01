@@ -22,7 +22,6 @@ const settings = reactive({
     shopDiscount: 0,      
     moBonus: 0,
     smartRounding: false,
-    // NUOVO: Gestione Mercanti
     merchantCount: 0,
     merchantPrice: 3500
 });
@@ -92,7 +91,7 @@ const parseString = () => {
         foundAny = true; 
     });
     m *= mult; c *= mult; d *= mult; 
-    if (foundAny) { queue.value.push({ key: 'imported_data', cat: 'import', level: 0, amount: mult, m, c, d }); updateInputsFromQueue(); parser.text = ''; } else { alert("Nessuna risorsa riconosciuta."); }
+    if (foundAny) { queue.value.push({ key: 'imported_data', cat: 'import', level: 0, amount: mult, m, c, d }); updateInputsFromQueue(); parser.text = ''; } else { alert(t('msg_missing')); }
 };
 
 // --- CORE CALCULATION LOGIC ---
@@ -118,13 +117,8 @@ const calculation = computed(() => {
     const discountFactor = 1 - (parseInt(settings.shopDiscount) / 100);
     const moPerPack = basePackPrice * discountFactor;
     
-    // MO per i pacchetti
     let packsMO = packsNeeded * moPerPack;
-
-    // MO per i Mercanti (Manuale)
     const merchantCost = settings.merchantCount * settings.merchantPrice;
-
-    // Totale MO Necessaria (Target)
     const totalMO = packsMO + merchantCost;
 
     return { needM, needC, needD, totalMSE, packsNeeded, totalMO, moPerPack, merchantCost };
@@ -281,56 +275,56 @@ onMounted(() => {
 
             <div class="card-glass p-6 border-l-4 border-l-blue-600">
                 <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-bold text-white">{{ t('lbl_costs') }} & Stock</h3>
-                    <span class="text-[10px] bg-blue-900/40 text-blue-300 px-2 py-1 rounded border border-blue-500/20">Inserisci quello che hai già in stock</span>
+                    <h3 class="text-lg font-bold text-white">{{ t('lbl_costs') }} & {{ t('lbl_stock') }}</h3>
+                    <span class="text-[10px] bg-blue-900/40 text-blue-300 px-2 py-1 rounded border border-blue-500/20">{{ t('lbl_stock') }}</span>
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="space-y-2">
                         <label class="flex justify-between text-xs uppercase font-bold text-gray-500">
                             <span>{{ t('res_metal') }}</span>
-                            <span v-if="calculation.needM > 0" class="text-red-400">Mancano: {{ formatNum(calculation.needM) }}</span>
-                            <span v-else class="text-green-500">Coperto</span>
+                            <span v-if="calculation.needM > 0" class="text-red-400">{{ t('msg_missing') }}: {{ formatNum(calculation.needM) }}</span>
+                            <span v-else class="text-green-500">{{ t('msg_covered') }}</span>
                         </label>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold">COST</span>
-                            <input type="text" v-model="formMet" @focus="$event.target.select()" class="input-glass w-full py-2 pl-10 pr-3 text-right font-mono text-gray-200">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold uppercase">Cost</span>
+                            <input type="text" v-model="formMet" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-200">
                         </div>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-600 font-bold">HELD</span>
-                            <input type="text" v-model="stockMet" @focus="$event.target.select()" class="input-glass w-full py-2 pl-10 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-600 font-bold uppercase">Held</span>
+                            <input type="text" v-model="stockMet" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
                         </div>
                     </div>
 
                     <div class="space-y-2">
                         <label class="flex justify-between text-xs uppercase font-bold text-gray-500">
                             <span>{{ t('res_crystal') }}</span>
-                            <span v-if="calculation.needC > 0" class="text-red-400">Mancano: {{ formatNum(calculation.needC) }}</span>
-                            <span v-else class="text-green-500">Coperto</span>
+                            <span v-if="calculation.needC > 0" class="text-red-400">{{ t('msg_missing') }}: {{ formatNum(calculation.needC) }}</span>
+                            <span v-else class="text-green-500">{{ t('msg_covered') }}</span>
                         </label>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold">COST</span>
-                            <input type="text" v-model="formCry" @focus="$event.target.select()" class="input-glass w-full py-2 pl-10 pr-3 text-right font-mono text-blue-200">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold uppercase">Cost</span>
+                            <input type="text" v-model="formCry" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-blue-200">
                         </div>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-600 font-bold">HELD</span>
-                            <input type="text" v-model="stockCry" @focus="$event.target.select()" class="input-glass w-full py-2 pl-10 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-600 font-bold uppercase">Held</span>
+                            <input type="text" v-model="stockCry" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
                         </div>
                     </div>
 
                     <div class="space-y-2">
                         <label class="flex justify-between text-xs uppercase font-bold text-gray-500">
                             <span>{{ t('res_deuterium') }}</span>
-                            <span v-if="calculation.needD > 0" class="text-red-400">Mancano: {{ formatNum(calculation.needD) }}</span>
-                            <span v-else class="text-green-500">Coperto</span>
+                            <span v-if="calculation.needD > 0" class="text-red-400">{{ t('msg_missing') }}: {{ formatNum(calculation.needD) }}</span>
+                            <span v-else class="text-green-500">{{ t('msg_covered') }}</span>
                         </label>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold">COST</span>
-                            <input type="text" v-model="formDeu" @focus="$event.target.select()" class="input-glass w-full py-2 pl-10 pr-3 text-right font-mono text-green-200">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold uppercase">Cost</span>
+                            <input type="text" v-model="formDeu" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-green-200">
                         </div>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-600 font-bold">HELD</span>
-                            <input type="text" v-model="stockDeu" @focus="$event.target.select()" class="input-glass w-full py-2 pl-10 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-600 font-bold uppercase">Held</span>
+                            <input type="text" v-model="stockDeu" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
                         </div>
                     </div>
                 </div>
@@ -362,7 +356,7 @@ onMounted(() => {
             
             <div class="card-glass p-8 flex flex-col justify-center min-h-[220px] relative overflow-hidden border-t-4 border-t-amber-500">
                 <div class="text-center mb-8 relative z-10">
-                    <div class="text-xs text-gray-500 uppercase tracking-widest mb-2">Net MSE Necessario</div>
+                    <div class="text-xs text-gray-500 uppercase tracking-widest mb-2">{{ t('lbl_mse_needed') }}</div>
                     <div class="text-3xl font-mono font-bold text-white break-all">{{ formatNum(calculation.totalMSE) }}</div>
                 </div>
                 <div class="w-full h-px bg-white/10 mb-8"></div>
@@ -376,19 +370,19 @@ onMounted(() => {
             <div v-if="tradePlan && (tradePlan.tradeMetToCry > 0 || tradePlan.tradeMetToDeut > 0)" class="card-glass p-5 border-t-4 border-t-cyan-600 bg-cyan-900/10">
                 <h3 class="text-sm font-bold text-cyan-400 uppercase mb-3 flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
-                    Piano di Scambio
+                    {{ t('lbl_trade_plan') }}
                 </h3>
                 <div class="space-y-2 text-xs font-mono text-gray-300">
                     <div class="flex justify-between border-b border-white/5 pb-1">
-                        <span>Compra Metallo</span>
+                        <span>{{ t('lbl_buy_metal') }}</span>
                         <span class="text-white font-bold">{{ formatNum(tradePlan.totalMetalRequired) }}</span>
                     </div>
                     <div class="flex justify-between text-blue-300" v-if="tradePlan.tradeMetToCry > 0">
-                        <span>Scambia in Cris</span>
+                        <span>{{ t('lbl_trade_cry') }}</span>
                         <span>- {{ formatNum(tradePlan.tradeMetToCry) }} Met</span>
                     </div>
                     <div class="flex justify-between text-green-300" v-if="tradePlan.tradeMetToDeut > 0">
-                        <span>Scambia in Deut</span>
+                        <span>{{ t('lbl_trade_deut') }}</span>
                         <span>- {{ formatNum(tradePlan.tradeMetToDeut) }} Met</span>
                     </div>
                 </div>
@@ -414,7 +408,7 @@ onMounted(() => {
                     <div class="flex items-center justify-between bg-black/40 px-2 py-1 rounded border border-white/10">
                          <span class="text-[10px] text-gray-400 uppercase font-bold">{{ t('lbl_event_bonus') }}</span>
                          <select v-model.number="settings.moBonus" class="bg-transparent text-xs text-white outline-none text-right font-bold cursor-pointer w-24">
-                             <option value="0">{{ t('opt_none') || 'None' }}</option>
+                             <option value="0">{{ t('opt_none') }}</option>
                              <option value="30">+30% {{ dmLabel }}</option>
                              <option value="40">+40% {{ dmLabel }}</option>
                              <option value="50">+50% {{ dmLabel }}</option>
@@ -426,7 +420,7 @@ onMounted(() => {
 
                     <div class="flex flex-col gap-2 bg-black/40 p-2 rounded border border-white/10">
                         <div class="flex justify-between items-center">
-                            <span class="text-[10px] text-gray-400 uppercase font-bold">Mercanti</span>
+                            <span class="text-[10px] text-gray-400 uppercase font-bold uppercase">{{ t('lbl_merchant') }}</span>
                             <span class="text-xs text-purple-300 font-mono">{{ formatNum(calculation.merchantCost) }} {{ dmLabel }}</span>
                         </div>
                         <div class="flex gap-2">
@@ -440,7 +434,7 @@ onMounted(() => {
 
                 </div>
                 <div class="text-center py-4 bg-purple-900/10 rounded-xl border border-purple-500/20">
-                    <div class="text-[10px] text-purple-300 uppercase tracking-widest">Totale {{ dmLabel }} Necessaria</div>
+                    <div class="text-[10px] text-purple-300 uppercase tracking-widest uppercase">{{ t('lbl_mo_needed') }}</div>
                     <div class="text-3xl font-bold text-white drop-shadow-[0_0_15px_rgba(168,85,247,0.5)] mb-1">{{ formatNum(calculation.totalMO) }}</div>
                     <div class="text-[9px] text-gray-400">{{ formatNum(calculation.moPerPack) }} {{ dmLabel }} / pack</div>
                 </div>
@@ -475,16 +469,16 @@ onMounted(() => {
 
                 <div class="mt-4 pt-3 border-t border-white/10 text-xs font-mono space-y-1">
                      <div class="flex justify-between text-gray-400">
-                         <span>MO Necessaria:</span> 
+                         <span>{{ t('lbl_mo_needed') }}:</span> 
                          <span>-{{ formatNum(calculation.totalMO) }}</span>
                      </div>
                      <div class="flex justify-between text-gray-300">
-                         <span>MO Acquistata:</span> 
+                         <span>{{ t('lbl_mo_bought') }}:</span> 
                          <span>+{{ formatNum(euroOptimization.totalPurchasedMO) }}</span>
                      </div>
                      <div class="flex justify-between font-bold text-sm pt-1 border-t border-white/5" 
                           :class="(euroOptimization.totalPurchasedMO - calculation.totalMO) >= 0 ? 'text-green-400' : 'text-red-400'">
-                         <span>Differenza:</span>
+                         <span>{{ t('lbl_diff') }}:</span>
                          <span>{{ (euroOptimization.totalPurchasedMO - calculation.totalMO) >= 0 ? '+' : '' }}{{ formatNum(euroOptimization.totalPurchasedMO - calculation.totalMO) }} {{ dmLabel }}</span>
                      </div>
                 </div>

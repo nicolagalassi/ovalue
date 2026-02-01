@@ -32,6 +32,7 @@ const routes = [
             description: 'Calcolatore costi costruzioni e convertitore risorse in pacchetti MO (Dark Matter).'
         }
     },
+    
 ];
 
 const router = createRouter({

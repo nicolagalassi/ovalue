@@ -3,10 +3,12 @@ import Header from './components/Header.vue';
 </script>
 
 <template>
-  <div class="flex flex-col min-h-screen font-sans bg-ogame-bg text-ogame-text">
+  <div class="min-h-screen flex flex-col font-sans antialiased">
     <Header />
+    
     <main class="flex-grow flex flex-col">
-      <router-view></router-view>
+       <router-view />
     </main>
-  </div>
+    
+    </div>
 </template>

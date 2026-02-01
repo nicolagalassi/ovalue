@@ -10,7 +10,7 @@ const { t } = useLanguage();
     
     <div class="text-center relative w-full max-w-6xl mt-10 md:mt-16 mb-12 md:mb-20 z-10">
         <div class="relative inline-block group">
-            <div class="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-full blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+            <div class="absolute -inset-1 bg-gradient-to-r from-cyan-900 to-purple-600 rounded-full blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
             <img 
                 src="/ovalue.png" 
                 alt="OValue Logo" 

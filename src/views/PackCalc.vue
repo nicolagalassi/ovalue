@@ -287,12 +287,12 @@ onMounted(() => {
                             <span v-else class="text-green-500">{{ t('msg_covered') }}</span>
                         </label>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold uppercase">Cost</span>
                             <input type="text" v-model="formMet" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-200">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-300 font-bold uppercase pointer-events-none">Cost</span>
                         </div>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-600 font-bold uppercase">Held</span>
                             <input type="text" v-model="stockMet" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-400 font-bold uppercase pointer-events-none">Held</span>
                         </div>
                     </div>
 
@@ -303,12 +303,12 @@ onMounted(() => {
                             <span v-else class="text-green-500">{{ t('msg_covered') }}</span>
                         </label>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold uppercase">Cost</span>
                             <input type="text" v-model="formCry" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-blue-200">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-300 font-bold uppercase pointer-events-none">Cost</span>
                         </div>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-600 font-bold uppercase">Held</span>
                             <input type="text" v-model="stockCry" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-400 font-bold uppercase pointer-events-none">Held</span>
                         </div>
                     </div>
 
@@ -319,12 +319,12 @@ onMounted(() => {
                             <span v-else class="text-green-500">{{ t('msg_covered') }}</span>
                         </label>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold uppercase">Cost</span>
                             <input type="text" v-model="formDeu" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-green-200">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-300 font-bold uppercase pointer-events-none">Cost</span>
                         </div>
                         <div class="relative">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-600 font-bold uppercase">Held</span>
                             <input type="text" v-model="stockDeu" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
+                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-400 font-bold uppercase pointer-events-none">Held</span>
                         </div>
                     </div>
                 </div>
@@ -395,26 +395,26 @@ onMounted(() => {
                             <svg class="w-4 h-4 text-purple-500" fill="currentColor" viewBox="0 0 20 20"><path d="M13 7H7v6h6V7z"/><path fill-rule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1v-2H2a1 1 0 110-2h1V7a2 2 0 012-2h2V2zM5 7v6h10V7H5z" clip-rule="evenodd"/></svg>
                             <span>{{ t('lbl_cost_dm') }}</span>
                         </h3>
-                        <div class="flex items-center justify-between bg-black/40 px-2 py-1 rounded border border-white/10">
-                             <span class="text-[10px] text-gray-400 uppercase font-bold mr-2">{{ t('lbl_shop_discount') }}</span>
-                             <select v-model.number="settings.shopDiscount" class="bg-transparent text-xs text-white outline-none text-right font-bold cursor-pointer w-16">
-                                 <option value="0">0%</option>
-                                 <option value="20">-20%</option>
-                                 <option value="30">-30%</option>
+                        <div class="flex items-center justify-between gap-2">
+                             <span class="text-[10px] text-gray-400 uppercase font-bold">{{ t('lbl_shop_discount') }}</span>
+                             <select v-model.number="settings.shopDiscount" class="input-glass px-2 py-1 text-xs">
+                                 <option class="bg-gray-900" value="0">0%</option>
+                                 <option class="bg-gray-900" value="20">-20%</option>
+                                 <option class="bg-gray-900" value="30">-30%</option>
                              </select>
                         </div>
                     </div>
                     
-                    <div class="flex items-center justify-between bg-black/40 px-2 py-1 rounded border border-white/10">
+                    <div class="flex items-center justify-between gap-2">
                          <span class="text-[10px] text-gray-400 uppercase font-bold">{{ t('lbl_event_bonus') }}</span>
-                         <select v-model.number="settings.moBonus" class="bg-transparent text-xs text-white outline-none text-right font-bold cursor-pointer w-24">
-                             <option value="0">{{ t('opt_none') }}</option>
-                             <option value="30">+30% {{ dmLabel }}</option>
-                             <option value="40">+40% {{ dmLabel }}</option>
-                             <option value="50">+50% {{ dmLabel }}</option>
-                             <option value="60">+60% {{ dmLabel }}</option>
-                             <option value="100">+100% {{ dmLabel }}</option>
-                             <option value="130">+130% {{ dmLabel }}</option>
+                         <select v-model.number="settings.moBonus" class="input-glass px-2 py-1 text-xs">
+                             <option class="bg-gray-900" value="0">{{ t('opt_none') }}</option>
+                             <option class="bg-gray-900" value="30">+30% {{ dmLabel }}</option>
+                             <option class="bg-gray-900" value="40">+40% {{ dmLabel }}</option>
+                             <option class="bg-gray-900" value="50">+50% {{ dmLabel }}</option>
+                             <option class="bg-gray-900" value="60">+60% {{ dmLabel }}</option>
+                             <option class="bg-gray-900" value="100">+100% {{ dmLabel }}</option>
+                             <option class="bg-gray-900" value="130">+130% {{ dmLabel }}</option>
                          </select>
                     </div>
 
@@ -426,8 +426,8 @@ onMounted(() => {
                         <div class="flex gap-2">
                              <input type="number" v-model.number="settings.merchantCount" @focus="$event.target.select()" min="0" placeholder="#" class="input-glass w-12 px-1 py-1 text-center text-xs">
                              <select v-model.number="settings.merchantPrice" class="input-glass flex-grow px-1 py-1 text-xs">
-                                 <option value="3500">3.500 {{ dmLabel }}</option>
-                                 <option value="2000">2.000 {{ dmLabel }}</option>
+                                 <option class="bg-gray-900" value="3500">3.500 {{ dmLabel }}</option>
+                                 <option class="bg-gray-900" value="2000">2.000 {{ dmLabel }}</option>
                              </select>
                         </div>
                     </div>

@@ -17,6 +17,7 @@
     "footer_quote": "\"The devil makes the pots but not the lids...so I took care of it.\"",
     "footer_privacy": "This site does not use server-side databases. All configurations are saved exclusively in your browser's Local Storage.",
     "footer_github": "Source Code on GitHub",
+    "footer_dedication": "Special thanks to HighSeven and the entire PQS for the support",
 
     "metal_calc_title": "Production Core",
     "metal_calc_desc": "Optimize production to calculate package values.",

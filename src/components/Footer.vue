@@ -28,6 +28,10 @@ const currentYear = new Date().getFullYear();
                     <p class="text-xs text-gray-500 text-center md:text-left leading-relaxed max-w-xs">
                         {{ t('footer_privacy') }}
                     </p>
+
+                    <p class="text-[10px] text-gray-400 text-center md:text-left italic leading-relaxed max-w-xs border-l-2 border-cyan-500/30 pl-2">
+                        {{ t('footer_dedication') }}
+                    </p>
                     
                     <div class="text-[10px] text-gray-600 font-mono">
                         © {{ currentYear }} Galax. All rights reserved.

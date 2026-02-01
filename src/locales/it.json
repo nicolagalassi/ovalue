@@ -17,6 +17,7 @@
     "footer_quote": "\"Il diavolo fa le pentole ma non i coperchi…quindi ci ho pensato io.\"",
     "footer_privacy": "Questo sito non utilizza database server-side. Tutte le configurazioni sono salvate esclusivamente nel Local Storage del tuo browser.",
     "footer_github": "Codice Sorgente su GitHub",
+    "footer_dedication": "Un ringraziamento ad HighSeven e a tutta la PQS per il supporto",
 
     "metal_calc_title": "Production Core",
     "metal_calc_desc": "Ottimizza la produzione per calcolare il valore dei pacchetti.",

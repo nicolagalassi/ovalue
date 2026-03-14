@@ -77,33 +77,31 @@ const { t } = useLanguage();
                 </div>
             </router-link>
 
-            <!-- Tool 3: Shopping List -->
-            <router-link to="/shopping" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-emerald-500/50 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] hover:-translate-y-1 py-6 md:py-8 h-full min-h-[8rem] md:min-h-[11rem] lg:min-h-[13rem] 2xl:min-h-[14rem] flex flex-col justify-center">
+            <!-- Tool 3: Shopping List (Coming Soon) -->
+            <div class="group relative bg-[#0b0e14]/50 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden py-6 md:py-8 h-full min-h-[8rem] md:min-h-[11rem] lg:min-h-[13rem] 2xl:min-h-[14rem] flex flex-col justify-center cursor-not-allowed opacity-60 grayscale-[50%]">
                 
-                <div class="absolute -right-6 -bottom-6 2xl:-right-10 2xl:-bottom-10 text-emerald-500/5 group-hover:text-emerald-500/10 group-hover:scale-110 group-hover:-rotate-12 transition duration-700 ease-in-out pointer-events-none">
+                <div class="absolute -right-6 -bottom-6 2xl:-right-10 2xl:-bottom-10 text-gray-500/5 pointer-events-none">
                      <svg class="w-32 h-32 md:w-40 md:h-40 2xl:w-80 2xl:h-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                 </div>
 
-                <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-emerald-600 to-transparent opacity-50 group-hover:opacity-100 transition"></div>
-                
                 <div class="flex flex-row items-center w-full px-5 md:px-6 2xl:px-10 relative z-10 gap-4 md:gap-5 2xl:gap-8">
-                    <div class="flex-shrink-0 w-12 h-12 md:w-16 md:h-16 2xl:w-20 2xl:h-20 rounded-xl bg-emerald-900/20 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                        <svg class="w-6 h-6 md:w-8 md:h-8 2xl:w-10 2xl:h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    <div class="flex-shrink-0 w-12 h-12 md:w-16 md:h-16 2xl:w-20 2xl:h-20 rounded-xl bg-gray-900/20 border border-gray-500/20 flex items-center justify-center">
+                        <svg class="w-6 h-6 md:w-8 md:h-8 2xl:w-10 2xl:h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                     </div>
 
                     <div class="flex-grow min-w-0">
-                        <h2 class="text-base md:text-xl lg:text-2xl 2xl:text-3xl font-bold text-white group-hover:text-emerald-400 transition mb-1 md:mb-2 2xl:mb-3 flex items-center gap-2 break-words whitespace-normal leading-tight">
+                        <h2 class="text-base md:text-xl lg:text-2xl 2xl:text-3xl font-bold text-gray-300 mb-1 md:mb-2 2xl:mb-3 flex items-center gap-2 break-words whitespace-normal leading-tight">
                             {{ t('shopping_title') }}
                         </h2>
                         <p class="text-[11px] md:text-sm lg:text-base 2xl:text-lg text-gray-500 leading-tight mb-2 md:mb-3 2xl:mb-4 pr-0 break-words whitespace-normal">
                             {{ t('card_shopping_desc') }}
                         </p>
-                        <span class="text-[10px] md:text-xs 2xl:text-sm font-bold text-emerald-600 uppercase tracking-wider group-hover:text-emerald-400 transition flex items-center gap-1">
-                            {{ t('btn_open') }} <span class="text-base md:text-lg leading-none">›</span>
+                        <span class="inline-flex text-[10px] md:text-xs 2xl:text-sm font-bold text-gray-400 uppercase tracking-wider bg-white/5 border border-white/10 px-2 py-1 rounded-md mt-1 items-center gap-1">
+                            {{ t('coming_soon') }}
                         </span>
                     </div>
                 </div>
-            </router-link>
+            </div>
 
         </div>
     </div>

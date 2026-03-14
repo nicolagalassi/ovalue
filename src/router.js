@@ -32,7 +32,14 @@ const routes = [
             description: 'Calcolatore costi costruzioni e convertitore risorse in pacchetti MO (Dark Matter).'
         }
     },
-    
+    {
+        path: '/shopping',
+        component: () => import('./views/ShoppingList.vue'),
+        meta: {
+            title: 'Shopping List - OValue',
+            description: 'Crea una lista della spesa per strutture, navi e ricerche e calcola il costo totale in risorse.'
+        }
+    }
 ];
 
 const router = createRouter({

@@ -71,5 +71,27 @@ export const OGAME_DB = {
             "interplanetary_missile": { "b": [12500, 2500, 10000], "f": 1, "type": "unit" },
             "antiballistic_missile": { "b": [8000, 0, 2000], "f": 1, "type": "unit" }
         }
+    },
+    "premium_items": {
+        "items": {
+            "metal_booster_bronze": { "cost": 2500, "type": "booster" },
+            "metal_booster_silver": { "cost": 8500, "type": "booster" },
+            "metal_booster_gold": { "cost": 25000, "type": "booster" },
+            "crystal_booster_bronze": { "cost": 2500, "type": "booster" },
+            "crystal_booster_silver": { "cost": 8500, "type": "booster" },
+            "crystal_booster_gold": { "cost": 25000, "type": "booster" },
+            "deut_booster_bronze": { "cost": 2500, "type": "booster" },
+            "deut_booster_silver": { "cost": 8500, "type": "booster" },
+            "deut_booster_gold": { "cost": 25000, "type": "booster" },
+            "kraken_bronze": { "cost": 2500, "type": "reducer" },
+            "kraken_silver": { "cost": 8500, "type": "reducer" },
+            "kraken_gold": { "cost": 25000, "type": "reducer" },
+            "detroid_bronze": { "cost": 2500, "type": "reducer" },
+            "detroid_silver": { "cost": 8500, "type": "reducer" },
+            "detroid_gold": { "cost": 25000, "type": "reducer" },
+            "newtron_bronze": { "cost": 2500, "type": "reducer" },
+            "newtron_silver": { "cost": 8500, "type": "reducer" },
+            "newtron_gold": { "cost": 25000, "type": "reducer" }
+        }
     }
 };

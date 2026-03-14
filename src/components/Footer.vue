@@ -10,10 +10,10 @@ const currentYear = new Date().getFullYear();
     
     <div class="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent shadow-[0_0_10px_rgba(6,182,212,0.5)]"></div>
 
-    <div class="bg-[#050505]/80 backdrop-blur-xl border-t border-white/5 pt-10 pb-8">
+    <div class="bg-[#050505]/80 backdrop-blur-xl border-t border-white/5 pt-8 md:pt-10 pb-6 md:pb-8">
         <div class="max-w-7xl mx-auto px-4 md:px-6">
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-4 items-center">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-4 items-center">
                 
                 <div class="flex flex-col items-center md:items-start space-y-3">
                     <p class="text-xs text-gray-500 text-center md:text-left leading-relaxed max-w-xs">

@@ -5,7 +5,6 @@
     "btn_reset": "Reset",
     "btn_copy": "Copy",
     "copied": "Copied!",
-    
     "index_title_suffix": "Value",
     "index_desc": "Maximize your empire's value. Advanced calculators for production, crawlers, and shop.",
     "card_metal_title": "Production Core",
@@ -16,12 +15,10 @@
     "card_shopping_desc": "Plan the purchase of Premium Items and optimize your Dark Matter expenses.",
     "btn_open": "OPEN TOOL",
     "coming_soon": "COMING SOON",
-
     "footer_quote": "\"The devil makes the pots but not the lids...so I took care of it.\"",
     "footer_privacy": "This site does not use server-side databases. All configurations are saved exclusively in your browser's Local Storage.",
     "footer_github": "Source Code on GitHub",
     "footer_dedication": "Special thanks to HighSeven and the entire PQS for the support",
-
     "metal_calc_title": "Production Core",
     "metal_calc_desc": "Optimize production to calculate package values.",
     "settings_title": "Account Settings",
@@ -36,17 +33,14 @@
     "opt_trader": "Trader (+5%)",
     "lbl_geo": "Geologist (+10%)",
     "lbl_staff": "Command Staff (+2%)",
-    
     "bulk_title": "Bulk Edit",
     "btn_bulk_apply": "Apply to All",
     "bulk_placeholder": "New Value",
-    
     "planet_mgmt": "Planet Management",
     "btn_add_planet": "New Planet",
     "lbl_planet": "Planet",
     "btn_clone": "Clone",
     "btn_delete": "Delete",
-    
     "res_metal": "Metal",
     "res_crystal": "Crystal",
     "res_deuterium": "Deuterium",
@@ -62,10 +56,8 @@
     "lbl_overload": "Overload (150%)",
     "msg_crawler_cap": "Capped at MAX",
     "msg_crawler_none": "No active crawlers",
-    
     "footer_prod_hour": "Hourly Production",
     "footer_pack_day": "Package (24h)",
-
     "pack_calc_title": "Pack Exchange",
     "pack_calc_desc": "Convert costs to MSU and optimize Dark Matter purchases.",
     "import_title": "Import Costs (OGLight)",
@@ -98,7 +90,6 @@
     "shop_list_contains": "Contains",
     "shop_list_each": "DM each",
     "shop_list_empty": "No packs needed",
-
     "builder_title": "Builder / Planner",
     "lbl_category": "Category",
     "lbl_element": "Element",
@@ -110,7 +101,6 @@
     "cat_resources": "Resource Buildings",
     "queue_empty": "List is empty",
     "imported_data": "OGLight Import",
-
     "metal_mine": "Metal Mine",
     "crystal_mine": "Crystal Mine",
     "deuterium_synthesizer": "Deuterium Synth",
@@ -192,5 +182,16 @@
     "shopping_cart_title": "Your Cart",
     "shopping_cart_empty": "Your cart is empty",
     "shopping_total": "Total Resources",
-    "shopping_clear": "Clear Cart"
+    "shopping_clear": "Clear Cart",
+    "_comment": "Add these key-value pairs to your existing en.json (merge at top level)",
+    "news_feed_title": "Galactic Dispatch",
+    "news_feed_subtitle": "Latest from International Forum",
+    "news_feed_updated": "Updated",
+    "news_feed_refresh": "Refresh feed",
+    "news_feed_error": "Signal lost — unable to reach the OGame forum.",
+    "news_feed_retry": "Retry",
+    "news_feed_default_category": "News",
+    "news_feed_show_more": "Show more",
+    "news_feed_show_less": "Show less",
+    "news_feed_visit_forum": "Open Forum"
 }

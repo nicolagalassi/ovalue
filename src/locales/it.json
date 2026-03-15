@@ -186,5 +186,16 @@
     "shopping_cart_title": "Il Tuo Carrello",
     "shopping_cart_empty": "Il carrello è vuoto",
     "shopping_total": "Totale Risorse",
-    "shopping_clear": "Svuota Carrello"
+    "shopping_clear": "Svuota Carrello",
+    "_comment": "Aggiungi queste coppie chiave-valore al tuo it.json esistente (unisci al livello principale)",
+    "news_feed_title": "Dispacci Galattici",
+    "news_feed_subtitle": "Ultime dal Forum Internazionale",
+    "news_feed_updated": "Aggiornato",
+    "news_feed_refresh": "Aggiorna feed",
+    "news_feed_error": "Segnale perso — impossibile raggiungere il forum OGame.",
+    "news_feed_retry": "Riprova",
+    "news_feed_default_category": "Notizia",
+    "news_feed_show_more": "Mostra altri",
+    "news_feed_show_less": "Mostra meno",
+    "news_feed_visit_forum": "Apri Forum"
 }

@@ -193,5 +193,11 @@
     "news_feed_default_category": "News",
     "news_feed_show_more": "Show more",
     "news_feed_show_less": "Show less",
-    "news_feed_visit_forum": "Open Forum"
+    "news_feed_visit_forum": "Open Forum",
+    "lbl_external_links": "External References",
+    "card_ostats_title": "OStats",
+    "card_ostats_desc": "Hourly and daily OGame statistics.",
+    "card_ou_title": "OGame Utilities",
+    "card_ou_desc": "External tools and utilities for OGame.",
+    "btn_visit": "VISIT SITE"
 }

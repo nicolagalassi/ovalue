@@ -197,5 +197,11 @@
     "news_feed_default_category": "Notizia",
     "news_feed_show_more": "Mostra altri",
     "news_feed_show_less": "Mostra meno",
-    "news_feed_visit_forum": "Apri Forum"
+    "news_feed_visit_forum": "Apri Forum",
+    "lbl_external_links": "Referenze Esterne",
+    "card_ostats_title": "OStats",
+    "card_ostats_desc": "Statistiche orarie e giornaliere di OGame.",
+    "card_ou_title": "OGame Utilities",
+    "card_ou_desc": "Tool esterni e utility per OGame.",
+    "btn_visit": "VISITA SITO"
 }

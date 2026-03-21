@@ -107,6 +107,45 @@ const { t } = useLanguage();
         </div>
     </div>
 
+    <!-- ── External References ──────────────────────────────────────────── -->
+    <div class="w-full max-w-7xl px-4 md:px-6 py-4 md:py-8 z-10 mx-auto">
+        <h3 class="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-[0.2em] mb-4 md:mb-6 flex items-center gap-3">
+            <span class="w-8 md:w-12 h-[1px] bg-gradient-to-r from-transparent to-gray-800"></span>
+            {{ t('lbl_external_links') }}
+            <span class="flex-grow h-[1px] bg-gradient-to-l from-transparent to-gray-800"></span>
+        </h3>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- OStats Link -->
+            <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer" class="group relative bg-[#0b0e14]/40 backdrop-blur-sm border border-white/5 rounded-xl p-4 transition-all duration-300 hover:border-purple-500/30 hover:bg-[#0b0e14]/60 flex items-center gap-4">
+                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-purple-900/20 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                </div>
+                <div class="min-w-0">
+                    <h4 class="text-white text-sm md:text-base font-bold group-hover:text-purple-400 transition">{{ t('card_ostats_title') }}</h4>
+                    <p class="text-[10px] md:text-xs text-gray-500 truncate">{{ t('card_ostats_desc') }}</p>
+                </div>
+                <div class="ml-auto text-gray-600 group-hover:text-purple-400 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </div>
+            </a>
+
+            <!-- OgameUtilities Link -->
+            <a href="https://www.ogameutilities.it/index.html" target="_blank" rel="noopener noreferrer" class="group relative bg-[#0b0e14]/40 backdrop-blur-sm border border-white/5 rounded-xl p-4 transition-all duration-300 hover:border-indigo-500/30 hover:bg-[#0b0e14]/60 flex items-center gap-4">
+                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-indigo-900/20 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path></svg>
+                </div>
+                <div class="min-w-0">
+                    <h4 class="text-white text-sm md:text-base font-bold group-hover:text-indigo-400 transition">{{ t('card_ou_title') }}</h4>
+                    <p class="text-[10px] md:text-xs text-gray-500 truncate">{{ t('card_ou_desc') }}</p>
+                </div>
+                <div class="ml-auto text-gray-600 group-hover:text-indigo-400 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </div>
+            </a>
+        </div>
+    </div>
+
     <!-- ── OGame Forum News Feed ──────────────────────────────────────────── -->
     <div class="w-full max-w-7xl px-4 md:px-6 pb-6 z-10 mx-auto">
       <NewsFeed />

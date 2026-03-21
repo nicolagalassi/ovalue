@@ -78,31 +78,33 @@ const { t } = useLanguage();
                 </div>
             </router-link>
 
-            <!-- Tool 3: Shopping List (Coming Soon) -->
-            <div class="group relative bg-[#0b0e14]/50 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden py-4 md:py-5 flex flex-col justify-center cursor-not-allowed opacity-60 grayscale-[50%]">
+            <!-- Tool 3: Shopping List -->
+            <router-link to="/shopping" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-purple-500/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] hover:-translate-y-1 py-4 md:py-5 flex flex-col justify-center">
                 
-                <div class="absolute -right-6 -bottom-6 2xl:-right-10 2xl:-bottom-10 text-gray-500/5 pointer-events-none">
+                <div class="absolute -right-6 -bottom-6 2xl:-right-10 2xl:-bottom-10 text-purple-500/5 group-hover:text-purple-500/10 group-hover:scale-110 group-hover:-rotate-12 transition duration-700 ease-in-out pointer-events-none">
                      <svg class="w-32 h-32 md:w-40 md:h-40 2xl:w-80 2xl:h-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                 </div>
 
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-purple-600 to-transparent opacity-50 group-hover:opacity-100 transition"></div>
+                
                 <div class="flex flex-row items-center w-full px-5 md:px-6 relative z-10 gap-4 md:gap-5">
-                    <div class="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gray-900/20 border border-gray-500/20 flex items-center justify-center">
-                        <svg class="w-5 h-5 md:w-6 md:h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    <div class="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-xl bg-purple-900/20 border border-purple-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+                        <svg class="w-5 h-5 md:w-6 md:h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                     </div>
 
                     <div class="flex-grow min-w-0">
-                        <h2 class="text-base md:text-lg font-bold text-gray-300 mb-0.5 md:mb-1 flex items-center gap-2 break-words whitespace-normal leading-tight">
+                        <h2 class="text-base md:text-lg font-bold text-white group-hover:text-purple-400 transition mb-0.5 md:mb-1 flex items-center gap-2 break-words whitespace-normal leading-tight">
                             {{ t('shopping_title') }}
                         </h2>
                         <p class="text-[11px] md:text-xs text-gray-500 leading-tight mb-2 pr-0 break-words whitespace-normal">
                             {{ t('card_shopping_desc') }}
                         </p>
-                        <span class="inline-flex text-[10px] md:text-xs 2xl:text-sm font-bold text-gray-400 uppercase tracking-wider bg-white/5 border border-white/10 px-2 py-1 rounded-md mt-1 items-center gap-1">
-                            {{ t('coming_soon') }}
+                        <span class="text-[10px] md:text-xs 2xl:text-sm font-bold text-purple-600 uppercase tracking-wider group-hover:text-purple-400 transition flex items-center gap-1">
+                            {{ t('btn_open') }} <span class="text-base md:text-lg leading-none">›</span>
                         </span>
                     </div>
                 </div>
-            </div>
+            </router-link>
 
         </div>
     </div>

@@ -244,26 +244,163 @@ export const OGAME_DB = {
             "antiballistic_missile": { "b": [8000, 0, 2000], "f": 1, "type": "unit" }
         }
     },
-    "premium_items": {
-        "items": {
-            "metal_booster_bronze": { "cost": 2500, "type": "booster" },
-            "metal_booster_silver": { "cost": 8500, "type": "booster" },
-            "metal_booster_gold": { "cost": 25000, "type": "booster" },
-            "crystal_booster_bronze": { "cost": 2500, "type": "booster" },
-            "crystal_booster_silver": { "cost": 8500, "type": "booster" },
-            "crystal_booster_gold": { "cost": 25000, "type": "booster" },
-            "deut_booster_bronze": { "cost": 2500, "type": "booster" },
-            "deut_booster_silver": { "cost": 8500, "type": "booster" },
-            "deut_booster_gold": { "cost": 25000, "type": "booster" },
-            "kraken_bronze": { "cost": 2500, "type": "reducer" },
-            "kraken_silver": { "cost": 8500, "type": "reducer" },
-            "kraken_gold": { "cost": 25000, "type": "reducer" },
-            "detroid_bronze": { "cost": 2500, "type": "reducer" },
-            "detroid_silver": { "cost": 8500, "type": "reducer" },
-            "detroid_gold": { "cost": 25000, "type": "reducer" },
-            "newtron_bronze": { "cost": 2500, "type": "reducer" },
-            "newtron_silver": { "cost": 8500, "type": "reducer" },
-            "newtron_gold": { "cost": 25000, "type": "reducer" }
+    premium_items_legacy: {
+        items: {
+            metal_booster_bronze: { cost: 2500, type: "booster" },
+            metal_booster_silver: { cost: 8500, type: "booster" },
+            metal_booster_gold: { cost: 25000, type: "booster" },
+            crystal_booster_bronze: { cost: 2500, type: "booster" },
+            crystal_booster_silver: { cost: 8500, type: "booster" },
+            crystal_booster_gold: { cost: 25000, type: "booster" },
+            deut_booster_bronze: { cost: 2500, type: "booster" },
+            deut_booster_silver: { cost: 8500, type: "booster" },
+            deut_booster_gold: { cost: 25000, type: "booster" },
+            kraken_bronze: { cost: 2500, type: "reducer" },
+            kraken_silver: { cost: 8500, type: "reducer" },
+            kraken_gold: { cost: 25000, type: "reducer" },
+            detroid_bronze: { cost: 2500, type: "reducer" },
+            detroid_silver: { cost: 8500, type: "reducer" },
+            detroid_gold: { cost: 25000, type: "reducer" },
+            newtron_bronze: { cost: 2500, type: "reducer" },
+            newtron_silver: { cost: 8500, type: "reducer" },
+            newtron_gold: { cost: 25000, type: "reducer" }
         }
+    }
+};
+
+export const SHOP_ITEMS = {
+    categories: [
+        { id: "resources", name: "shop_cat_resources" },
+        { id: "officers", name: "shop_cat_officers" },
+        { id: "boosters_res", name: "shop_cat_boosters_res" },
+        { id: "boosters_energy", name: "shop_cat_boosters_energy" },
+        { id: "slots", name: "shop_cat_slots" },
+        { id: "fields", name: "shop_cat_fields" },
+        { id: "items", name: "shop_cat_items" }
+    ],
+    durations: [
+        { id: "base", name: "dur_base" },
+        { id: "7d", name: "dur_7d" },
+        { id: "30d", name: "dur_30d" },
+        { id: "90d", name: "dur_90d" }
+    ],
+    items: {
+        // Resources
+        "res_package_all": { cat: "resources", tier: "none", costs: { "none": { "base": 360000 } } },
+        "res_package_deut": { cat: "resources", tier: "none", costs: { "none": { "base": 180000 } } },
+        "res_package_crystal": { cat: "resources", tier: "none", costs: { "none": { "base": 120000 } } },
+        "res_package_metal": { cat: "resources", tier: "none", costs: { "none": { "base": 60000 } } },
+        
+        // Officers & Classes
+        "class_collector": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
+        "class_general": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
+        "class_discoverer": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
+        "staff_researcher": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
+        "staff_merchant": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
+        "staff_warrior": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
+        "officer_commander": { cat: "officers", tier: "none", costs: { "none": { "7d": 10000, "90d": 100000 } } },
+        "officer_admiral": { cat: "officers", tier: "none", costs: { "none": { "7d": 5000, "90d": 50000 } } },
+        "officer_engineer": { cat: "officers", tier: "none", costs: { "none": { "7d": 5000, "90d": 50000 } } },
+        "officer_geologist": { cat: "officers", tier: "none", costs: { "none": { "7d": 12500, "90d": 125000 } } },
+        "officer_technocrat": { cat: "officers", tier: "none", costs: { "none": { "7d": 10000, "90d": 100000 } } },
+        "staff_command": { cat: "officers", tier: "none", costs: { "none": { "7d": 42500, "90d": 425000 } } },
+
+        // Resource Boosters
+        "booster_metal": { cat: "boosters_res", tier: "multi", costs: {
+            "platinum": { "7d": 27000, "30d": 93500, "90d": 240000 },
+            "gold": { "7d": 18000, "30d": 63750, "90d": 160000 },
+            "silver": { "7d": 6750, "30d": 23800, "90d": 64000 },
+            "bronze": { "7d": 2500, "30d": 8500, "90d": 25000 }
+        }},
+        "booster_crystal": { cat: "boosters_res", tier: "multi", costs: {
+            "platinum": { "7d": 27000, "30d": 93500, "90d": 240000 },
+            "gold": { "7d": 18000, "30d": 63750, "90d": 160000 },
+            "silver": { "7d": 6750, "30d": 23800, "90d": 64000 },
+            "bronze": { "7d": 2500, "30d": 8500, "90d": 25000 }
+        }},
+        "booster_deut": { cat: "boosters_res", tier: "multi", costs: {
+            "platinum": { "7d": 27000, "30d": 93500, "90d": 240000 },
+            "gold": { "7d": 18000, "30d": 63750, "90d": 160000 },
+            "silver": { "7d": 6750, "30d": 23800, "90d": 64000 },
+            "bronze": { "7d": 2500, "30d": 8500, "90d": 25000 }
+        }},
+
+        // Energy Amplifiers
+        "booster_energy": { cat: "boosters_energy", tier: "multi", costs: {
+            "platinum": { "7d": 27000, "30d": 93500, "90d": 240000 },
+            "gold": { "7d": 18000, "30d": 63750, "90d": 160000 },
+            "silver": { "7d": 6750, "30d": 23800, "90d": 64000 },
+            "bronze": { "7d": 2500, "30d": 8500, "90d": 25000 }
+        }},
+
+        // Planet Fields
+        "fields_planet": { cat: "fields", tier: "multi", costs: {
+            "platinum": { "base": 350000 },
+            "gold": { "base": 300000 },
+            "silver": { "base": 150000 },
+            "bronze": { "base": 75000 }
+        }},
+
+        // Moon Fields
+        "fields_moon": { cat: "fields", tier: "multi", costs: {
+            "platinum": { "base": 130000 },
+            "gold": { "base": 100000 },
+            "silver": { "base": 50000 },
+            "bronze": { "base": 30000 }
+        }},
+
+        // Items (M.O.O.N.S, Reducers)
+        "moons": { cat: "items", tier: "multi", costs: {
+            "gold": { "base": 100000 },
+            "silver": { "base": 50000 },
+            "bronze": { "base": 30000 }
+        }},
+        "kraken": { cat: "items", tier: "multi", costs: {
+            "gold": { "base": 25000 },
+            "silver": { "base": 8500 },
+            "bronze": { "base": 2500 }
+        }},
+        "detroid": { cat: "items", tier: "multi", costs: {
+            "gold": { "base": 25000 },
+            "silver": { "base": 8500 },
+            "bronze": { "base": 2500 }
+        }},
+        "newtron": { cat: "items", tier: "multi", costs: {
+            "gold": { "base": 25000 },
+            "silver": { "base": 8500 },
+            "bronze": { "base": 2500 }
+        }},
+
+        // Expedition Slots
+        "slot_expedition": { cat: "slots", tier: "multi", costs: {
+            "gold": { "7d": 40500, "30d": 143437, "90d": 378000 },
+            "silver": { "7d": 27000, "30d": 95625, "90d": 252000 },
+            "bronze": { "7d": 13500, "30d": 47812, "90d": 126000 }
+        }},
+
+        // Fleet Slots
+        "slot_fleet": { cat: "slots", tier: "multi", costs: {
+            "gold": { "7d": 13500, "30d": 47812, "90d": 126000 },
+            "silver": { "7d": 9000, "30d": 31875, "90d": 84000 },
+            "bronze": { "7d": 4500, "30d": 15937, "90d": 42000 }
+        }},
+
+        // Avatars
+        "avatar_lasercat": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_weightless": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_alien": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_frosty": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_augmented": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_cyberspace": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_retro_kitties": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_destiny": { cat: "avatars", tier: "none", costs: { "none": { "base": 25000 } } },
+        "avatar_warmonger": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_consuming_wrath": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_commander_kitty": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
+        "avatar_star_pilot": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } },
+        "avatar_android": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } },
+        "avatar_event_horizon": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } },
+        "avatar_star_turtle": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } },
+        "avatar_smith_of_destiny": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } }
     }
 };

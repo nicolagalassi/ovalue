@@ -1,0 +1,462 @@
+[
+  {
+    "nome": "",
+    "costo_MO": 0,
+    "immagine": "https://gf3.geo.gfsrv.net/cdnea/8c3657fbb2a8808627f8a3dbedcb8c.png"
+  },
+  {
+    "nome": "Pacchetto Risorse completo",
+    "costo_MO": 360000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Pacchetto Deuterio",
+    "costo_MO": 180000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Collezionista",
+    "costo_MO": 500000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Pacchetto Metallo",
+    "costo_MO": 60000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Generale",
+    "costo_MO": 500000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di metallo Platino",
+    "costo_MO": 27000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Pacchetto Cristallo",
+    "costo_MO": 120000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Esploratore",
+    "costo_MO": 500000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di metallo Oro",
+    "costo_MO": 18000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di metallo Argento",
+    "costo_MO": 6750,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di cristalli Argento",
+    "costo_MO": 6750,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di deuterio Argento",
+    "costo_MO": 6750,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di cristallo Platino",
+    "costo_MO": 27000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di deuterio Platino",
+    "costo_MO": 27000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Spazi pianeta Platino",
+    "costo_MO": 350000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di cristalli Oro",
+    "costo_MO": 18000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di deuterio Oro",
+    "costo_MO": 18000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Spazi pianeta Oro",
+    "costo_MO": 300000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Spazi pianeta Argento",
+    "costo_MO": 150000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Campi lunari oro",
+    "costo_MO": 100000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "M.O.O.N.S. oro",
+    "costo_MO": 100000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Spazi pianeta Bronzo",
+    "costo_MO": 75000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Campi lunari argento",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "M.O.O.N.S. argento",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Campi lunari Platino",
+    "costo_MO": 130000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Campi lunari bronzo",
+    "costo_MO": 30000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "M.O.O.N.S. bronzo",
+    "costo_MO": 30000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di cristallo Platino",
+    "costo_MO": 240000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di cristallo Platino",
+    "costo_MO": 93500,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di deuterio Platino",
+    "costo_MO": 240000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di cristalli Oro",
+    "costo_MO": 160000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di cristalli Oro",
+    "costo_MO": 63750,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di deuterio Oro",
+    "costo_MO": 160000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di cristalli Argento",
+    "costo_MO": 64000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di cristalli Argento",
+    "costo_MO": 23800,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di deuterio Argento",
+    "costo_MO": 64000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di deuterio Platino",
+    "costo_MO": 93500,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di metallo Platino",
+    "costo_MO": 240000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di metallo Platino",
+    "costo_MO": 93500,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di deuterio Oro",
+    "costo_MO": 63750,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di metallo Oro",
+    "costo_MO": 160000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di metallo Oro",
+    "costo_MO": 63750,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di deuterio Argento",
+    "costo_MO": 23800,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di metallo Argento",
+    "costo_MO": 64000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore di metallo Argento",
+    "costo_MO": 23800,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore Energy Argento",
+    "costo_MO": 6750,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore Energy Oro",
+    "costo_MO": 18000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore Energy Platino",
+    "costo_MO": 27000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore Energy Argento",
+    "costo_MO": 23800,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore Energy Oro",
+    "costo_MO": 63750,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore Energy Platino",
+    "costo_MO": 93500,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore Energy Argento",
+    "costo_MO": 64000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore Energy Oro",
+    "costo_MO": 160000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Amplificatore Energy Platino",
+    "costo_MO": 240000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot spedizioni Bronzo",
+    "costo_MO": 13500,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot spedizioni Argento",
+    "costo_MO": 27000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot spedizioni Oro",
+    "costo_MO": 40500,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot spedizioni Bronzo",
+    "costo_MO": 47812,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot spedizioni Argento",
+    "costo_MO": 95625,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot spedizioni Oro",
+    "costo_MO": 143437,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot spedizioni Bronzo",
+    "costo_MO": 126000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot spedizioni Argento",
+    "costo_MO": 252000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot spedizioni Oro",
+    "costo_MO": 378000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot flotte Bronzo",
+    "costo_MO": 4500,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot flotte Argento",
+    "costo_MO": 9000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot flotte Oro",
+    "costo_MO": 13500,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot flotte Bronzo",
+    "costo_MO": 15937,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot flotte Argento",
+    "costo_MO": 31875,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot flotte Oro",
+    "costo_MO": 47812,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot flotte Bronzo",
+    "costo_MO": 42000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot flotte Argento",
+    "costo_MO": 84000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Slot flotte Oro",
+    "costo_MO": 126000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Ricercatore (Alleanza)",
+    "costo_MO": 500000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Lasercat",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Senza peso",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Mercante (Alleanza)",
+    "costo_MO": 500000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Piccolo alieno",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Gelido",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Guerriero (Alleanza)",
+    "costo_MO": 500000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Augmented",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Cyberspace",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Retro Kitties",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Destino",
+    "costo_MO": 25000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar limitato: Pilota stellare",
+    "costo_MO": 65000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Guerrafondaio",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Ira consumante",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar limitato: Androide",
+    "costo_MO": 65000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar: Commander Kitty",
+    "costo_MO": 50000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar limitato: Orizzonte degli eventi",
+    "costo_MO": 65000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar limitato: Tartaruga stellare",
+    "costo_MO": 65000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  },
+  {
+    "nome": "Avatar limitato: Fabbro del destino",
+    "costo_MO": 65000,
+    "immagine": "Nessuna immagine trovata. Possibile sprite CSS."
+  }
+]

@@ -48,8 +48,8 @@ const stockCry = createFormattedInput(stock, 'crystal');
 const stockDeu = createFormattedInput(stock, 'deuterium');
 
 // --- BUILDER & PARSER ---
-const builder = reactive({ cat: 'resources', item: 'metal_mine', level: 1, amount: 1, minLevel: 0 });
-const parser = reactive({ text: '', multiplier: 1 });
+// --- BUILDER ---
+const builder = reactive({ cat: 'resources', subCat: 'buildings', item: 'metal_mine', level: 1, amount: 1, minLevel: 0 });
 const basePacks = [ { cost: 200, amount: 5100000 }, { cost: 100, amount: 2525000 }, { cost: 50, amount: 1140000 }, { cost: 25, amount: 480000 }, { cost: 10, amount: 150000 }, { cost: 5, amount: 60000 } ];
 
 const currentItems = computed(() => { const catData = OGAME_DB[builder.cat]; return catData ? catData.items : {}; });
@@ -61,16 +61,50 @@ watch(() => builder.cat, (newCat) => {
 });
 
 const addToQueue = () => {
-    const itemData = OGAME_DB[builder.cat].items[builder.item]; if (!itemData) return;
-    let costM = 0, costC = 0, costD = 0; const lvl = parseInt(builder.level) || 1; let mult = parseInt(builder.amount) || 1; if (builder.cat === 'research') mult = 1;
-    if (itemData.type === 'unit') { costM = itemData.b[0] * mult; costC = itemData.b[1] * mult; costD = itemData.b[2] * mult; } 
-    else {
-        const factor = Math.pow(itemData.f, lvl - 1); 
-        costM = Math.floor(itemData.b[0] * factor); costC = Math.floor(itemData.b[1] * factor); costD = Math.floor(itemData.b[2] * factor);
+    const itemData = OGAME_DB[builder.cat]?.items[builder.item]; 
+    if (!itemData) return;
+    
+    let costM = 0, costC = 0, costD = 0; 
+    const lvl = parseInt(builder.level) || 1; 
+    let mult = parseInt(builder.amount) || 1; 
+    
+    const isLF = builder.cat.startsWith('lf_');
+    const isResearch = builder.cat.endsWith('_res') || builder.cat === 'research';
+    if (isResearch) mult = 1;
+
+    if (itemData.type === 'unit') { 
+        costM = itemData.cost[0] * mult; 
+        costC = itemData.cost[1] * mult; 
+        costD = itemData.cost[2] * mult; 
+    } else if (isLF) {
+        // LF Cost Formula: Math.floor(base * Math.pow(factor, level - 1))
+        // And then sum up for levels? No, user usually wants cost for a SPECIFIC level.
+        // Wait, OGame build cost is usually (base * factor^(level-1)).
+        // But for multiple levels (e.g. from 1 to 10), it's a sum.
+        // The current builder logic seems to calculate for level L.
+        const factorM = itemData.factors[0];
+        const factorC = itemData.factors[1];
+        const factorD = itemData.factors[2];
+        
+        costM = Math.floor(itemData.cost[0] * Math.pow(factorM, lvl - 1));
+        costC = Math.floor(itemData.cost[1] * Math.pow(factorC, lvl - 1));
+        costD = Math.floor(itemData.cost[2] * Math.pow(factorD, lvl - 1));
+        
+        costM *= mult; costC *= mult; costD *= mult;
+    } else {
+        const factor = Math.pow(itemData.factor, lvl - 1); 
+        costM = Math.floor(itemData.cost[0] * factor); 
+        costC = Math.floor(itemData.cost[1] * factor); 
+        costD = Math.floor(itemData.cost[2] * factor);
+        
         if (['metal_mine', 'crystal_mine', 'deuterium_synthesizer'].includes(builder.item)) { 
             const minLvl = parseInt(builder.minLevel) || 0; 
             const discount = Math.min(0.5, minLvl * 0.005); 
-            if (discount > 0) { costM = Math.floor(costM * (1 - discount)); costC = Math.floor(costC * (1 - discount)); costD = Math.floor(costD * (1 - discount)); } 
+            if (discount > 0) { 
+                costM = Math.floor(costM * (1 - discount)); 
+                costC = Math.floor(costC * (1 - discount)); 
+                costD = Math.floor(costD * (1 - discount)); 
+            } 
         }
         costM *= mult; costC *= mult; costD *= mult;
     }
@@ -80,19 +114,7 @@ const addToQueue = () => {
 const removeFromQueue = (index) => { queue.value.splice(index, 1); updateInputsFromQueue(); };
 const updateInputsFromQueue = () => { let m = 0, c = 0, d = 0; queue.value.forEach(item => { m += item.m; c += item.c; d += item.d; }); if (queue.value.length > 0) { inputs.metal = m; inputs.crystal = c; inputs.deuterium = d; } };
 
-const parseString = () => {
-    const text = parser.text; const mult = parseInt(parser.multiplier) || 1; let m = 0, c = 0, d = 0; let foundAny = false; 
-    let parts = text.includes('|') ? text.split('|') : (text.includes('\n') ? text.split('\n') : [text]);
-    parts.forEach(part => { 
-        const numMatch = part.match(/[\d\.]+/); if (!numMatch) return; 
-        const val = parseInt(numMatch[0].replace(/\./g, '')) || 0; if (val === 0) return; 
-        const label = part.replace(/[\d\.\s]/g, '').toLowerCase(); 
-        if (label.startsWith('d')) d += val; else if (label.startsWith('c') || label.startsWith('k')) c += val; else m += val; 
-        foundAny = true; 
-    });
-    m *= mult; c *= mult; d *= mult; 
-    if (foundAny) { queue.value.push({ key: 'imported_data', cat: 'import', level: 0, amount: mult, m, c, d }); updateInputsFromQueue(); parser.text = ''; } else { alert(t('msg_missing')); }
-};
+const removalInProgress = ref(false); // Dummy for cleaner removal
 
 // --- CORE CALCULATION LOGIC ---
 const calculation = computed(() => {
@@ -100,14 +122,19 @@ const calculation = computed(() => {
     const rC = parseFloat(settings.rateCry) || 2;
     const rD = parseFloat(settings.rateDeut) || 1;
 
+    // Total MSE of required resources
+    const totalInputsMSE = inputs.metal + (inputs.crystal * (rM / rC)) + (inputs.deuterium * (rM / rD));
+    
+    // Total MSE of held resources
+    const totalStockMSE = stock.metal + (stock.crystal * (rM / rC)) + (stock.deuterium * (rM / rD));
+
+    // Net MSE needed
+    const totalMSE = Math.max(0, Math.ceil(totalInputsMSE - totalStockMSE));
+
+    // For individual resource missing display (purely visual, but helpful)
     const needM = Math.max(0, inputs.metal - stock.metal);
     const needC = Math.max(0, inputs.crystal - stock.crystal);
     const needD = Math.max(0, inputs.deuterium - stock.deuterium);
-
-    const mseM = needM;
-    const mseC = needC * (rM / rC);
-    const mseD = needD * (rM / rD);
-    const totalMSE = Math.ceil(mseM + mseC + mseD);
 
     const packVal = parseInt(settings.packValue) || 1;
     let packsNeeded = 0;
@@ -121,7 +148,7 @@ const calculation = computed(() => {
     const merchantCost = settings.merchantCount * settings.merchantPrice;
     const totalMO = packsMO + merchantCost;
 
-    return { needM, needC, needD, totalMSE, packsNeeded, totalMO, moPerPack, merchantCost };
+    return { needM, needC, needD, totalMSE, packsNeeded, totalMO, moPerPack, merchantCost, totalInputsMSE, totalStockMSE };
 });
 
 const tradePlan = computed(() => {
@@ -203,6 +230,19 @@ onMounted(() => {
   </Teleport>
 
   <div class="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-12">
+    <!-- Intro Section -->
+    <div class="card-glass p-6 mb-8 border-l-4 border-l-ogame-warning/50 bg-ogame-warning/5">
+        <div class="flex items-start gap-4">
+            <div class="p-3 rounded-xl bg-ogame-warning/10 text-ogame-warning">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-white mb-2">{{ t('pack_calc_title') }}</h2>
+                <p class="text-sm text-gray-400 leading-relaxed">{{ t('pack_calc_intro') }}</p>
+            </div>
+        </div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <div class="lg:col-span-2 space-y-8">
@@ -220,7 +260,22 @@ onMounted(() => {
                             <option value="facilities">{{ t('cat_facilities') }}</option>
                             <option value="research">{{ t('cat_research') }}</option>
                             <option value="fleet">{{ t('cat_fleet') }}</option>
-                            <option value="lf_rock">{{ t('cat_lf_rock') }}</option>
+                            <optgroup :label="t('cat_lf_humans')">
+                                <option value="lf_humans">{{ t('cat_facilities') }}</option>
+                                <option value="lf_humans_res">{{ t('cat_research') }}</option>
+                            </optgroup>
+                            <optgroup :label="t('cat_lf_rocktal')">
+                                <option value="lf_rocktal">{{ t('cat_facilities') }}</option>
+                                <option value="lf_rocktal_res">{{ t('cat_research') }}</option>
+                            </optgroup>
+                            <optgroup :label="t('cat_lf_mecha')">
+                                <option value="lf_mecha">{{ t('cat_facilities') }}</option>
+                                <option value="lf_mecha_res">{{ t('cat_research') }}</option>
+                            </optgroup>
+                            <optgroup :label="t('cat_lf_kaelesh')">
+                                <option value="lf_kaelesh">{{ t('cat_facilities') }}</option>
+                                <option value="lf_kaelesh_res">{{ t('cat_research') }}</option>
+                            </optgroup>
                         </select>
                     </div>
                     <div class="md:col-span-1">
@@ -241,9 +296,20 @@ onMounted(() => {
                         </div>
                     </div>
                 </div>
-                <div class="mb-4">
-                    <label class="block text-[10px] uppercase font-bold text-ogame-warning mb-1">{{ t('lbl_min_level') }}</label>
-                    <input type="number" v-model.number="builder.minLevel" @focus="$event.target.select()" placeholder="0" min="0" class="input-glass w-24 px-2 py-1 text-xs font-mono border-ogame-warning/30 focus:border-ogame-warning">
+                <div class="mb-4 p-4 rounded-xl bg-black/40 border border-white/5 relative overflow-hidden group">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-8 h-8 rounded-lg bg-ogame-warning/20 flex items-center justify-center border border-ogame-warning/30">
+                            <svg class="w-5 h-5 text-ogame-warning" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] uppercase font-black text-ogame-warning tracking-wider leading-none">{{ t('lbl_min_level') }}</label>
+                            <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_min_desc') }}</span>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <input type="number" v-model.number="builder.minLevel" @focus="$event.target.select()" placeholder="0" min="0" class="input-glass w-full px-3 py-2 text-sm font-mono border-ogame-warning/30 focus:border-ogame-warning bg-black/20 pr-10">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-ogame-warning/50">LVL</span>
+                    </div>
                 </div>
                 <button @click="addToQueue" class="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition shadow-[0_0_15px_rgba(21,128,61,0.3)] mb-4">{{ t('btn_add_queue') }}</button>
                 <div class="bg-black/30 border border-white/5 rounded-lg p-3 min-h-[50px] max-h-[150px] overflow-y-auto space-y-1 text-xs font-mono backdrop-blur-sm">
@@ -258,20 +324,6 @@ onMounted(() => {
                 </div>
             </div>
 
-            <div class="card-glass p-6 relative overflow-hidden group border-l-4 border-l-cyan-500">
-                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
-                    <span>{{ t('import_title') }}</span>
-                </h3>
-                <div class="relative">
-                    <textarea v-model="parser.text" rows="3" :placeholder="t('import_placeholder')" class="input-glass w-full p-4 text-sm font-mono resize-none"></textarea>
-                    <div class="absolute bottom-3 right-3 flex items-center gap-2 bg-black/80 p-1 rounded-lg border border-white/10 shadow-lg">
-                        <div class="flex items-center px-2 py-1" title="Moltiplicatore"><span class="text-xs text-gray-500 font-bold mr-1">x</span>
-                        <input type="number" v-model.number="parser.multiplier" @focus="$event.target.select()" min="1" class="w-8 bg-transparent text-white text-xs font-bold focus:outline-none text-right font-mono"></div>
-                        <button @click="parseString" class="px-4 py-1.5 bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-bold rounded shadow transition">{{ t('btn_extract') }}</button>
-                    </div>
-                </div>
-            </div>
 
             <div class="card-glass p-6 border-l-4 border-l-blue-600">
                 <div class="flex items-center justify-between mb-6">

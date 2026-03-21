@@ -23,6 +23,7 @@ const settings = reactive({
     packValue: 300000000, 
     shopDiscount: 0,      
     moBonus: 0,
+    paymentBonus: false,
     smartRounding: false,
     bldCostRdc: 0, 
     lfRsrLabLevel: 0,
@@ -168,7 +169,14 @@ const euroOptimization = computed(() => {
     if (targetMO <= 0) return { totalCost: 0, packList: [], totalPurchasedMO: 0 };
 
     const bonusMult = 1 + (parseInt(settings.moBonus) / 100);
-    const currentPacks = basePacks.map(p => ({ cost: p.cost, amount: Math.floor(p.amount * bonusMult) }));
+    const hasPaymentBonus = settings.paymentBonus;
+    const currentPacks = basePacks.map(p => {
+        let baseAmount = p.amount;
+        if (hasPaymentBonus) {
+            baseAmount += (p.cost * 1000);
+        }
+        return { cost: p.cost, amount: Math.floor(baseAmount * bonusMult) };
+    });
 
     const findBest = (target, packs) => {
         if (target <= 0) return { totalCost: 0, packList: [] };
@@ -533,15 +541,24 @@ onMounted(() => {
                         </div>
                     </div>
                     
-                    <div class="flex flex-col gap-2">
-                         <span class="text-[10px] text-gray-400 uppercase font-bold">{{ t('lbl_event_bonus') }}</span>
-                         <div class="grid grid-cols-4 gap-1 bg-black/40 p-1.5 rounded-lg border border-white/5">
-                             <button v-for="b in [0, 30, 40, 50, 60, 100, 130]" :key="b" @click="settings.moBonus = b" 
-                                :class="settings.moBonus === b ? 'bg-purple-600 text-white font-black shadow-md' : 'text-gray-400 hover:text-gray-200 font-bold'" 
-                                class="py-1 text-[11px] rounded transition-all text-center">
-                                <template v-if="b === 0">{{ t('opt_none') }}</template>
-                                <template v-else>+{{ b }}%</template>
-                             </button>
+                    <div class="flex flex-col gap-3">
+                         <div class="flex flex-col gap-2">
+                             <span class="text-[10px] text-gray-400 uppercase font-bold">{{ t('lbl_event_bonus') }}</span>
+                             <div class="grid grid-cols-4 gap-1 bg-black/40 p-1.5 rounded-lg border border-white/5">
+                                 <button v-for="b in [0, 30, 40, 50, 60, 100, 130]" :key="b" @click="settings.moBonus = b" 
+                                    :class="settings.moBonus === b ? 'bg-purple-600 text-white font-black shadow-md' : 'text-gray-400 hover:text-gray-200 font-bold'" 
+                                    class="py-1 text-[11px] rounded transition-all text-center">
+                                    <template v-if="b === 0">{{ t('opt_none') }}</template>
+                                    <template v-else>+{{ b }}%</template>
+                                 </button>
+                             </div>
+                         </div>
+                         <div class="flex items-center gap-3 bg-black/40 p-3 rounded-lg border border-white/5 shadow-inner">
+                             <label class="flex items-center cursor-pointer group">
+                                 <input type="checkbox" v-model="settings.paymentBonus" class="w-4 h-4 accent-purple-500 rounded border-gray-600 bg-gray-700 cursor-pointer focus:ring-purple-500/50">
+                                 <span class="ml-2 text-[10px] uppercase font-bold text-gray-300 group-hover:text-white transition-colors">{{ t('lbl_payment_bonus') }}</span>
+                             </label>
+                             <span class="text-[9px] text-gray-500 font-mono italic">(PayPal, Card, Amazon)</span>
                          </div>
                     </div>
                 </div>

@@ -22,20 +22,53 @@ export function useOgameFormulas() {
     };
 
     // Calcolo Cap Crawler (Identico)
-    // Max = (M+C+D) * 8. Se Collector+Geo -> Max * 1.1
     const calcCrawlerCap = (metal, crystal, deut, isCollector, hasGeologist) => {
         const mineSum = parseInt(metal||0) + parseInt(crystal||0) + parseInt(deut||0);
         let max = mineSum * 8;
-        if (isCollector && hasGeologist) {
-            max = Math.floor(max * 1.10); 
-        }
+        if (isCollector && hasGeologist) max = Math.floor(max * 1.10); 
         return max;
+    };
+
+    // FORMULA LIFEFORMS (Corrected as per user feedback)
+    const calcBuildCostLF = (itemData, techLevel, costRdc) => {
+        if (techLevel < 1 || !itemData) return [0, 0, 0];
+        const cost = [0, 0, 0];
+        const rdc = Math.min(0.99, costRdc);
+        const baseCost = itemData.cost;
+        const factors = itemData.factors;
+        for (let i = 0; i < 3; i++) {
+            const rawCost = Math.floor(baseCost[i] * techLevel * Math.pow(factors[i], techLevel - 1));
+            cost[i] = Math.floor((1 - rdc) * rawCost);
+        }
+        return cost;
+    };
+
+    const getBuildCostLF = (techID, techLevelFrom, techLevelTo, techData, rsrLabLevel, bldCostRdc) => {
+        let totalCost = [0, 0, 0];
+        const id = parseInt(techID);
+        const itemData = techData[techID];
+        if (!itemData) return [0, 0, 0];
+        
+        // La riduzione si applica solo alle ricerche (ID % 1000 >= 100)
+        // Livello Lab Ricerca LF: 0.25% per livello, max 25%
+        let costReduction = 0;
+        if (id % 1000 >= 100) {
+            costReduction = Math.min(0.25, (parseFloat(rsrLabLevel)||0) * 0.0025);
+        }
+        
+        for (let i = parseInt(techLevelFrom) + 1; i <= parseInt(techLevelTo); i++) {
+            const cost = calcBuildCostLF(itemData, i, costReduction);
+            totalCost[0] += cost[0]; totalCost[1] += cost[1]; totalCost[2] += cost[2];
+        }
+        return totalCost;
     };
 
     return {
         formatNum,
         calcMineProduction,
         getPosMult,
-        calcCrawlerCap
+        calcCrawlerCap,
+        calcBuildCostLF,
+        getBuildCostLF
     };
 }

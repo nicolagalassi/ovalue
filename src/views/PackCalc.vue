@@ -2,8 +2,10 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { OGAME_DB } from '../data/ogame_db';
+import { useOgameFormulas } from '../composables/useOgameFormulas';
 
 const { t, currentLang } = useLanguage();
+const { getBuildCostLF } = useOgameFormulas();
 
 // --- STATO ---
 const queue = ref([]);
@@ -21,7 +23,10 @@ const settings = reactive({
     packValue: 300000000, 
     shopDiscount: 0,      
     moBonus: 0,
-    smartRounding: false
+    smartRounding: false,
+    bldCostRdc: 0, 
+    lfRsrLabLevel: 0,
+    minLevel: 0,
 });
 
 // --- HELPER ---
@@ -47,7 +52,7 @@ const stockDeu = createFormattedInput(stock, 'deuterium');
 
 // --- BUILDER & PARSER ---
 // --- BUILDER ---
-const builder = reactive({ cat: 'resources', subCat: 'buildings', item: 'metal_mine', level: 1, amount: 1, minLevel: 0 });
+const builder = reactive({ cat: 'resources', item: 'metal_mine', level: 1, startLevel: 0, mult: 1 });
 const basePacks = [ { cost: 200, amount: 5100000 }, { cost: 100, amount: 2525000 }, { cost: 50, amount: 1140000 }, { cost: 25, amount: 480000 }, { cost: 10, amount: 150000 }, { cost: 5, amount: 60000 } ];
 
 const currentItems = computed(() => { const catData = OGAME_DB[builder.cat]; return catData ? catData.items : {}; });
@@ -55,7 +60,11 @@ watch(() => builder.cat, (newCat) => {
     const items = OGAME_DB[newCat].items; 
     const keys = Object.keys(items); 
     if (keys.length > 0) builder.item = keys[0]; 
-    builder.level = 1; builder.amount = 1; 
+    builder.level = 1; builder.startLevel = 0; builder.mult = 1; 
+});
+watch(() => builder.level, (newVal) => {
+    if (newVal > 0) builder.startLevel = newVal - 1;
+    else builder.startLevel = 0;
 });
 
 const addToQueue = () => {
@@ -64,31 +73,20 @@ const addToQueue = () => {
     
     let costM = 0, costC = 0, costD = 0; 
     const lvl = parseInt(builder.level) || 1; 
-    let mult = parseInt(builder.amount) || 1; 
+    let mult = parseInt(builder.mult) || 1; 
     
     const isLF = builder.cat.startsWith('lf_');
     const isResearch = builder.cat.endsWith('_res') || builder.cat === 'research';
-    if (isResearch) mult = 1;
 
     if (itemData.type === 'unit') { 
         costM = itemData.cost[0] * mult; 
         costC = itemData.cost[1] * mult; 
         costD = itemData.cost[2] * mult; 
     } else if (isLF) {
-        // LF Cost Formula: Math.floor(base * Math.pow(factor, level - 1))
-        // And then sum up for levels? No, user usually wants cost for a SPECIFIC level.
-        // Wait, OGame build cost is usually (base * factor^(level-1)).
-        // But for multiple levels (e.g. from 1 to 10), it's a sum.
-        // The current builder logic seems to calculate for level L.
-        const factorM = itemData.factors[0];
-        const factorC = itemData.factors[1];
-        const factorD = itemData.factors[2];
-        
-        costM = Math.floor(itemData.cost[0] * Math.pow(factorM, lvl - 1));
-        costC = Math.floor(itemData.cost[1] * Math.pow(factorC, lvl - 1));
-        costD = Math.floor(itemData.cost[2] * Math.pow(factorD, lvl - 1));
-        
-        costM *= mult; costC *= mult; costD *= mult;
+        const lfCosts = getBuildCostLF(builder.item, builder.startLevel, lvl, OGAME_DB[builder.cat].items, settings.lfRsrLabLevel, 0);
+        costM = lfCosts[0] * mult;
+        costC = lfCosts[1] * mult;
+        costD = lfCosts[2] * mult;
     } else {
         const factor = Math.pow(itemData.factor, lvl - 1); 
         costM = Math.floor(itemData.cost[0] * factor); 
@@ -96,7 +94,7 @@ const addToQueue = () => {
         costD = Math.floor(itemData.cost[2] * factor);
         
         if (['metal_mine', 'crystal_mine', 'deuterium_synthesizer'].includes(builder.item)) { 
-            const minLvl = parseInt(builder.minLevel) || 0; 
+            const minLvl = parseInt(settings.minLevel) || 0; 
             const discount = Math.min(0.5, minLvl * 0.005); 
             if (discount > 0) { 
                 costM = Math.floor(costM * (1 - discount)); 
@@ -106,7 +104,8 @@ const addToQueue = () => {
         }
         costM *= mult; costC *= mult; costD *= mult;
     }
-    queue.value.push({ key: builder.item, cat: builder.cat, level: lvl, amount: mult, m: costM, c: costC, d: costD }); 
+    const displayLevel = isLF ? `${builder.startLevel} → ${lvl}` : lvl;
+    queue.value.push({ key: builder.item, cat: builder.cat, level: displayLevel, amount: mult, m: costM, c: costC, d: costD }); 
     updateInputsFromQueue();
 };
 const removeFromQueue = (index) => { queue.value.splice(index, 1); updateInputsFromQueue(); };
@@ -261,63 +260,99 @@ onMounted(() => {
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
                     <div class="md:col-span-1">
                         <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_category') }}</label>
-                        <select v-model="builder.cat" class="input-glass w-full px-2 py-2 text-sm">
-                            <option value="resources">{{ t('cat_resources') }}</option>
-                            <option value="facilities">{{ t('cat_facilities') }}</option>
-                            <option value="research">{{ t('cat_research') }}</option>
-                            <option value="fleet">{{ t('cat_fleet') }}</option>
-                            <optgroup :label="t('cat_lf_humans')">
-                                <option value="lf_humans">{{ t('cat_facilities') }}</option>
-                                <option value="lf_humans_res">{{ t('cat_research') }}</option>
-                            </optgroup>
-                            <optgroup :label="t('cat_lf_rocktal')">
-                                <option value="lf_rocktal">{{ t('cat_facilities') }}</option>
-                                <option value="lf_rocktal_res">{{ t('cat_research') }}</option>
-                            </optgroup>
-                            <optgroup :label="t('cat_lf_mecha')">
-                                <option value="lf_mecha">{{ t('cat_facilities') }}</option>
-                                <option value="lf_mecha_res">{{ t('cat_research') }}</option>
-                            </optgroup>
-                            <optgroup :label="t('cat_lf_kaelesh')">
-                                <option value="lf_kaelesh">{{ t('cat_facilities') }}</option>
-                                <option value="lf_kaelesh_res">{{ t('cat_research') }}</option>
-                            </optgroup>
+                        <select v-model="builder.cat" class="input-glass w-full px-2 py-2 text-sm bg-black/40">
+                            <option value="resources" class="bg-[#11141d] text-white">{{ t('cat_resources') }}</option>
+                            <option value="facilities" class="bg-[#11141d] text-white">{{ t('cat_facilities') }}</option>
+                            <option value="research" class="bg-[#11141d] text-white">{{ t('cat_research') }}</option>
+                            <option value="fleet" class="bg-[#11141d] text-white">{{ t('cat_fleet') }}</option>
+                            
+                            <!-- LifeForms -->
+                            <option value="lf_humans" class="bg-[#11141d] text-blue-300 font-bold">{{ t('cat_lf_humans') }} - {{ t('cat_facilities') }}</option>
+                            <option value="lf_humans_res" class="bg-[#11141d] text-blue-300">{{ t('cat_lf_humans') }} - {{ t('cat_research') }}</option>
+                            
+                            <option value="lf_rocktal" class="bg-[#11141d] text-orange-400 font-bold">{{ t('cat_lf_rocktal') }} - {{ t('cat_facilities') }}</option>
+                            <option value="lf_rocktal_res" class="bg-[#11141d] text-orange-400">{{ t('cat_lf_rocktal') }} - {{ t('cat_research') }}</option>
+                            
+                            <option value="lf_mecha" class="bg-[#11141d] text-gray-300 font-bold">{{ t('cat_lf_mecha') }} - {{ t('cat_facilities') }}</option>
+                            <option value="lf_mecha_res" class="bg-[#11141d] text-gray-300">{{ t('cat_lf_mecha') }} - {{ t('cat_research') }}</option>
+                            
+                            <option value="lf_kaelesh" class="bg-[#11141d] text-purple-400 font-bold">{{ t('cat_lf_kaelesh') }} - {{ t('cat_facilities') }}</option>
+                            <option value="lf_kaelesh_res" class="bg-[#11141d] text-purple-400">{{ t('cat_lf_kaelesh') }} - {{ t('cat_research') }}</option>
                         </select>
                     </div>
                     <div class="md:col-span-1">
                         <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_element') }}</label>
-                        <select v-model="builder.item" class="input-glass w-full px-2 py-2 text-sm">
-                            <option v-for="(val, key) in currentItems" :key="key" :value="key">{{ t(key) }}</option>
+                        <select v-model="builder.item" class="input-glass w-full px-2 py-2 text-sm bg-black/40">
+                            <option v-for="(val, key) in currentItems" :key="key" :value="key" class="bg-[#11141d] text-white">{{ t(key) }}</option>
                         </select>
                     </div>
                     <div class="md:col-span-1" v-if="builder.cat !== 'fleet'">
-                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_level') }}</label>
+                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ builder.cat.startsWith('lf_') ? t('lbl_target_level') : t('lbl_level') }}</label>
                         <input type="number" v-model.number="builder.level" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono">
                     </div>
-                    <div class="md:col-span-1 relative" v-if="builder.cat !== 'research'">
+                    <div class="md:col-span-1" v-if="builder.cat.startsWith('lf_')">
+                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_start_level') }}</label>
+                        <input type="number" v-model.number="builder.startLevel" @focus="$event.target.select()" min="0" class="input-glass w-full px-2 py-2 text-sm font-mono">
+                    </div>
+                    <div class="md:col-span-1 relative">
                         <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ builder.cat === 'fleet' ? t('lbl_quantity') : t('lbl_planets') }}</label>
                         <div class="flex items-center">
                             <span v-if="builder.cat !== 'fleet'" class="absolute left-3 text-gray-500 text-sm font-bold">x</span>
-                            <input type="number" v-model.number="builder.amount" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono" :class="{'pl-6': builder.cat !== 'fleet'}">
+                            <input type="number" v-model.number="builder.mult" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono" :class="{'pl-6': builder.cat !== 'fleet'}">
                         </div>
                     </div>
                 </div>
-                <div class="mb-4 p-4 rounded-xl bg-black/40 border border-white/5 relative overflow-hidden group">
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="w-8 h-8 rounded-lg bg-ogame-warning/20 flex items-center justify-center border border-ogame-warning/30">
-                            <svg class="w-5 h-5 text-ogame-warning" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-                        </div>
+                <div class="col-span-full">
+                    <button @click="addToQueue" class="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-black py-4 rounded-xl shadow-[0_0_20px_rgba(234,88,12,0.3)] transition-all hover:scale-[1.02] flex items-center justify-center gap-3 active:scale-95 group uppercase tracking-widest text-sm">
+                        <svg class="w-6 h-6 group-hover:rotate-90 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        {{ t('btn_add_queue') }}
+                    </button>
+                </div>
+
+                <!-- LifeForms Global Settings -->
+                <div class="col-span-full border-t border-white/5 pt-6 mt-4">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                        <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest">{{ t('lf_settings_title') }}</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Centro Mineralogia -->
                         <div>
-                            <label class="block text-[11px] uppercase font-black text-ogame-warning tracking-wider leading-none">{{ t('lbl_min_level') }}</label>
-                            <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_min_desc') }}</span>
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-8 h-8 rounded-lg bg-ogame-warning/20 flex items-center justify-center border border-ogame-warning/30">
+                                    <svg class="w-5 h-5 text-ogame-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-7h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] uppercase font-black text-ogame-warning tracking-wider leading-none">{{ t('lbl_min_level_settings') }}</label>
+                                    <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_min_desc_settings') }}</span>
+                                </div>
+                            </div>
+                            <div class="relative">
+                                <input type="number" v-model.number="settings.minLevel" @focus="$event.target.select()" placeholder="0" min="0" class="input-glass w-full px-3 py-2 text-sm font-mono border-ogame-warning/30 focus:border-ogame-warning bg-black/20 pr-10">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-ogame-warning/50">LVL</span>
+                            </div>
+                            <p class="text-[10px] text-ogame-warning/60 mt-1 italic">Bonus: -{{ Math.min(50, settings.minLevel * 0.5).toFixed(1) }}% (solo miniere)</p>
+                        </div>
+
+                        <!-- Lab Ricerca LF -->
+                        <div>
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.288a2 2 0 01-2.071 0l-.628-.288a6 6 0 00-3.86-.517l-2.387.477a2 2 0 00-1.022.547V21a1 1 0 001.25.97l2.427-.607a6 6 0 013.623.504l.107.054a2 2 0 001.764 0l.107-.054a6 6 0 013.623-.504l2.427.607A1 1 0 0021 21v-5.572z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] uppercase font-black text-blue-400 tracking-wider leading-none">{{ t('lbl_lf_rsr_lab') }}</label>
+                                    <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_lf_rsr_lab_desc') }}</span>
+                                </div>
+                            </div>
+                            <div class="relative">
+                                <input type="number" v-model.number="settings.lfRsrLabLevel" @focus="$event.target.select()" placeholder="0" min="0" max="100" class="input-glass w-full px-3 py-2 text-sm font-mono border-blue-500/30 focus:border-blue-500 bg-black/20 pr-10">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-500/50">LVL</span>
+                            </div>
+                            <p class="text-[10px] text-blue-400/60 mt-1 italic">Bonus: -{{ Math.min(25, settings.lfRsrLabLevel * 0.25).toFixed(2) }}% (solo ricerche LF)</p>
                         </div>
                     </div>
-                    <div class="relative">
-                        <input type="number" v-model.number="builder.minLevel" @focus="$event.target.select()" placeholder="0" min="0" class="input-glass w-full px-3 py-2 text-sm font-mono border-ogame-warning/30 focus:border-ogame-warning bg-black/20 pr-10">
-                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-ogame-warning/50">LVL</span>
-                    </div>
                 </div>
-                <button @click="addToQueue" class="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition shadow-[0_0_15px_rgba(21,128,61,0.3)] mb-4">{{ t('btn_add_queue') }}</button>
                 <div class="bg-black/30 border border-white/5 rounded-lg p-3 min-h-[50px] max-h-[150px] overflow-y-auto space-y-1 text-xs font-mono backdrop-blur-sm">
                     <div v-if="queue.length === 0" class="text-center text-gray-600 italic">{{ t('queue_empty') }}</div>
                     <div v-for="(item, index) in queue" :key="index" class="flex justify-between items-center text-gray-300 border-b border-gray-700/50 pb-1 last:border-0 hover:bg-white/5 px-1 rounded transition">
@@ -337,81 +372,101 @@ onMounted(() => {
                     <span class="text-[10px] bg-blue-900/40 text-blue-300 px-2 py-1 rounded border border-blue-500/20">{{ t('lbl_stock') }}</span>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="space-y-2">
-                        <label class="flex justify-between text-xs uppercase font-bold text-gray-500">
-                            <span>{{ t('res_metal') }}</span>
-                            <span v-if="calculation.needM > 0" class="text-red-400">{{ t('msg_missing') }}: {{ formatNum(calculation.needM) }}</span>
-                            <span v-else class="text-green-500">{{ t('msg_covered') }}</span>
-                        </label>
-                        <div class="relative">
-                            <input type="text" v-model="formMet" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-200">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-300 font-bold uppercase pointer-events-none">Cost</span>
+                <div class="flex flex-col gap-4 mt-6">
+                    <!-- Metal -->
+                    <div class="bg-black/20 rounded-xl p-4 border border-white/5 relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-gradient-to-r from-gray-500/0 via-gray-500/5 to-gray-500/0 opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                        <div class="flex items-center justify-between mb-3 relative z-10">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded bg-gray-600/50 flex items-center justify-center text-[10px] text-white shadow-inner font-bold">M</div>
+                                <span class="font-bold text-sm text-gray-300 uppercase">{{ t('res_metal') }}</span>
+                            </div>
+                            <span v-if="calculation.needM > 0" class="text-[10px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded border border-red-500/20">{{ t('msg_missing') }}: {{ formatNum(calculation.needM) }}</span>
+                            <span v-else class="text-[10px] font-bold text-green-500 bg-green-900/30 px-2 py-0.5 rounded border border-green-500/20">{{ t('msg_covered') }}</span>
                         </div>
-                        <div class="relative">
-                            <input type="text" v-model="stockMet" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-400 font-bold uppercase pointer-events-none">Held</span>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="flex justify-between text-xs uppercase font-bold text-gray-500">
-                            <span>{{ t('res_crystal') }}</span>
-                            <span v-if="calculation.needC > 0" class="text-red-400">{{ t('msg_missing') }}: {{ formatNum(calculation.needC) }}</span>
-                            <span v-else class="text-green-500">{{ t('msg_covered') }}</span>
-                        </label>
-                        <div class="relative">
-                            <input type="text" v-model="formCry" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-blue-200">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-300 font-bold uppercase pointer-events-none">Cost</span>
-                        </div>
-                        <div class="relative">
-                            <input type="text" v-model="stockCry" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-400 font-bold uppercase pointer-events-none">Held</span>
+                        <div class="grid grid-cols-2 gap-4 relative z-10">
+                            <div>
+                                <label class="block text-[9px] uppercase font-bold text-gray-500 mb-1">{{ t('lbl_cost_list') }}</label>
+                                <input type="text" v-model="formMet" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-gray-200 text-sm bg-black/40">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] uppercase font-bold text-green-500/70 mb-1">{{ t('lbl_stock_avail') }}</label>
+                                <input type="text" v-model="stockMet" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500 text-sm bg-black/40">
+                            </div>
                         </div>
                     </div>
 
-                    <div class="space-y-2">
-                        <label class="flex justify-between text-xs uppercase font-bold text-gray-500">
-                            <span>{{ t('res_deuterium') }}</span>
-                            <span v-if="calculation.needD > 0" class="text-red-400">{{ t('msg_missing') }}: {{ formatNum(calculation.needD) }}</span>
-                            <span v-else class="text-green-500">{{ t('msg_covered') }}</span>
-                        </label>
-                        <div class="relative">
-                            <input type="text" v-model="formDeu" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-green-200">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-300 font-bold uppercase pointer-events-none">Cost</span>
+                    <!-- Crystal -->
+                    <div class="bg-black/20 rounded-xl p-4 border border-white/5 relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/5 to-blue-500/0 opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                        <div class="flex items-center justify-between mb-3 relative z-10">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded bg-blue-600/50 flex items-center justify-center text-[10px] text-white shadow-inner font-bold">C</div>
+                                <span class="font-bold text-sm text-gray-300 uppercase">{{ t('res_crystal') }}</span>
+                            </div>
+                            <span v-if="calculation.needC > 0 && calculation.totalMSU <= 0" class="text-[10px] font-bold text-amber-500 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">{{ t('msg_covered_surplus') }}</span>
+                            <span v-else-if="calculation.needC > 0" class="text-[10px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded border border-red-500/20">{{ t('msg_missing') }}: {{ formatNum(calculation.needC) }}</span>
+                            <span v-else class="text-[10px] font-bold text-green-500 bg-green-900/30 px-2 py-0.5 rounded border border-green-500/20">{{ t('msg_covered') }}</span>
                         </div>
-                        <div class="relative">
-                            <input type="text" v-model="stockDeu" @focus="$event.target.select()" class="input-glass w-full py-2 pl-12 pr-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500">
-                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-400 font-bold uppercase pointer-events-none">Held</span>
+                        <div class="grid grid-cols-2 gap-4 relative z-10">
+                            <div>
+                                <label class="block text-[9px] uppercase font-bold text-gray-500 mb-1">{{ t('lbl_cost_list') }}</label>
+                                <input type="text" v-model="formCry" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-blue-200 text-sm bg-black/40">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] uppercase font-bold text-green-500/70 mb-1">{{ t('lbl_stock_avail') }}</label>
+                                <input type="text" v-model="stockCry" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500 text-sm bg-black/40">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Deuterium -->
+                    <div class="bg-black/20 rounded-xl p-4 border border-white/5 relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-gradient-to-r from-green-500/0 via-green-500/5 to-green-500/0 opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                        <div class="flex items-center justify-between mb-3 relative z-10">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded bg-green-600/50 flex items-center justify-center text-[10px] text-white shadow-inner font-bold">D</div>
+                                <span class="font-bold text-sm text-gray-300 uppercase">{{ t('res_deuterium') }}</span>
+                            </div>
+                            <span v-if="calculation.needD > 0 && calculation.totalMSU <= 0" class="text-[10px] font-bold text-amber-500 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">{{ t('msg_covered_surplus') }}</span>
+                            <span v-else-if="calculation.needD > 0" class="text-[10px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded border border-red-500/20">{{ t('msg_missing') }}: {{ formatNum(calculation.needD) }}</span>
+                            <span v-else class="text-[10px] font-bold text-green-500 bg-green-900/30 px-2 py-0.5 rounded border border-green-500/20">{{ t('msg_covered') }}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 relative z-10">
+                            <div>
+                                <label class="block text-[9px] uppercase font-bold text-gray-500 mb-1">{{ t('lbl_cost_list') }}</label>
+                                <input type="text" v-model="formDeu" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-green-200 text-sm bg-black/40">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] uppercase font-bold text-green-500/70 mb-1">{{ t('lbl_stock_avail') }}</label>
+                                <input type="text" v-model="stockDeu" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500 text-sm bg-black/40">
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="card-glass p-6">
-                    <div class="flex justify-between items-center mb-4"><h3 class="text-sm font-bold text-gray-400 uppercase">{{ t('lbl_rates') }}</h3><button @click="settings.rateMet=3; settings.rateCry=2; settings.rateDeut=1" class="text-[10px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 text-gray-400">Default 3:2:1</button></div>
-                    <div class="flex items-center gap-2">
-                        <input type="number" value="3" readonly class="w-full bg-black/40 border border-white/5 rounded p-2 text-center text-gray-600 font-bold focus:outline-none cursor-not-allowed">
-                        <span class="text-gray-600">:</span>
-                        <input type="number" v-model.number="settings.rateCry" @focus="$event.target.select()" class="input-glass w-full p-2 text-center text-blue-400 font-bold">
-                        <span class="text-gray-600">:</span>
-                        <input type="number" v-model.number="settings.rateDeut" @focus="$event.target.select()" class="input-glass w-full p-2 text-center text-green-400 font-bold">
-                    </div>
-                </div>
-                <div class="card-glass p-6">
-                    <h3 class="text-sm font-bold text-gray-400 uppercase mb-4">{{ t('lbl_pack_val') }}</h3>
-                    <div class="relative">
-                        <input type="text" v-model="formPackVal" @focus="$event.target.select()" class="input-glass w-full p-3 text-ogame-warning font-bold text-center text-lg border-ogame-warning/30 focus:border-ogame-warning">
-                        <div class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-mono">MET</div>
-                    </div>
-                    <p class="text-[10px] text-gray-500 mt-2 text-center"><span v-if="isAutoLoaded" class="text-green-400">{{ t('pack_source_auto') }}</span><span v-else>{{ t('pack_source_manual') }}</span></p>
-                </div>
-            </div>
         </div>
 
         <div class="lg:col-span-1 space-y-6">
             
+            <!-- Pack Value (Moved to Top for Visibility) -->
+            <div class="card-glass p-6 border-b-4 border-b-ogame-warning bg-gradient-to-t from-ogame-warning/10 to-transparent relative overflow-hidden shadow-lg shadow-ogame-warning/10">
+                <h3 class="text-sm font-black text-ogame-warning uppercase mb-3 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    {{ t('lbl_pack_val') }}
+                </h3>
+                <div class="relative z-10">
+                    <input type="text" v-model="formPackVal" @focus="$event.target.select()" class="input-glass w-full p-4 text-white font-black text-center text-3xl border-ogame-warning/50 focus:border-ogame-warning bg-black/60 shadow-inner">
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-ogame-warning font-bold font-mono bg-ogame-warning/20 px-2 py-1 rounded">MET</div>
+                </div>
+                <p class="text-[10px] uppercase font-bold text-gray-400 mt-3 text-center">
+                    <span v-if="isAutoLoaded" class="text-green-400 flex items-center justify-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>{{ t('pack_source_auto') }}</span>
+                    <span v-else>{{ t('pack_source_manual') }}</span>
+                </p>
+                <div class="absolute inset-0 bg-ogame-warning/5 animate-pulse-slow pointer-events-none"></div>
+            </div>
+
             <div class="card-glass p-8 flex flex-col justify-center min-h-[220px] relative overflow-hidden border-t-4 border-t-amber-500">
                 <div class="text-center mb-8 relative z-10">
                     <div class="text-xs text-gray-500 uppercase tracking-widest mb-2 font-bold">{{ t('lbl_msu_needed') }}</div>
@@ -423,6 +478,21 @@ onMounted(() => {
                     <div class="text-6xl font-bold text-white drop-shadow-[0_0_20px_rgba(245,158,11,0.4)]">{{ formatNum(calculation.packsNeeded) }}</div>
                 </div>
                 <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-amber-500/10 blur-[50px] rounded-full"></div>
+            </div>
+
+            <!-- Tassi di scambio posizionati qui come richiesto -->
+            <div class="card-glass p-6 border-t-4 border-t-blue-500/50">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-bold text-gray-300 uppercase">{{ t('lbl_rates') }}</h3>
+                    <button @click="settings.rateMet=3; settings.rateCry=2; settings.rateDeut=1" class="text-[10px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 text-gray-400">Default 3:2:1</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="number" value="3" readonly class="w-full bg-black/40 border border-white/5 rounded p-2 text-center text-gray-600 font-bold focus:outline-none cursor-not-allowed">
+                    <span class="text-gray-600">:</span>
+                    <input type="number" v-model.number="settings.rateCry" @focus="$event.target.select()" class="input-glass w-full p-2 text-center text-blue-400 font-bold">
+                    <span class="text-gray-600">:</span>
+                    <input type="number" v-model.number="settings.rateDeut" @focus="$event.target.select()" class="input-glass w-full p-2 text-center text-green-400 font-bold">
+                </div>
             </div>
 
             <div v-if="tradePlan && (tradePlan.tradeMetToCry > 0 || tradePlan.tradeMetToDeut > 0)" class="card-glass p-5 border-t-4 border-t-cyan-600 bg-cyan-900/10">
@@ -453,27 +523,26 @@ onMounted(() => {
                             <svg class="w-4 h-4 text-purple-500" fill="currentColor" viewBox="0 0 20 20"><path d="M13 7H7v6h6V7z"/><path fill-rule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1v-2H2a1 1 0 110-2h1V7a2 2 0 012-2h2V2zM5 7v6h10V7H5z" clip-rule="evenodd"/></svg>
                             <span>{{ t('lbl_cost_dm') }}</span>
                         </h3>
-                        <div class="flex items-center justify-between gap-2">
+                        <div class="flex flex-col gap-2">
                              <span class="text-[10px] text-gray-400 uppercase font-bold">{{ t('lbl_shop_discount') }}</span>
-                             <select v-model.number="settings.shopDiscount" class="input-glass px-2 py-1 text-xs">
-                                 <option class="bg-gray-900" value="0">0%</option>
-                                 <option class="bg-gray-900" value="20">-20%</option>
-                                 <option class="bg-gray-900" value="30">-30%</option>
-                             </select>
+                             <div class="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/5 w-fit">
+                                 <button @click="settings.shopDiscount = 0" :class="settings.shopDiscount === 0 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all">0%</button>
+                                 <button @click="settings.shopDiscount = 20" :class="settings.shopDiscount === 20 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all">-20%</button>
+                                 <button @click="settings.shopDiscount = 30" :class="settings.shopDiscount === 30 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all">-30%</button>
+                             </div>
                         </div>
                     </div>
                     
-                    <div class="flex items-center justify-between gap-2">
+                    <div class="flex flex-col gap-2">
                          <span class="text-[10px] text-gray-400 uppercase font-bold">{{ t('lbl_event_bonus') }}</span>
-                         <select v-model.number="settings.moBonus" class="input-glass px-2 py-1 text-xs">
-                             <option class="bg-gray-900" value="0">{{ t('opt_none') }}</option>
-                             <option class="bg-gray-900" value="30">+30% {{ dmLabel }}</option>
-                             <option class="bg-gray-900" value="40">+40% {{ dmLabel }}</option>
-                             <option class="bg-gray-900" value="50">+50% {{ dmLabel }}</option>
-                             <option class="bg-gray-900" value="60">+60% {{ dmLabel }}</option>
-                             <option class="bg-gray-900" value="100">+100% {{ dmLabel }}</option>
-                             <option class="bg-gray-900" value="130">+130% {{ dmLabel }}</option>
-                         </select>
+                         <div class="grid grid-cols-4 gap-1 bg-black/40 p-1.5 rounded-lg border border-white/5">
+                             <button v-for="b in [0, 30, 40, 50, 60, 100, 130]" :key="b" @click="settings.moBonus = b" 
+                                :class="settings.moBonus === b ? 'bg-purple-600 text-white font-black shadow-md' : 'text-gray-400 hover:text-gray-200 font-bold'" 
+                                class="py-1 text-[11px] rounded transition-all text-center">
+                                <template v-if="b === 0">{{ t('opt_none') }}</template>
+                                <template v-else>+{{ b }}%</template>
+                             </button>
+                         </div>
                     </div>
                 </div>
                 <div class="text-center py-4 bg-purple-900/10 rounded-xl border border-purple-500/20">

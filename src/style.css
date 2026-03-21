@@ -41,3 +41,13 @@ input[type=number]::-webkit-outer-spin-button {
 input[type=number] {
   -moz-appearance: textfield;
 }
+
+/* Fix per select dropdown glitch (sfondo bianco temporaneo) */
+select {
+    color-scheme: dark;
+}
+
+select option {
+    background-color: #11141d; /* Colore scuro per contrastare il bianco di default */
+    color: #e2e8f0;
+}

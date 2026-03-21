@@ -10,7 +10,7 @@ const { calcMineProduction, getPosMult, formatNum } = useOgameFormulas();
 const settings = reactive({
     ecoSpeed: 8,
     playerClass: 'collector', 
-    rocktalCollectorBonus: 0,
+    rocktalEnhancement: 0,
     allyClass: 'none',        
     plasma: 0,
     geologist: false,
@@ -53,7 +53,7 @@ const applyBulk = () => {
 
 const totals = computed(() => {
     let hourly = 0;
-    const collFactor = 1 + (settings.rocktalCollectorBonus * 0.004);
+    const collFactor = 1 + (settings.rocktalEnhancement / 100);
     
     planets.value.forEach(p => {
         const met = parseInt(p.metal) || 0;
@@ -79,7 +79,7 @@ const totals = computed(() => {
 
         let maxCraw = (met + (parseInt(p.crystal)||0) + (parseInt(p.deuterium)||0)) * 8; 
         if (settings.playerClass === 'collector' && settings.geologist) {
-             const geoFactor = 1.1 + (0.1 * (collFactor - 1));
+             const geoFactor = 1 + (0.1 * collFactor);
              maxCraw = Math.floor(maxCraw * geoFactor);
         }
         
@@ -87,9 +87,9 @@ const totals = computed(() => {
         if (actCraw > 0) {
             let mult = 0.02;
             if (settings.playerClass === 'collector') { 
-                const crawlerBonus = 0.5 * collFactor;
-                mult *= (1 + crawlerBonus); 
-                if (p.overload) mult *= (1 + crawlerBonus); 
+                const crawlerBonusPercentage = 50 * collFactor;
+                mult *= (1 + crawlerBonusPercentage / 100); 
+                if (p.overload) mult *= 1.5; 
             }
             totPerc += (actCraw * mult);
         }
@@ -98,6 +98,16 @@ const totals = computed(() => {
         hourly += (natProd + mineBase + bonusProd);
     });
     return { hourly, daily: hourly * 24 };
+});
+
+const collBreakdown = computed(() => {
+    const f = 1 + (settings.rocktalEnhancement / 100);
+    return {
+        mine: (25 * f).toFixed(2),
+        crawler: (50 * f).toFixed(2),
+        geo: (10 * f).toFixed(2),
+        overload: (150).toFixed(2)
+    };
 });
 
 watch([planets, settings], () => {
@@ -171,6 +181,7 @@ const importData = (e) => {
             <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]"></span> 
             {{ t('settings_title') }}
         </h3>
+
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="space-y-4">
                 <div>
@@ -184,9 +195,9 @@ const importData = (e) => {
                             <option value="collector">{{ t('opt_collector') }}</option>
                             <option value="other">{{ t('opt_general') }}</option>
                         </select>
-                        <input v-if="settings.playerClass === 'collector'" type="number" v-model.number="settings.rocktalCollectorBonus" @focus="$event.target.select()" class="input-glass w-24 px-2 py-2 text-center" title="Rock'tal Collector Enhancement Level">
+                        <input v-if="settings.playerClass === 'collector'" type="number" step="0.1" v-model.number="settings.rocktalEnhancement" @focus="$event.target.select()" class="input-glass w-24 px-2 py-2 text-center" placeholder="0.0">
                     </div>
-                    <label v-if="settings.playerClass === 'collector'" class="block text-[10px] text-cyan-400 mt-1 uppercase font-bold">{{ t('lbl_rocktal_collector_bonus') }} (Lv)</label>
+                    <label v-if="settings.playerClass === 'collector'" class="block text-[10px] text-cyan-400 mt-1 uppercase font-bold">{{ t('lbl_rocktal_collector_bonus') }}</label>
                 </div>
             </div>
             <div class="space-y-4">
@@ -214,6 +225,31 @@ const importData = (e) => {
                         <option value="none">{{ t('opt_none') }}</option>
                         <option value="trader">{{ t('opt_trader') }}</option>
                     </select>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="settings.playerClass === 'collector'" class="mt-8 pt-6 border-t border-white/5">
+            <h4 class="text-xs uppercase font-bold text-cyan-400 mb-4 tracking-wider flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                {{ t('lbl_collector_detail') }}
+            </h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white/5 rounded-xl p-3 border border-white/5">
+                    <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">{{ t('lbl_mine_prod_ext') }}</div>
+                    <div class="text-xl font-bold text-white font-mono">+{{ collBreakdown.mine }}%</div>
+                </div>
+                <div class="bg-white/5 rounded-xl p-3 border border-white/5">
+                    <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">{{ t('lbl_crawler_prod_ext') }}</div>
+                    <div class="text-xl font-bold text-white font-mono">+{{ collBreakdown.crawler }}%</div>
+                </div>
+                <div class="bg-white/5 rounded-xl p-3 border border-white/5">
+                    <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">{{ t('lbl_max_crawlers_geo_ext') }}</div>
+                    <div class="text-xl font-bold text-white font-mono">+{{ collBreakdown.geo }}%</div>
+                </div>
+                <div class="bg-white/5 rounded-xl p-3 border border-white/5">
+                    <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">{{ t('lbl_crawler_overload_ext') }}</div>
+                    <div class="text-xl font-bold text-white font-mono">{{ collBreakdown.overload }}%</div>
                 </div>
             </div>
         </div>

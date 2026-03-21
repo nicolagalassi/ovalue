@@ -27,7 +27,7 @@ const breakdown = computed(() => {
 
     let bonuses = [];
     let totPerc = 0;
-    const collFactor = 1 + ((g.rocktalCollectorBonus || 0) * 0.004);
+    const collFactor = 1 + ((g.rocktalEnhancement || 0) / 100);
 
     if (g.plasma > 0) { 
         const v = g.plasma * 1; 
@@ -87,7 +87,7 @@ const breakdown = computed(() => {
         totPerc += g.lfBonus; 
     }
 
-    const geoFactor = g.geologist ? (1.1 + (0.1 * (collFactor - 1))) : 1;
+    const geoFactor = g.geologist ? (1 + (0.1 * collFactor)) : 1;
     const maxCraw = Math.floor(calcCrawlerCap(met, cry, deu, false, false) * geoFactor);
     const craw = parseInt(p.crawlers) || 0;
     const actCraw = Math.min(craw, maxCraw);
@@ -95,9 +95,9 @@ const breakdown = computed(() => {
     if (actCraw > 0) {
         let multiplier = 0.02;
         if (g.playerClass === 'collector') {
-            const crawlerBonus = 0.5 * collFactor;
-            multiplier *= (1 + crawlerBonus); 
-            if (p.overload) multiplier *= (1 + crawlerBonus);
+            const crawlerBonusPercentage = 50 * collFactor;
+            multiplier *= (1 + crawlerBonusPercentage / 100); 
+            if (p.overload) multiplier *= 1.5;
         }
         const cP = actCraw * multiplier;
         bonuses.push({n: `Crawler (${actCraw})`, v: cP}); 

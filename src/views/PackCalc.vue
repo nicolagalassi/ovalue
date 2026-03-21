@@ -21,9 +21,7 @@ const settings = reactive({
     packValue: 300000000, 
     shopDiscount: 0,      
     moBonus: 0,
-    smartRounding: false,
-    merchantCount: 0,
-    merchantPrice: 3500
+    smartRounding: false
 });
 
 // --- HELPER ---
@@ -122,14 +120,14 @@ const calculation = computed(() => {
     const rC = parseFloat(settings.rateCry) || 2;
     const rD = parseFloat(settings.rateDeut) || 1;
 
-    // Total MSE of required resources
-    const totalInputsMSE = inputs.metal + (inputs.crystal * (rM / rC)) + (inputs.deuterium * (rM / rD));
+    // Total MSU of required resources
+    const totalInputsMSU = inputs.metal + (inputs.crystal * (rM / rC)) + (inputs.deuterium * (rM / rD));
     
-    // Total MSE of held resources
-    const totalStockMSE = stock.metal + (stock.crystal * (rM / rC)) + (stock.deuterium * (rM / rD));
+    // Total MSU of held resources
+    const totalStockMSU = stock.metal + (stock.crystal * (rM / rC)) + (stock.deuterium * (rM / rD));
 
-    // Net MSE needed
-    const totalMSE = Math.max(0, Math.ceil(totalInputsMSE - totalStockMSE));
+    // Net MSU needed
+    const totalMSU = Math.max(0, Math.ceil(totalInputsMSU - totalStockMSU));
 
     // For individual resource missing display (purely visual, but helpful)
     const needM = Math.max(0, inputs.metal - stock.metal);
@@ -138,24 +136,26 @@ const calculation = computed(() => {
 
     const packVal = parseInt(settings.packValue) || 1;
     let packsNeeded = 0;
-    if (totalMSE > 0 && packVal > 0) packsNeeded = Math.ceil(totalMSE / packVal);
+    if (totalMSU > 0 && packVal > 0) packsNeeded = Math.ceil(totalMSU / packVal);
 
     const basePackPrice = 60000;
     const discountFactor = 1 - (parseInt(settings.shopDiscount) / 100);
     const moPerPack = basePackPrice * discountFactor;
     
     let packsMO = packsNeeded * moPerPack;
-    const merchantCost = settings.merchantCount * settings.merchantPrice;
-    const totalMO = packsMO + merchantCost;
+    const totalMO = packsMO;
 
-    return { needM, needC, needD, totalMSE, packsNeeded, totalMO, moPerPack, merchantCost, totalInputsMSE, totalStockMSE };
+    return { needM, needC, needD, totalMSU, packsNeeded, totalMO, moPerPack, totalInputsMSU, totalStockMSU };
 });
 
 const tradePlan = computed(() => {
     const c = calculation.value;
-    if (c.totalMSE <= 0) return null;
-    const tradeForCry = c.needC * (settings.rateMet / settings.rateCry);
-    const tradeForDeut = c.needD * (settings.rateMet / settings.rateDeut);
+    if (c.totalMSU <= 0) return null;
+    const rateM = parseFloat(settings.rateMet) || 3;
+    const rateC = parseFloat(settings.rateCry) || 2;
+    const rateD = parseFloat(settings.rateDeut) || 1;
+    const tradeForCry = c.needC * (rateM / rateC);
+    const tradeForDeut = c.needD * (rateM / rateD);
     return {
         keepMetal: c.needM,
         tradeMetToCry: tradeForCry,
@@ -212,8 +212,7 @@ const euroOptimization = computed(() => {
 
 const resetFields = () => { 
     queue.value = []; inputs.metal = 0; inputs.crystal = 0; inputs.deuterium = 0; stock.metal = 0; stock.crystal = 0; stock.deuterium = 0;
-    settings.shopDiscount = 0; settings.moBonus = 0; settings.smartRounding = false; settings.merchantCount = 0; settings.merchantPrice = 3500;
-    parser.text = ''; parser.multiplier = 1; 
+    settings.shopDiscount = 0; settings.moBonus = 0; settings.smartRounding = false;
 };
 
 onMounted(() => { 
@@ -230,15 +229,22 @@ onMounted(() => {
   </Teleport>
 
   <div class="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-12">
+    <!-- Page Header -->
+    <div class="mb-10 text-center relative">
+        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+            {{ t('pack_calc_title') }}
+        </h1>
+        <div class="mt-2 h-1 w-24 bg-ogame-warning mx-auto rounded-full shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
+    </div>
+
     <!-- Intro Section -->
-    <div class="card-glass p-6 mb-8 border-l-4 border-l-ogame-warning/50 bg-ogame-warning/5">
+    <div class="card-glass p-6 mb-8 border-l-4 border-l-ogame-warning/50 bg-ogame-warning/5 backdrop-blur-md">
         <div class="flex items-start gap-4">
             <div class="p-3 rounded-xl bg-ogame-warning/10 text-ogame-warning">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <div>
-                <h2 class="text-xl font-bold text-white mb-2">{{ t('pack_calc_title') }}</h2>
-                <p class="text-sm text-gray-400 leading-relaxed">{{ t('pack_calc_intro') }}</p>
+                <p class="text-sm text-gray-300 leading-relaxed font-medium">{{ t('pack_calc_intro') }}</p>
             </div>
         </div>
     </div>
@@ -408,8 +414,8 @@ onMounted(() => {
             
             <div class="card-glass p-8 flex flex-col justify-center min-h-[220px] relative overflow-hidden border-t-4 border-t-amber-500">
                 <div class="text-center mb-8 relative z-10">
-                    <div class="text-xs text-gray-500 uppercase tracking-widest mb-2">{{ t('lbl_mse_needed') }}</div>
-                    <div class="text-3xl font-mono font-bold text-white break-all">{{ formatNum(calculation.totalMSE) }}</div>
+                    <div class="text-xs text-gray-500 uppercase tracking-widest mb-2 font-bold">{{ t('lbl_msu_needed') }}</div>
+                    <div class="text-3xl font-mono font-bold text-white break-all">{{ formatNum(calculation.totalMSU) }}</div>
                 </div>
                 <div class="w-full h-px bg-white/10 mb-8"></div>
                 <div class="text-center relative z-10">
@@ -469,26 +475,10 @@ onMounted(() => {
                              <option class="bg-gray-900" value="130">+130% {{ dmLabel }}</option>
                          </select>
                     </div>
-
-                    <div class="flex flex-col gap-2 bg-black/40 p-2 rounded border border-white/10">
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] text-gray-400 uppercase font-bold uppercase">{{ t('lbl_merchant') }}</span>
-                            <span class="text-xs text-purple-300 font-mono">{{ formatNum(calculation.merchantCost) }} {{ dmLabel }}</span>
-                        </div>
-                        <div class="flex gap-2">
-                             <input type="number" v-model.number="settings.merchantCount" @focus="$event.target.select()" min="0" placeholder="#" class="input-glass w-12 px-1 py-1 text-center text-xs">
-                             <select v-model.number="settings.merchantPrice" class="input-glass flex-grow px-1 py-1 text-xs">
-                                 <option class="bg-gray-900" value="3500">3.500 {{ dmLabel }}</option>
-                                 <option class="bg-gray-900" value="2000">2.000 {{ dmLabel }}</option>
-                             </select>
-                        </div>
-                    </div>
-
                 </div>
                 <div class="text-center py-4 bg-purple-900/10 rounded-xl border border-purple-500/20">
-                    <div class="text-[10px] text-purple-300 uppercase tracking-widest uppercase">{{ t('lbl_mo_needed') }}</div>
+                    <div class="text-[10px] text-purple-300 uppercase tracking-widest">{{ t('lbl_mo_needed') }}</div>
                     <div class="text-3xl font-bold text-white drop-shadow-[0_0_15px_rgba(168,85,247,0.5)] mb-1">{{ formatNum(calculation.totalMO) }}</div>
-                    <div class="text-[9px] text-gray-400">{{ formatNum(calculation.moPerPack) }} {{ dmLabel }} / pack</div>
                 </div>
             </div>
 

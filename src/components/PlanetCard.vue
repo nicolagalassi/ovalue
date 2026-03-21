@@ -27,6 +27,7 @@ const breakdown = computed(() => {
 
     let bonuses = [];
     let totPerc = 0;
+    const collFactor = 1 + ((g.rocktalCollectorBonus || 0) * 0.004);
 
     if (g.plasma > 0) { 
         const v = g.plasma * 1; 
@@ -45,8 +46,9 @@ const breakdown = computed(() => {
     }
     
     if (g.playerClass === 'collector') { 
-        bonuses.push({n: 'Collector', v: 25}); 
-        totPerc += 25; 
+        const v = 25 * collFactor;
+        bonuses.push({n: 'Collector', v}); 
+        totPerc += v; 
     }
     
     if (g.allyClass === 'trader') { 
@@ -54,10 +56,16 @@ const breakdown = computed(() => {
         totPerc += 5; 
     }
     
-    const combinedItem = parseInt(p.item||0) + parseInt(p.itemCustom||0);
-    if (combinedItem > 0) { 
-        bonuses.push({n: t('lbl_item'), v: combinedItem}); 
-        totPerc += combinedItem; 
+    const itemV = parseInt(p.item||0);
+    if (itemV > 0) { 
+        bonuses.push({n: t('lbl_item'), v: itemV}); 
+        totPerc += itemV; 
+    }
+
+    const itemCustomV = parseInt(p.itemCustom||0);
+    if (itemCustomV > 0) { 
+        bonuses.push({n: t('lbl_item_additional'), v: itemCustomV}); 
+        totPerc += itemCustomV; 
     }
 
     const magma = parseInt(p.magma) || 0;
@@ -79,15 +87,17 @@ const breakdown = computed(() => {
         totPerc += g.lfBonus; 
     }
 
-    const maxCraw = calcCrawlerCap(met, cry, deu, g.playerClass === 'collector', g.geologist);
+    const geoFactor = g.geologist ? (1.1 + (0.1 * (collFactor - 1))) : 1;
+    const maxCraw = Math.floor(calcCrawlerCap(met, cry, deu, false, false) * geoFactor);
     const craw = parseInt(p.crawlers) || 0;
     const actCraw = Math.min(craw, maxCraw);
     
     if (actCraw > 0) {
         let multiplier = 0.02;
         if (g.playerClass === 'collector') {
-            multiplier *= 1.5; 
-            if (p.overload) multiplier *= 1.5;
+            const crawlerBonus = 0.5 * collFactor;
+            multiplier *= (1 + crawlerBonus); 
+            if (p.overload) multiplier *= (1 + crawlerBonus);
         }
         const cP = actCraw * multiplier;
         bonuses.push({n: `Crawler (${actCraw})`, v: cP}); 
@@ -159,7 +169,10 @@ const breakdown = computed(() => {
                 </select>
             </div>
             <div>
-                <label class="block text-[10px] uppercase font-bold text-gray-500 mb-1">{{ t('lbl_item') }} %</label>
+                <div class="flex justify-between items-center mb-1">
+                    <label class="block text-[10px] uppercase font-bold text-gray-500 truncate">{{ t('lbl_item') }}</label>
+                    <label class="block text-[10px] uppercase font-bold text-gray-500 truncate text-right">{{ t('lbl_item_additional') }}</label>
+                </div>
                 <div class="flex gap-2">
                     <select v-model.number="planet.item" class="input-glass w-1/2 px-1 py-2 text-sm">
                         <option value="0">-</option>
@@ -168,19 +181,25 @@ const breakdown = computed(() => {
                         <option value="30">30%</option>
                         <option value="40">40%</option>
                     </select>
-                    <input type="number" v-model.number="planet.itemCustom" @focus="$event.target.select()" placeholder="%" class="input-glass w-1/2 px-1 py-2 text-center text-sm">
+                    <input type="number" v-model.number="planet.itemCustom" @focus="$event.target.select()" placeholder="%" class="input-glass w-1/2 px-1 py-2 text-center text-sm" :title="t('lbl_item_additional')">
                 </div>
             </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-[10px] uppercase font-bold text-gray-500 mb-1 truncate">{{ t('lbl_magma') }}</label>
-                <input type="number" v-model.number="planet.magma" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-sm font-mono">
+                <div class="flex justify-between items-center mb-1">
+                    <label class="block text-[10px] uppercase font-bold text-gray-500 truncate">{{ t('lbl_magma') }}</label>
+                    <span class="text-[9px] font-bold text-cyan-400 px-1 bg-cyan-950/50 rounded">{{ t('lbl_rocktal_tag') }}</span>
+                </div>
+                <input type="number" v-model.number="planet.magma" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-sm font-mono border-l-2 border-l-cyan-500">
             </div>
             <div>
-                <label class="block text-[10px] uppercase font-bold text-gray-500 mb-1 truncate">{{ t('lbl_human') }}</label>
-                <input type="number" v-model.number="planet.human" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-sm font-mono">
+                <div class="flex justify-between items-center mb-1">
+                    <label class="block text-[10px] uppercase font-bold text-gray-500 truncate">{{ t('lbl_human') }}</label>
+                    <span class="text-[9px] font-bold text-blue-400 px-1 bg-blue-950/50 rounded">{{ t('lbl_humans_tag') }}</span>
+                </div>
+                <input type="number" v-model.number="planet.human" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-sm font-mono border-l-2 border-l-blue-500">
             </div>
         </div>
 

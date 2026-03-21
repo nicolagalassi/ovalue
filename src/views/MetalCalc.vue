@@ -10,6 +10,7 @@ const { calcMineProduction, getPosMult, formatNum } = useOgameFormulas();
 const settings = reactive({
     ecoSpeed: 8,
     playerClass: 'collector', 
+    rocktalCollectorBonus: 0,
     allyClass: 'none',        
     plasma: 0,
     geologist: false,
@@ -52,6 +53,8 @@ const applyBulk = () => {
 
 const totals = computed(() => {
     let hourly = 0;
+    const collFactor = 1 + (settings.rocktalCollectorBonus * 0.004);
+    
     planets.value.forEach(p => {
         const met = parseInt(p.metal) || 0;
         const posMult = getPosMult(p.pos);
@@ -62,7 +65,11 @@ const totals = computed(() => {
         totPerc += settings.plasma * 1;
         if (settings.geologist) totPerc += 10;
         if (settings.staff) totPerc += 2;
-        if (settings.playerClass === 'collector') totPerc += 25;
+        
+        if (settings.playerClass === 'collector') {
+            totPerc += 25 * collFactor;
+        }
+        
         if (settings.allyClass === 'trader') totPerc += 5;
         
         totPerc += (parseInt(p.item)||0) + (parseInt(p.itemCustom)||0);
@@ -71,12 +78,19 @@ const totals = computed(() => {
         totPerc += settings.lfBonus;
 
         let maxCraw = (met + (parseInt(p.crystal)||0) + (parseInt(p.deuterium)||0)) * 8; 
-        if (settings.playerClass === 'collector' && settings.geologist) maxCraw = Math.floor(maxCraw * 1.1);
+        if (settings.playerClass === 'collector' && settings.geologist) {
+             const geoFactor = 1.1 + (0.1 * (collFactor - 1));
+             maxCraw = Math.floor(maxCraw * geoFactor);
+        }
         
         const actCraw = Math.min((parseInt(p.crawlers)||0), maxCraw);
         if (actCraw > 0) {
             let mult = 0.02;
-            if (settings.playerClass === 'collector') { mult *= 1.5; if (p.overload) mult *= 1.5; }
+            if (settings.playerClass === 'collector') { 
+                const crawlerBonus = 0.5 * collFactor;
+                mult *= (1 + crawlerBonus); 
+                if (p.overload) mult *= (1 + crawlerBonus); 
+            }
             totPerc += (actCraw * mult);
         }
 
@@ -131,8 +145,28 @@ const importData = (e) => {
   </Teleport>
 
   <div class="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-32">
-    <div class="card-glass p-6 mb-8 relative overflow-hidden">
-        <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 to-blue-600"></div>
+    <!-- Page Header -->
+    <div class="mb-10 text-center relative">
+        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+            {{ t('metal_calc_title') }}
+        </h1>
+        <div class="mt-2 h-1 w-24 bg-cyan-500 mx-auto rounded-full shadow-[0_0_10px_rgba(34,211,238,0.5)]"></div>
+    </div>
+
+    <!-- Intro Section -->
+    <div class="card-glass p-6 mb-8 border-l-4 border-l-cyan-500/50 bg-cyan-500/5 backdrop-blur-md">
+        <div class="flex items-start gap-4">
+            <div class="p-3 rounded-xl bg-cyan-500/10 text-cyan-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <div>
+                <p class="text-sm text-gray-300 leading-relaxed font-medium">{{ t('metal_calc_intro') }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-glass p-6 mb-8 relative overflow-hidden group border-t border-white/5">
+        <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 to-blue-600 group-hover:w-2 transition-all"></div>
         <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-3">
             <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]"></span> 
             {{ t('settings_title') }}
@@ -145,10 +179,14 @@ const importData = (e) => {
                 </div>
                 <div>
                     <label class="block text-xs uppercase font-bold text-gray-400 mb-2">{{ t('lbl_player_class') }}</label>
-                    <select v-model="settings.playerClass" class="input-glass w-full px-4 py-2">
-                        <option value="collector">{{ t('opt_collector') }}</option>
-                        <option value="other">{{ t('opt_general') }}</option>
-                    </select>
+                    <div class="flex gap-2">
+                        <select v-model="settings.playerClass" class="input-glass w-full px-4 py-2">
+                            <option value="collector">{{ t('opt_collector') }}</option>
+                            <option value="other">{{ t('opt_general') }}</option>
+                        </select>
+                        <input v-if="settings.playerClass === 'collector'" type="number" v-model.number="settings.rocktalCollectorBonus" @focus="$event.target.select()" class="input-glass w-24 px-2 py-2 text-center" title="Rock'tal Collector Enhancement Level">
+                    </div>
+                    <label v-if="settings.playerClass === 'collector'" class="block text-[10px] text-cyan-400 mt-1 uppercase font-bold">{{ t('lbl_rocktal_collector_bonus') }} (Lv)</label>
                 </div>
             </div>
             <div class="space-y-4">

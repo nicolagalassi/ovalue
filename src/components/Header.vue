@@ -30,14 +30,6 @@ const changeLang = (lang) => {
             <svg class="w-3 h-3 text-ogame-accent group-hover:-translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
             <span>{{ t('nav_back') }}</span>
         </router-link>
-
-        <div class="flex flex-col">
-            <h1 class="text-xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 tracking-tight truncate">
-                <span v-if="$route.path === '/metal'">{{ t('metal_calc_title') }}</span>
-                <span v-else-if="$route.path === '/pack'">{{ t('pack_calc_title') }}</span>
-                <span v-else-if="$route.path === '/shopping'">Ogame Shopping List</span>
-            </h1>
-        </div>
       </div>
 
       <div v-else class="flex-grow hidden md:block">

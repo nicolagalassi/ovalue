@@ -272,11 +272,10 @@ export const SHOP_ITEMS = {
     categories: [
         { id: "resources", name: "shop_cat_resources" },
         { id: "officers", name: "shop_cat_officers" },
-        { id: "boosters_res", name: "shop_cat_boosters_res" },
-        { id: "boosters_energy", name: "shop_cat_boosters_energy" },
+        { id: "boosters", name: "shop_cat_boosters" },
         { id: "slots", name: "shop_cat_slots" },
         { id: "fields", name: "shop_cat_fields" },
-        { id: "items", name: "shop_cat_items" }
+        { id: "construction", name: "shop_cat_construction" }
     ],
     durations: [
         { id: "base", name: "dur_base" },
@@ -306,19 +305,19 @@ export const SHOP_ITEMS = {
         "staff_command": { cat: "officers", tier: "none", costs: { "none": { "7d": 42500, "90d": 425000 } } },
 
         // Resource Boosters
-        "booster_metal": { cat: "boosters_res", tier: "multi", costs: {
+        "booster_metal": { cat: "boosters", tier: "multi", costs: {
             "platinum": { "7d": 27000, "30d": 93500, "90d": 240000 },
             "gold": { "7d": 18000, "30d": 63750, "90d": 160000 },
             "silver": { "7d": 6750, "30d": 23800, "90d": 64000 },
             "bronze": { "7d": 2500, "30d": 8500, "90d": 25000 }
         }},
-        "booster_crystal": { cat: "boosters_res", tier: "multi", costs: {
+        "booster_crystal": { cat: "boosters", tier: "multi", costs: {
             "platinum": { "7d": 27000, "30d": 93500, "90d": 240000 },
             "gold": { "7d": 18000, "30d": 63750, "90d": 160000 },
             "silver": { "7d": 6750, "30d": 23800, "90d": 64000 },
             "bronze": { "7d": 2500, "30d": 8500, "90d": 25000 }
         }},
-        "booster_deut": { cat: "boosters_res", tier: "multi", costs: {
+        "booster_deut": { cat: "boosters", tier: "multi", costs: {
             "platinum": { "7d": 27000, "30d": 93500, "90d": 240000 },
             "gold": { "7d": 18000, "30d": 63750, "90d": 160000 },
             "silver": { "7d": 6750, "30d": 23800, "90d": 64000 },
@@ -326,7 +325,7 @@ export const SHOP_ITEMS = {
         }},
 
         // Energy Amplifiers
-        "booster_energy": { cat: "boosters_energy", tier: "multi", costs: {
+        "booster_energy": { cat: "boosters", tier: "multi", costs: {
             "platinum": { "7d": 27000, "30d": 93500, "90d": 240000 },
             "gold": { "7d": 18000, "30d": 63750, "90d": 160000 },
             "silver": { "7d": 6750, "30d": 23800, "90d": 64000 },
@@ -349,23 +348,47 @@ export const SHOP_ITEMS = {
             "bronze": { "base": 30000 }
         }},
 
-        // Items (M.O.O.N.S, Reducers)
-        "moons": { cat: "items", tier: "multi", costs: {
+        // Costruzioni (ordine tier in UI: platino → oro → argento → bronzo)
+        "moons": { cat: "construction", tier: "multi", costs: {
+            "platinum": { "base": 150000 },
             "gold": { "base": 100000 },
             "silver": { "base": 50000 },
             "bronze": { "base": 30000 }
         }},
-        "kraken": { cat: "items", tier: "multi", costs: {
+        "kraken": { cat: "construction", tier: "multi", costs: {
+            "platinum": { "base": 35000 },
             "gold": { "base": 25000 },
             "silver": { "base": 8500 },
             "bronze": { "base": 2500 }
         }},
-        "detroid": { cat: "items", tier: "multi", costs: {
+        "detroid": { cat: "construction", tier: "multi", costs: {
+            "platinum": { "base": 35000 },
             "gold": { "base": 25000 },
             "silver": { "base": 8500 },
             "bronze": { "base": 2500 }
         }},
-        "newtron": { cat: "items", tier: "multi", costs: {
+        "newtron": { cat: "construction", tier: "multi", costs: {
+            "platinum": { "base": 35000 },
+            "gold": { "base": 25000 },
+            "silver": { "base": 8500 },
+            "bronze": { "base": 2500 }
+        }},
+
+        // Forme di vita (stessi tagli; platino indicativo ~27k MO quando in vendita)
+        "kraken_lifeforms": { cat: "construction", tier: "multi", costs: {
+            "platinum": { "base": 27000 },
+            "gold": { "base": 25000 },
+            "silver": { "base": 8500 },
+            "bronze": { "base": 2500 }
+        }},
+        "detroid_lifeforms": { cat: "construction", tier: "multi", costs: {
+            "platinum": { "base": 27000 },
+            "gold": { "base": 25000 },
+            "silver": { "base": 8500 },
+            "bronze": { "base": 2500 }
+        }},
+        "newtron_lifeforms": { cat: "construction", tier: "multi", costs: {
+            "platinum": { "base": 27000 },
             "gold": { "base": 25000 },
             "silver": { "base": 8500 },
             "bronze": { "base": 2500 }

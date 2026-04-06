@@ -3,7 +3,7 @@ import Header from './components/Header.vue';
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col font-sans antialiased bg-[#050505] text-gray-200 selection:bg-cyan-500/30">
+  <div class="min-h-screen flex flex-col font-sans antialiased bg-[#050505] text-gray-200 selection:bg-cyan-500/30 overflow-y-scroll">
     <Header />
     
     <main class="flex-grow flex flex-col relative w-full overflow-x-hidden">

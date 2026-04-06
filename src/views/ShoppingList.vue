@@ -19,6 +19,12 @@ const SHOP_ITEM_IMAGES = {
     staff_researcher: 'alleanza ricercatore.png',
     staff_merchant: 'mercante alleanza.png',
     staff_warrior: 'guerriero alleanza.png',
+    officer_commander: 'commander.jpg',
+    officer_admiral: 'ammiraglio.jpg',
+    officer_engineer: 'ingegnere.jpg',
+    officer_geologist: 'geologo.jpg',
+    officer_technocrat: 'tecnico.jpg',
+    staff_command: 'staffdicomando.jpg',
     booster_metal: '40 metallo.png',
     booster_crystal: '40 cristallo.png',
     booster_deut: '40 deuterio.png',
@@ -57,8 +63,72 @@ const shopCatHintKey = (catId) => `shop_cat_${catId}_hint`;
 const shopCart = ref([]);
 const cartDrawerOpen = ref(false);
 const activeCategory = ref(SHOP_ITEMS.categories[0].id);
+const activeDiscountEvent = ref('none');
+const isMounted = ref(false);
+const cartJustAdded = ref(false);
+
+import { onMounted } from 'vue';
+onMounted(() => {
+    isMounted.value = true;
+});
+
+const DISCOUNT_EVENTS = [
+    { id: 'none', label: 'shop_event_none' },
+    { id: 'boosters', label: 'shop_event_boosters' },
+    { id: 'resources', label: 'shop_event_resources' },
+    { id: 'classes', label: 'shop_event_classes' },
+    { id: 'platinum', label: 'shop_event_platinum' },
+    { id: 'construction', label: 'shop_event_construction' },
+    { id: 'cashback', label: 'shop_event_cashback' },
+    { id: 'merchant', label: 'shop_event_merchant' },
+    { id: 'relocate', label: 'shop_event_relocate' }
+];
+
+const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
+    let factor = 1;
+    if (eventId === 'boosters' && String(itemKey).includes('booster')) {
+        if (dur === '7d') factor = 0.9;
+        if (dur === '30d') factor = 0.85;
+        if (dur === '90d') factor = 0.8;
+    }
+    if (eventId === 'resources' && String(itemKey).includes('res_package')) {
+        factor = 0.7;
+    }
+    if (eventId === 'classes' && (String(itemKey).includes('class_') || String(itemKey).includes('staff_'))) {
+        factor = 0.8;
+    }
+    if (eventId === 'platinum' && tier === 'platinum') {
+        factor = 0.8;
+    }
+    if (eventId === 'merchant' && itemKey === 'ingame_merchant') {
+        factor = 2000 / 3500; // Drops from 3500 to 2000
+    }
+    if (eventId === 'relocate' && itemKey === 'ingame_relocate') {
+        factor = 0.5; // Relocate is down 50%
+    }
+    return factor;
+}
+
+const getCalculatedCost = (itemKey, tier, dur, baseCost) => {
+    const factor = getEventDiscountFactor(itemKey, tier, dur, activeDiscountEvent.value);
+    return Math.round(baseCost * factor);
+};
 
 const itemQuantities = reactive({});
+const selectedDurations = reactive({});
+
+const initSelectedDurations = () => {
+    for (const [key, val] of Object.entries(SHOP_ITEMS.items)) {
+        if (val.costs) {
+            for (const [tier, durs] of Object.entries(val.costs)) {
+                if (!selectedDurations[`${key}_${tier}`]) {
+                    selectedDurations[`${key}_${tier}`] = Object.keys(durs)[0];
+                }
+            }
+        }
+    }
+};
+initSelectedDurations();
 for (const key of Object.keys(SHOP_ITEMS.items)) {
     itemQuantities[key] = 1;
 }
@@ -96,12 +166,13 @@ const displayCatalog = computed(() => {
         ];
     }
     if (cat === 'construction') {
+        if (activeDiscountEvent.value !== 'construction') return [];
         const pair = (id) => ({ key: id, val: SHOP_ITEMS.items[id] });
         return [
             {
                 blockKey: 'cons-std',
                 titleKey: 'shop_construction_sub_standard',
-                items: ['moons', 'kraken', 'detroid', 'newtron'].map(pair),
+                items: ['kraken', 'detroid', 'newtron'].map(pair),
             },
             {
                 blockKey: 'cons-life',
@@ -120,12 +191,17 @@ const displayCatalog = computed(() => {
     ];
 });
 
-const addToShopCart = (id, tier, duration, cost) => {
+const addToShopCart = (id, tier, duration, baseCost) => {
     const mult = Math.max(1, itemQuantities[id] || 1);
-    const existing = shopCart.value.find(i => i.id === id && i.tier === tier && i.duration === duration);
+    const event = activeDiscountEvent.value;
+    const cost = getCalculatedCost(id, tier, duration, baseCost);
+    const cbPerUnit = event === 'cashback' ? Math.floor(cost * 0.2) : 0;
+
+    const existing = shopCart.value.find(i => i.id === id && i.tier === tier && i.duration === duration && i.event === event);
     if(existing) {
         existing.mult += mult;
         existing.cost += (cost * mult);
+        existing.cashback += (cbPerUnit * mult);
     } else {
         shopCart.value.push({ 
             id, 
@@ -133,10 +209,14 @@ const addToShopCart = (id, tier, duration, cost) => {
             duration, 
             mult, 
             unitCost: cost,
-            cost: cost * mult
+            cost: cost * mult,
+            cashback: cbPerUnit * mult,
+            event
         });
     }
     itemQuantities[id] = 1;
+    cartJustAdded.value = true;
+    setTimeout(() => { cartJustAdded.value = false; }, 300);
 };
 
 const removeShopCart = (index) => shopCart.value.splice(index, 1);
@@ -158,6 +238,7 @@ const getDurationDiscount = (itemData, tierName, durKey) => {
 };
 
 const totalShopCartMO = computed(() => shopCart.value.reduce((acc, curr) => acc + curr.cost, 0));
+const totalShopCartCashback = computed(() => shopCart.value.reduce((acc, curr) => acc + (curr.cashback || 0), 0));
 
 /** Quantità totale righe carrello (somma pezzi) per badge */
 const cartTotalQty = computed(() => shopCart.value.reduce((acc, row) => acc + row.mult, 0));
@@ -212,58 +293,124 @@ const getTierBorderClass = (tier, itemKey) => {
     return 'border-cyan-500 bg-cyan-900/20 hover:bg-cyan-600/30';
 };
 
-/** Ordine tier in UI: platino → oro → argento → bronzo */
-const TIER_DISPLAY_ORDER = ['platinum', 'gold', 'silver', 'bronze'];
+/** Ordine tier in UI: platino → oro → argento → bronzo → none */
+const TIER_DISPLAY_ORDER = ['platinum', 'gold', 'silver', 'bronze', 'none'];
 
-const tiersForDisplay = (costs) => {
+const tiersForDisplay = (itemKey, costs) => {
     if (!costs || typeof costs !== 'object') return [];
     return TIER_DISPLAY_ORDER
         .filter((t) => costs[t] != null)
+        .filter((t) => {
+            if (itemKey.includes('booster') && t === 'bronze' && activeDiscountEvent.value !== 'boosters') {
+                return false;
+            }
+            return true;
+        })
         .map((t) => [t, costs[t]]);
+};
+
+const getTierDisplayName = (itemKey, tier) => {
+    let suffix = '';
+    if (String(itemKey).includes('booster')) {
+        if (tier === 'platinum') suffix = ' 40%';
+        if (tier === 'gold') suffix = ' 30%';
+        if (tier === 'silver') suffix = ' 20%';
+        if (tier === 'bronze') suffix = ' 10%';
+    } else if (itemKey === 'fields_planet') {
+        if (tier === 'platinum') suffix = ' (+20)';
+        if (tier === 'gold') suffix = ' (+15)';
+        if (tier === 'silver') suffix = ' (+9)';
+        if (tier === 'bronze') suffix = ' (+4)';
+    } else if (itemKey === 'fields_moon') {
+        if (tier === 'platinum') suffix = ' (+8)';
+        if (tier === 'gold') suffix = ' (+6)';
+        if (tier === 'silver') suffix = ' (+4)';
+        if (tier === 'bronze') suffix = ' (+2)';
+    } else if (itemKey === 'moons') {
+        if (tier === 'gold') return '30min';
+        if (tier === 'silver') return '60min';
+        if (tier === 'bronze') return '90min';
+    } else if (itemKey === 'slot_expedition') {
+        if (tier === 'gold') suffix = ' (+3)';
+        if (tier === 'silver') suffix = ' (+2)';
+        if (tier === 'bronze') suffix = ' (+1)';
+    } else if (itemKey === 'slot_fleet') {
+        if (tier === 'gold') suffix = ' (+6)';
+        if (tier === 'silver') suffix = ' (+4)';
+        if (tier === 'bronze') suffix = ' (+2)';
+    }
+    
+    // Assumiamo che ci sia una traduzione come tier_platinum in locales
+    const baseName = t(`tier_${tier}`) || tier;
+    return `${baseName}${suffix}`;
 };
 </script>
 
 <template>
   <div class="max-w-[min(100rem,calc(100%-1.5rem))] mx-auto px-4 md:px-8 mt-6 md:mt-10 pb-12">
-    <!-- Page Header + pulsante carrello (drawer) -->
-    <div class="mb-10 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+    
+    <!-- Header Cart Integration -->
+    <Teleport to="#header-actions" v-if="isMounted">
+        <button
+            type="button"
+            class="group relative flex items-center gap-2 md:gap-3 rounded-xl border transition-all focus:outline-none"
+            :class="[
+                shopCart.length > 0 ? 'border-cyan-500/50 bg-cyan-900/20 px-3 py-1.5 hover:bg-cyan-900/40 md:px-4 md:py-2 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'border-transparent bg-transparent px-2 py-1.5 hover:border-white/10 hover:bg-white/5 md:px-3 md:py-2',
+                {'scale-110 !border-green-400 !bg-green-900/30': cartJustAdded}
+            ]"
+            :aria-expanded="cartDrawerOpen"
+            @click="cartDrawerOpen = true"
+        >
+            <div class="relative flex items-center justify-center transition-colors" :class="shopCart.length > 0 ? 'text-cyan-400 shadow-cyan-500/50 drop-shadow-md' : 'text-gray-400 group-hover:text-cyan-400'">
+                <svg class="h-5 w-5 md:h-6 md:w-6 transition-transform" :class="{'scale-125 text-green-400': cartJustAdded}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                <div
+                    v-if="cartTotalQty > 0"
+                    class="absolute -right-2 -top-2 flex h-4 min-w-[1rem] md:h-5 md:min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] md:text-[10px] font-black text-[#0b0e14] shadow-md transition-all"
+                    :class="cartJustAdded ? 'bg-green-400 scale-125' : 'bg-cyan-500'"
+                >{{ cartTotalQty > 99 ? '99+' : cartTotalQty }}</div>
+            </div>
+            <div class="hidden md:flex flex-col items-start leading-none ml-1">
+                <span v-if="shopCart.length > 0" class="text-[10px] md:text-sm font-mono font-bold transition-colors" :class="cartJustAdded ? 'text-green-300' : 'text-cyan-100'">{{ formatNum(totalShopCartMO) }}</span>
+                <span v-else class="text-[10px] md:text-xs font-bold uppercase tracking-wider text-gray-500">{{ t('shop_cart_button') }}</span>
+            </div>
+        </button>
+    </Teleport>
+
+    <!-- Page Header -->
+    <div class="mb-8 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
         <div class="text-center sm:text-left flex-1 min-w-0">
             <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
                 Shopping List
             </h1>
             <div class="mt-2 h-1 w-24 bg-cyan-500 mx-auto sm:mx-0 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.5)]"></div>
         </div>
-        <button
-            type="button"
-            class="group relative flex items-center gap-3 self-center sm:self-start shrink-0 rounded-2xl border border-white/15 bg-[#0b0e14]/90 px-4 py-3 text-left shadow-lg transition-all hover:border-cyan-500/40 hover:bg-[#0b0e14] focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
-            :aria-expanded="cartDrawerOpen"
-            aria-controls="shop-cart-drawer"
-            @click="cartDrawerOpen = true"
-        >
-            <span class="relative flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400 ring-1 ring-cyan-500/30">
-                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                <span
-                    v-if="cartTotalQty > 0"
-                    class="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-cyan-500 px-1 text-[10px] font-black text-[#0b0e14] shadow-md"
-                >{{ cartTotalQty > 99 ? '99+' : cartTotalQty }}</span>
-            </span>
-            <span class="flex flex-col items-start gap-0.5 pr-1">
-                <span class="text-sm font-bold uppercase tracking-wide text-white group-hover:text-cyan-200">{{ t('shop_cart_button') }}</span>
-                <span v-if="shopCart.length > 0" class="text-xs font-mono text-cyan-400/90">{{ formatNum(totalShopCartMO) }} MO</span>
-                <span v-else class="text-[11px] text-gray-500">{{ t('shop_cart_empty_hint') }}</span>
-            </span>
-        </button>
     </div>
 
-    <!-- Intro Section -->
-    <div class="card-glass p-6 mb-8 border-l-4 border-l-cyan-500/50 bg-cyan-500/5 backdrop-blur-md">
-        <div class="flex items-start gap-4">
-            <div class="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 shrink-0">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+    <!-- Intro Section & Event Simulator -->
+    <div class="flex flex-col md:flex-row gap-4 mb-8">
+        <div class="flex-1 card-glass p-5 border-l-4 border-l-cyan-500/50 bg-cyan-500/5 backdrop-blur-md">
+            <div class="flex items-start gap-4">
+                <div class="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 shrink-0">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-300 leading-relaxed font-medium">Aggiungi gli Item dal catalogo OGame cliccando sui tasti corrispondenti a livello e durata. Puoi impostare la quantità prima di cliccare.</p>
+                </div>
             </div>
-            <div>
-                <p class="text-sm text-gray-300 leading-relaxed font-medium">Aggiungi gli Item dal catalogo OGame cliccando sui tasti corrispondenti a livello e durata. Puoi anche impostare la quantità prima di cliccare. Tieni sotto controllo il totale in Materia Oscura spesa.</p>
-            </div>
+        </div>
+        
+        <div class="w-full md:w-72 shrink-0 card-glass p-5 border-t border-white/10 bg-[#0b0e14]/80 backdrop-blur-md flex flex-col justify-center">
+            <label for="event-simulator" class="block text-[10px] font-bold uppercase tracking-widest text-cyan-400 mb-2 flex items-center gap-2">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Simula Evento Sconto
+            </label>
+            <select
+                id="event-simulator"
+                v-model="activeDiscountEvent"
+                class="w-full appearance-none rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 text-sm font-medium text-white shadow-inner outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+            >
+                <option v-for="evt in DISCOUNT_EVENTS" :key="evt.id" :value="evt.id">{{ t(evt.label) }}</option>
+            </select>
         </div>
     </div>
 
@@ -403,50 +550,50 @@ const tiersForDisplay = (costs) => {
 
                             <div class="p-4 md:p-5 flex-grow flex flex-col justify-end gap-4">
                                 
-                                <!-- Multi-Tier Items -->
-                                <div v-if="entry.val.tier === 'multi'" class="space-y-4">
+                                <div class="space-y-3">
                                     <div
-                                        v-for="[tierName, durations] in tiersForDisplay(entry.val.costs)"
+                                        v-for="[tierName, durations] in tiersForDisplay(entry.key, entry.val.costs)"
                                         :key="tierName"
-                                        class="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2"
+                                        class="rounded-xl border border-white/5 bg-black/40 p-3 lg:p-4 flex flex-col gap-3 lg:gap-3.5 shadow-inner"
+                                        :class="getTierBorderClass(tierName, entry.key)"
                                     >
-                                        <div class="flex items-center justify-between gap-2 border-b border-white/5 pb-2 mb-1">
-                                            <span class="text-[11px] uppercase tracking-wider font-bold" :class="getTierColorClass(tierName)">{{ tierName }}</span>
-                                            <span class="text-[10px] text-gray-500 hidden sm:inline">{{ t('shop_col_duration_cost') }}</span>
+                                        <div v-if="tierName !== 'none' || Object.keys(durations).length > 1" class="flex items-center gap-3" :class="tierName !== 'none' ? 'justify-between' : 'justify-end'">
+                                             <span v-if="tierName !== 'none'" class="text-[11px] lg:text-xs font-bold uppercase tracking-wider min-w-[70px] leading-tight" :class="getTierColorClass(tierName)">
+                                                  {{ getTierDisplayName(entry.key, tierName) }}
+                                             </span>
+                                             <div v-if="Object.keys(durations).length > 1" class="flex p-0.5 bg-[#0b0e14] rounded-md border border-white/10 gap-0.5 shadow-sm overflow-x-auto">
+                                                 <button 
+                                                     v-for="(_, dur) in durations" :key="dur"
+                                                     type="button"
+                                                     @click="selectedDurations[`${entry.key}_${tierName}`] = dur"
+                                                     class="px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-sm transition-colors whitespace-nowrap"
+                                                     :class="selectedDurations[`${entry.key}_${tierName}`] === dur ? 'bg-cyan-600/90 text-white shadow-md' : 'text-gray-500 hover:text-white hover:bg-white/5'"
+                                                 >
+                                                     {{ dur === 'base' ? 'Base' : t('dur_' + dur).replace(' Days', 'd').replace(' Giorni', 'g') }}
+                                                 </button>
+                                             </div>
                                         </div>
-                                        <div class="grid grid-cols-3 gap-2" :class="{'!grid-cols-1': Object.keys(durations).length === 1}">
-                                            <button 
-                                                v-for="(cost, dur) in durations" 
-                                                :key="String(dur)"
-                                                type="button"
-                                                @click="addToShopCart(entry.key, tierName, dur, cost)"
-                                                class="flex flex-col items-center justify-center p-2.5 rounded-lg border transition-all duration-200 active:scale-95 group cursor-pointer min-h-[4.25rem]"
-                                                :class="getTierBorderClass(tierName, entry.key)"
-                                            >
-                                                <span class="text-[11px] font-bold text-white text-center group-hover:scale-105 transition-transform flex flex-col items-center gap-1">
-                                                     <span>{{ dur === 'base' ? t('shop_btn_add_short') : t('dur_' + dur) }}</span>
-                                                     <span v-if="getDurationDiscount(entry.val, tierName, dur) > 0" class="text-[9px] bg-green-600/90 text-white px-1.5 py-0.5 rounded leading-none shadow-sm">-{{ getDurationDiscount(entry.val, tierName, dur) }}%</span>
-                                                </span>
-                                                <span class="text-[10px] font-mono mt-1 text-gray-300 group-hover:text-white transition-colors">{{ formatNum(cost) }} MO</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Single-Tier Items (None/Base) -->
-                                <div v-else class="space-y-2">
-                                    <div v-for="(cost, dur) in entry.val.costs.none" :key="String(dur)">
+                                
                                         <button 
                                             type="button"
-                                            @click="addToShopCart(entry.key, 'none', dur, cost)"
-                                            class="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3.5 rounded-xl border transition-all duration-200 active:scale-[0.99] group cursor-pointer text-left"
-                                            :class="getTierBorderClass('none', entry.key)"
+                                            @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])"
+                                            class="group w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5 lg:px-4 lg:py-3 rounded-lg border border-transparent bg-white/5 hover:bg-white/10 hover:border-cyan-500/40 transition-all active:scale-[0.98]"
                                         >
-                                            <span class="text-sm font-bold text-white group-hover:scale-[1.02] transition-transform flex items-center flex-wrap gap-2">
-                                                {{ dur === 'base' ? t('shop_btn_add_cart') : t('dur_' + dur) }}
-                                                <span v-if="getDurationDiscount(entry.val, 'none', dur) > 0" class="text-[10px] bg-green-600/90 text-white px-2 py-0.5 rounded leading-none shadow-sm">-{{ getDurationDiscount(entry.val, 'none', dur) }}%</span>
+                                            <span class="text-[11px] lg:text-xs font-bold text-white flex items-center gap-1.5 lg:gap-2 group-hover:text-cyan-200 transition-colors">
+                                                <svg class="w-4 h-4 lg:w-4 lg:h-4 text-cyan-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                                                <span v-if="getDurationDiscount(entry.val, tierName, selectedDurations[`${entry.key}_${tierName}`]) > 0" class="text-[9px] bg-green-600 px-1.5 py-0.5 rounded shadow-sm ml-0.5 text-white">
+                                                     -{{ getDurationDiscount(entry.val, tierName, selectedDurations[`${entry.key}_${tierName}`]) }}%
+                                                </span>
                                             </span>
-                                            <span class="text-xs font-mono text-cyan-200/90 shrink-0">{{ formatNum(cost) }} MO</span>
+                                            <span class="text-[11px] lg:text-xs font-mono font-bold flex flex-wrap items-center sm:justify-end gap-1.5 w-full sm:w-auto" :class="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]] ? 'text-green-400' : 'text-cyan-100'">
+                                                <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]" class="opacity-60 line-through text-[10px] text-cyan-700 decoration-cyan-500/50">
+                                                    {{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}
+                                                </span>
+                                                <span class="flex items-baseline gap-1">
+                                                    {{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}
+                                                    <span class="text-[9px] opacity-70 font-sans tracking-widest">MO</span>
+                                                </span>
+                                            </span>
                                         </button>
                                     </div>
                                 </div>
@@ -524,8 +671,12 @@ const tiersForDisplay = (costs) => {
                                 <div class="min-w-0 flex-1">
                                     <div class="mb-1 text-xs font-bold leading-tight text-white break-words">{{ item.mult }}× {{ t(item.id) }}</div>
                                     <div class="flex flex-wrap items-center gap-2 text-[10px]">
-                                        <span v-if="item.tier !== 'none'" :class="getTierColorClass(item.tier)" class="uppercase">{{ item.tier }}</span>
-                                        <span v-if="item.duration !== 'base'" class="font-bold text-gray-500">{{ t('dur_' + item.duration) }}</span>
+                                        <span v-if="item.tier !== 'none'" :class="getTierColorClass(item.tier)" class="uppercase">{{ getTierDisplayName(item.id, item.tier) }}</span>
+                                        <span v-if="item.duration !== 'base'" class="font-bold text-gray-400 bg-gray-800/80 px-1 rounded">{{ t('dur_' + item.duration) }}</span>
+                                        <span v-if="item.event && item.event !== 'none'" class="font-bold text-cyan-200 bg-cyan-900/40 px-1 rounded border border-cyan-500/20 flex items-center gap-1">
+                                            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            {{ t('shop_event_' + item.event) }}
+                                        </span>
                                     </div>
                                 </div>
                                 <div class="flex shrink-0 flex-col items-end justify-between">
@@ -544,12 +695,22 @@ const tiersForDisplay = (costs) => {
                     </div>
 
                     <div class="border-t border-cyan-500/30 bg-black/90 p-5 shadow-[0_-12px_32px_rgba(0,0,0,0.85)]">
-                        <div class="mb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-cyan-500/80">
-                            <span>Totale Materia Oscura</span>
-                            <span>MO</span>
-                        </div>
-                        <div class="text-right font-mono text-3xl font-black text-white drop-shadow-[0_0_20px_rgba(6,182,212,0.5)] sm:text-4xl">
-                            {{ formatNum(totalShopCartMO) }}
+                        <div class="space-y-2">
+                             <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-green-400">
+                                 <span>Cashback Accumulato</span>
+                                 <span class="font-mono text-base">+{{ formatNum(totalShopCartCashback) }} MO</span>
+                             </div>
+                             <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-cyan-500/80">
+                                 <span>Totale Spesa MO</span>
+                                 <span>MO</span>
+                             </div>
+                             <div class="text-right font-mono text-3xl font-black text-white drop-shadow-[0_0_20px_rgba(6,182,212,0.5)] sm:text-4xl">
+                                 {{ formatNum(totalShopCartMO) }}
+                             </div>
+                             <div v-if="totalShopCartCashback > 0" class="text-right mt-1 pt-1 border-t border-white/5 flex items-center justify-end gap-2">
+                                 <span class="text-[10px] uppercase tracking-wider text-gray-500">Costo Netto Reale</span>
+                                 <span class="text-xl font-mono font-bold text-gray-300">{{ formatNum(totalShopCartMO - totalShopCartCashback) }}</span>
+                             </div>
                         </div>
                     </div>
                 </div>

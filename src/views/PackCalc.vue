@@ -442,7 +442,7 @@ onMounted(() => {
             </div>
 
             <div class="card-glass p-6 border-l-4 border-l-blue-600">
->
+
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-lg font-bold text-white">{{ t('lbl_costs') }} & {{ t('lbl_stock') }}</h3>
                     <span class="text-[10px] bg-blue-900/40 text-blue-300 px-2 py-1 rounded border border-blue-500/20">{{ t('lbl_stock') }}</span>

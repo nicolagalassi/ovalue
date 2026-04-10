@@ -110,7 +110,13 @@ const addToQueue = () => {
     updateInputsFromQueue();
 };
 const removeFromQueue = (index) => { queue.value.splice(index, 1); updateInputsFromQueue(); };
-const updateInputsFromQueue = () => { let m = 0, c = 0, d = 0; queue.value.forEach(item => { m += item.m; c += item.c; d += item.d; }); if (queue.value.length > 0) { inputs.metal = m; inputs.crystal = c; inputs.deuterium = d; } };
+const updateInputsFromQueue = () => { 
+    let m = 0, c = 0, d = 0; 
+    queue.value.forEach(item => { m += item.m; c += item.c; d += item.d; }); 
+    inputs.metal = m; 
+    inputs.crystal = c; 
+    inputs.deuterium = d; 
+};
 
 const removalInProgress = ref(false); // Dummy for cleaner removal
 
@@ -315,10 +321,7 @@ onMounted(() => {
                         <svg class="w-6 h-6 group-hover:rotate-90 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                         {{ t('btn_add_queue') }}
                     </button>
-                </div>
-
-                <!-- LifeForms Global Settings -->
-                <div class="col-span-full border-t border-white/5 pt-6 mt-4">
+                </div>                <div class="col-span-full border-t border-white/5 pt-6 mt-4">
                     <div class="flex items-center gap-2 mb-4">
                         <div class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
                         <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest">{{ t('lf_settings_title') }}</h3>
@@ -361,20 +364,85 @@ onMounted(() => {
                         </div>
                     </div>
                 </div>
-                <div class="bg-black/30 border border-white/5 rounded-lg p-3 min-h-[50px] max-h-[150px] overflow-y-auto space-y-1 text-xs font-mono backdrop-blur-sm">
-                    <div v-if="queue.length === 0" class="text-center text-gray-600 italic">{{ t('queue_empty') }}</div>
-                    <div v-for="(item, index) in queue" :key="index" class="flex justify-between items-center text-gray-300 border-b border-gray-700/50 pb-1 last:border-0 hover:bg-white/5 px-1 rounded transition">
-                        <div class="flex items-center gap-2">
-                            <button @click="removeFromQueue(index)" class="text-red-500 hover:text-red-400 font-bold">✕</button>
-                            <div><span class="text-white font-bold">{{ t(item.key) }}</span> <span class="text-[10px] text-gray-500 ml-1"><span v-if="item.cat === 'fleet'">({{ t('lbl_quantity') }}: {{ item.amount }})</span><span v-else-if="item.cat === 'import'"></span><span v-else>(Lvl: {{ item.level }} - {{ item.amount }}x)</span></span></div>
+            </div>
+
+            <!-- Queue List (Section Separata) -->
+            <div class="card-glass p-0 overflow-hidden border-l-4 border-l-blue-500 shadow-xl shadow-blue-500/5">
+                <div class="bg-gradient-to-r from-blue-900/40 to-transparent px-6 py-4 border-b border-white/10 flex justify-between items-center bg-black/40">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                         </div>
-                        <div class="text-[10px] text-gray-400 font-mono text-right"><span class="text-gray-600">M:</span>{{ formatNum(item.m) }} <span class="text-green-600">C:</span>{{ formatNum(item.c) }} <span class="text-blue-600">D:</span>{{ formatNum(item.d) }}</div>
+                        <h3 class="text-sm font-black text-white uppercase tracking-widest">{{ t('lbl_queue_list') }}</h3>
+                    </div>
+                    <div class="flex items-center gap-2">
+                         <span class="px-2 py-1 rounded-md bg-white/5 text-[10px] font-mono text-blue-300 border border-white/5">{{ queue.length }} Elementi</span>
+                         <button v-if="queue.length > 0" @click="queue = []; updateInputsFromQueue()" class="text-[10px] font-bold text-red-500/70 hover:text-red-400 transition-colors uppercase tracking-tighter">{{ t('shop_cart_clear') || 'Svuota' }}</button>
+                    </div>
+                </div>
+                
+                <div class="p-4 bg-black/20 min-h-[120px] max-h-[400px] overflow-y-auto custom-scrollbar">
+                    <div v-if="queue.length === 0" class="flex flex-col items-center justify-center py-12 text-gray-600 italic">
+                        <div class="w-16 h-16 rounded-full border-2 border-dashed border-white/5 flex items-center justify-center mb-4">
+                            <svg class="w-8 h-8 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        </div>
+                        <span class="text-xs uppercase tracking-widest font-black opacity-30">{{ t('queue_empty') }}</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div v-for="(item, index) in queue" :key="index" class="group/item relative flex flex-col gap-3 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-blue-500/40 hover:bg-blue-500/5 transition-all duration-300">
+                            <!-- Background Accent -->
+                            <div class="absolute inset-y-0 left-0 w-1 rounded-full transition-all" :class="item.cat === 'fleet' ? 'bg-blue-500' : 'bg-ogame-warning'"></div>
+                            
+                            <div class="flex justify-between items-start pl-2">
+                                <div class="flex flex-col">
+                                    <span class="text-[15px] font-black text-white leading-tight uppercase tracking-tight">{{ t(item.key) }}</span>
+                                    <div class="flex items-center gap-2 mt-1.5">
+                                        <span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-black/60 text-blue-300 border border-blue-500/20 uppercase tracking-widest">
+                                            {{ t('cat_' + item.cat) || item.cat }}
+                                        </span>
+                                        <div class="h-1 w-1 rounded-full bg-white/20"></div>
+                                        <span class="text-[10px] font-black text-ogame-warning italic uppercase">
+                                            <template v-if="item.cat === 'fleet'">{{ t('lbl_quantity') }}: <span class="text-white not-italic font-mono text-xs">{{ formatNum(item.amount) }}</span></template>
+                                            <template v-else>{{ t('lbl_level') }}: <span class="text-white not-italic font-mono text-xs">{{ item.level }}</span> <span class="opacity-30 mx-1">|</span> {{ item.amount }}x</template>
+                                        </span>
+                                    </div>
+                                </div>
+                                <button @click="removeFromQueue(index)" class="p-2 rounded-xl text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-all border border-transparent hover:border-red-500/20" title="Rimuovi">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                            
+                            <div class="grid grid-cols-3 gap-3 mt-1 pl-2 bg-black/30 rounded-lg p-3 border border-white/5">
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-1.5 mb-0.5">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-500"></div>
+                                        <span class="text-[9px] font-black text-gray-500 uppercase tracking-tighter leading-none">Metal</span>
+                                    </div>
+                                    <span class="text-sm font-mono font-black text-white leading-none">{{ formatNum(item.m) }}</span>
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-1.5 mb-0.5">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                        <span class="text-[9px] font-black text-blue-500 uppercase tracking-tighter leading-none">Crystal</span>
+                                    </div>
+                                    <span class="text-sm font-mono font-black text-blue-300 leading-none">{{ formatNum(item.c) }}</span>
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-1.5 mb-0.5">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                                        <span class="text-[9px] font-black text-green-500 uppercase tracking-tighter leading-none">Deut</span>
+                                    </div>
+                                    <span class="text-sm font-mono font-black text-green-300 leading-none">{{ formatNum(item.d) }}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-
             <div class="card-glass p-6 border-l-4 border-l-blue-600">
+>
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-lg font-bold text-white">{{ t('lbl_costs') }} & {{ t('lbl_stock') }}</h3>
                     <span class="text-[10px] bg-blue-900/40 text-blue-300 px-2 py-1 rounded border border-blue-500/20">{{ t('lbl_stock') }}</span>

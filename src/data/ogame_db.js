@@ -271,12 +271,13 @@ export const OGAME_DB = {
 export const SHOP_ITEMS = {
     categories: [
         { id: "resources", name: "shop_cat_resources" },
-        { id: "officers", name: "shop_cat_classes" },
+        { id: "classes", name: "shop_cat_classes" },
         { id: "officers_only", name: "shop_cat_officers_only" },
         { id: "boosters", name: "shop_cat_boosters" },
         { id: "slots", name: "shop_cat_slots" },
         { id: "fields", name: "shop_cat_fields" },
         { id: "construction", name: "shop_cat_construction" },
+        { id: "expedition", name: "shop_cat_expedition" },
         { id: "ingame", name: "shop_cat_ingame" }
     ],
     durations: [
@@ -293,12 +294,12 @@ export const SHOP_ITEMS = {
         "res_package_metal": { cat: "resources", tier: "none", costs: { "none": { "base": 60000 } } },
         
         // Classes & Alliance Staff
-        "class_collector": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
-        "class_general": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
-        "class_discoverer": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
-        "staff_researcher": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
-        "staff_merchant": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
-        "staff_warrior": { cat: "officers", tier: "none", costs: { "none": { "base": 500000 } } },
+        "class_collector": { cat: "classes", tier: "none", costs: { "none": { "base": 500000 } } },
+        "class_general": { cat: "classes", tier: "none", costs: { "none": { "base": 500000 } } },
+        "class_discoverer": { cat: "classes", tier: "none", costs: { "none": { "base": 500000 } } },
+        "staff_researcher": { cat: "classes", tier: "none", costs: { "none": { "base": 500000 } } },
+        "staff_merchant": { cat: "classes", tier: "none", costs: { "none": { "base": 500000 } } },
+        "staff_warrior": { cat: "classes", tier: "none", costs: { "none": { "base": 500000 } } },
         
         // Officers & Command Staff
         "officer_commander": { cat: "officers_only", tier: "none", costs: { "none": { "7d": 10000, "90d": 100000 } } },
@@ -359,42 +360,42 @@ export const SHOP_ITEMS = {
             "bronze": { "base": 30000 }
         }},
         "kraken": { cat: "construction", tier: "multi", costs: {
-            "platinum": { "base": 35000 },
-            "gold": { "base": 25000 },
-            "silver": { "base": 8500 },
-            "bronze": { "base": 2500 }
+            "platinum": { "base": 27000 },
+            "gold": { "base": 7000 },
+            "silver": { "base": 2500 },
+            "bronze": { "base": 700 }
         }},
         "detroid": { cat: "construction", tier: "multi", costs: {
-            "platinum": { "base": 35000 },
-            "gold": { "base": 25000 },
-            "silver": { "base": 8500 },
-            "bronze": { "base": 2500 }
+            "platinum": { "base": 27000 },
+            "gold": { "base": 7000 },
+            "silver": { "base": 2500 },
+            "bronze": { "base": 700 }
         }},
         "newtron": { cat: "construction", tier: "multi", costs: {
-            "platinum": { "base": 35000 },
-            "gold": { "base": 25000 },
-            "silver": { "base": 8500 },
-            "bronze": { "base": 2500 }
+            "platinum": { "base": 27000 },
+            "gold": { "base": 7000 },
+            "silver": { "base": 2500 },
+            "bronze": { "base": 700 }
         }},
 
         // Forme di vita (stessi tagli; platino indicativo ~27k MO quando in vendita)
         "kraken_lifeforms": { cat: "construction", tier: "multi", costs: {
             "platinum": { "base": 27000 },
-            "gold": { "base": 25000 },
-            "silver": { "base": 8500 },
-            "bronze": { "base": 2500 }
+            "gold": { "base": 7000 },
+            "silver": { "base": 2500 },
+            "bronze": { "base": 700 }
         }},
         "detroid_lifeforms": { cat: "construction", tier: "multi", costs: {
             "platinum": { "base": 27000 },
-            "gold": { "base": 25000 },
-            "silver": { "base": 8500 },
-            "bronze": { "base": 2500 }
+            "gold": { "base": 7000 },
+            "silver": { "base": 2500 },
+            "bronze": { "base": 700 }
         }},
         "newtron_lifeforms": { cat: "construction", tier: "multi", costs: {
             "platinum": { "base": 27000 },
-            "gold": { "base": 25000 },
-            "silver": { "base": 8500 },
-            "bronze": { "base": 2500 }
+            "gold": { "base": 7000 },
+            "silver": { "base": 2500 },
+            "bronze": { "base": 700 }
         }},
 
         // Expedition Slots
@@ -411,26 +412,16 @@ export const SHOP_ITEMS = {
             "bronze": { "7d": 5000, "30d": 18750, "90d": 52500 }
         }},
 
-        // Avatars
-        "avatar_lasercat": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_weightless": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_alien": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_frosty": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_augmented": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_cyberspace": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_retro_kitties": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_destiny": { cat: "avatars", tier: "none", costs: { "none": { "base": 25000 } } },
-        "avatar_warmonger": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_consuming_wrath": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_commander_kitty": { cat: "avatars", tier: "none", costs: { "none": { "base": 50000 } } },
-        "avatar_star_pilot": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } },
-        "avatar_android": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } },
-        "avatar_event_horizon": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } },
         "avatar_star_turtle": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } },
         "avatar_smith_of_destiny": { cat: "avatars", tier: "none", costs: { "none": { "base": 65000 } } },
         
         // In-game Utilities
         "ingame_merchant": { cat: "ingame", tier: "none", costs: { "none": { "base": 3500 } } },
-        "ingame_relocate": { cat: "ingame", tier: "none", costs: { "none": { "base": 240000 } } }
+        "ingame_relocate": { cat: "ingame", tier: "none", costs: { "none": { "base": 240000 } } },
+
+        // Expedition Items (Delay Reduction)
+        "exp_delay_50": { cat: "expedition", tier: "none", costs: { "none": { "7d": 50000, "30d": 170000, "90d": 450000 } } },
+        "exp_delay_75": { cat: "expedition", tier: "none", costs: { "none": { "7d": 75000, "30d": 255000, "90d": 675000 } } },
+        "exp_delay_100": { cat: "expedition", tier: "none", costs: { "none": { "7d": 125000, "30d": 425000, "90d": 1125000 } } }
     }
 };

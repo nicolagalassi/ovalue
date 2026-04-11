@@ -1,13 +1,16 @@
 <script setup>
-import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue';
+import { ref, reactive, computed, watch, onBeforeUnmount, onMounted, nextTick } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { SHOP_ITEMS } from '../data/ogame_db';
 
-const { t } = useLanguage();
+/** 
+ * Shopping List V4.2 - "Definitive 3-Column" Layout
+ * Focus: Dedicated sticky sidebars for events and cart, dynamic bubbling, mobile accessibility.
+ */
 
+const { t } = useLanguage();
 const SHOP_IMG = '/Immagini%20Ogame';
 
-/** Immagini in public/Immagini Ogame (nomi file con spazi → encodeURIComponent nell’URL) */
 const SHOP_ITEM_IMAGES = {
     res_package_all: 'packall.png',
     res_package_deut: 'packdeu.png',
@@ -40,682 +43,631 @@ const SHOP_ITEM_IMAGES = {
     kraken_lifeforms: 'kraken.png',
     detroid_lifeforms: 'detroid.png',
     newtron_lifeforms: 'newtron forme di vita.png',
+    exp_delay_50: '50_.png',
+    exp_delay_75: '75_.png',
+    exp_delay_100: '100_.png',
 };
 
-/** Miniatura rappresentativa per la categoria attiva (header sezione) */
-const CATEGORY_HERO_IMAGES = {
-    resources: 'packall.png',
-    boosters: 'energia.png',
-    slots: 'slot spedi.png',
-    fields: 'spazi pianeta.png',
-    construction: 'moons.png',
-};
+const shopImgUrl = (f) => f ? `${SHOP_IMG}/${encodeURIComponent(f)}` : null;
+const shopItemImageSrc = (k) => shopImgUrl(SHOP_ITEM_IMAGES[k]);
 
-const shopImgUrl = (filename) =>
-    filename ? `${SHOP_IMG}/${encodeURIComponent(filename)}` : null;
-
-const shopItemImageSrc = (itemKey) => shopImgUrl(SHOP_ITEM_IMAGES[itemKey]);
-
-const categoryHeroSrc = (catId) => shopImgUrl(CATEGORY_HERO_IMAGES[catId]);
-
-const shopCatHintKey = (catId) => `shop_cat_${catId}_hint`;
-
+// State
 const shopCart = ref([]);
 const cartDrawerOpen = ref(false);
 const activeCategory = ref(SHOP_ITEMS.categories[0].id);
 const activeDiscountEvent = ref('none');
 const isMounted = ref(false);
 const cartJustAdded = ref(false);
+const lastAddedId = ref(null);
 
-import { onMounted } from 'vue';
-onMounted(() => {
-    isMounted.value = true;
-});
-
-const DISCOUNT_EVENTS = [
-    { id: 'none', label: 'shop_event_none' },
-    { id: 'boosters', label: 'shop_event_boosters' },
-    { id: 'resources', label: 'shop_event_resources' },
-    { id: 'classes', label: 'shop_event_classes' },
-    { id: 'platinum', label: 'shop_event_platinum' },
-    { id: 'construction', label: 'shop_event_construction' },
-    { id: 'cashback', label: 'shop_event_cashback' },
-    { id: 'merchant', label: 'shop_event_merchant' },
-    { id: 'relocate', label: 'shop_event_relocate' }
-];
-
-const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
-    let factor = 1;
-    if (eventId === 'boosters' && String(itemKey).includes('booster')) {
-        if (dur === '7d') factor = 0.9;
-        if (dur === '30d') factor = 0.85;
-        if (dur === '90d') factor = 0.8;
+// Sidebar / Scroll logic
+const scrollToCategory = (catId) => {
+    activeCategory.value = catId;
+    const el = document.getElementById(`cat-section-${catId}`);
+    if (el) {
+        const top = el.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({ top, behavior: 'smooth' });
     }
-    if (eventId === 'resources' && String(itemKey).includes('res_package')) {
-        factor = 0.7;
-    }
-    if (eventId === 'classes' && (String(itemKey).includes('class_') || String(itemKey).includes('staff_'))) {
-        factor = 0.8;
-    }
-    if (eventId === 'platinum' && tier === 'platinum') {
-        factor = 0.8;
-    }
-    if (eventId === 'merchant' && itemKey === 'ingame_merchant') {
-        factor = 2000 / 3500; // Drops from 3500 to 2000
-    }
-    if (eventId === 'relocate' && itemKey === 'ingame_relocate') {
-        factor = 0.5; // Relocate is down 50%
-    }
-    return factor;
-}
-
-const getCalculatedCost = (itemKey, tier, dur, baseCost) => {
-    const factor = getEventDiscountFactor(itemKey, tier, dur, activeDiscountEvent.value);
-    return Math.round(baseCost * factor);
 };
 
+let observer = null;
+const setupObserver = () => {
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+            if (e.isIntersecting) activeCategory.value = e.target.id.replace('cat-section-', '');
+        });
+    }, { rootMargin: '-60px 0px -70% 0px', threshold: 0 });
+    
+    visibleCategories.value.forEach(cat => {
+        const el = document.getElementById(`cat-section-${cat.id}`);
+        if (el) observer.observe(el);
+    });
+};
+
+onMounted(() => {
+    isMounted.value = true;
+    nextTick(setupObserver);
+});
+
+watch(activeDiscountEvent, () => nextTick(setupObserver));
+
+// Events
+const DISCOUNT_EVENTS = [
+    { id: 'none',         label: 'shop_event_none',         icon: '✕' },
+    { id: 'boosters',     label: 'shop_event_boosters',     icon: '⚡' },
+    { id: 'resources',    label: 'shop_event_resources',    icon: '📦' },
+    { id: 'classes',      label: 'shop_event_classes',      icon: '🎓' },
+    { id: 'platinum',     label: 'shop_event_platinum',     icon: '💎' },
+    { id: 'construction', label: 'shop_event_construction', icon: '🏗️' },
+    { id: 'cashback',     label: 'shop_event_cashback',     icon: '💰' },
+    { id: 'merchant',     label: 'shop_event_merchant',     icon: '🛒' },
+    { id: 'relocate',     label: 'shop_event_relocate',     icon: '🚀' },
+    { id: 'slots',        label: 'shop_event_slots',        icon: '🔓' },
+    { id: 'expedition',   label: 'shop_event_expedition',   icon: '🌌' },
+];
+
+// Calculation Helpers
+const isItemDiscounted = (itemKey, tier, eventId) => {
+    if (eventId === 'none') return false;
+    if (eventId === 'boosters'     && String(itemKey).includes('booster')) return true;
+    if (eventId === 'resources'    && String(itemKey).includes('res_package')) return true;
+    if (eventId === 'classes'      && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return true;
+    if (eventId === 'platinum'     && tier === 'platinum') return true;
+    if (eventId === 'merchant'     && itemKey === 'ingame_merchant') return true;
+    if (eventId === 'relocate'     && itemKey === 'ingame_relocate') return true;
+    if (eventId === 'slots'        && (itemKey === 'slot_fleet' || itemKey === 'slot_expedition')) return true;
+    if (eventId === 'expedition'   && String(itemKey).includes('exp_delay_')) return true;
+    return false;
+};
+
+const isItemHighlighted = (itemKey, costs) => {
+    if (activeDiscountEvent.value === 'none') return false;
+    return Object.keys(costs).some(tier => isItemDiscounted(itemKey, tier, activeDiscountEvent.value));
+};
+
+const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
+    if (eventId === 'boosters' && String(itemKey).includes('booster')) {
+        if (dur === '7d')  return 0.9;
+        if (dur === '30d') return 0.85;
+        if (dur === '90d') return 0.8;
+    }
+    if (eventId === 'resources'  && String(itemKey).includes('res_package')) return 0.7;
+    if (eventId === 'classes'    && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return 0.8;
+    if (eventId === 'platinum'   && tier === 'platinum') return 0.8;
+    if (eventId === 'merchant'   && itemKey === 'ingame_merchant') return 2000 / 3500;
+    if (eventId === 'relocate'   && itemKey === 'ingame_relocate') return 0.5;
+    if (eventId === 'slots'      && (itemKey === 'slot_fleet' || itemKey === 'slot_expedition')) return 0.7;
+    if (eventId === 'expedition' && String(itemKey).includes('exp_delay_')) return 0.8;
+    return 1;
+};
+
+const getCalculatedCost = (itemKey, tier, dur, baseCost) =>
+    Math.round(baseCost * getEventDiscountFactor(itemKey, tier, dur, activeDiscountEvent.value));
+
+const getBestDiscountPctForCard = (itemKey, costs) => {
+    let best = 0;
+    for (const [tier, durs] of Object.entries(costs)) {
+        const dur = Object.keys(durs)[0];
+        const f = getEventDiscountFactor(itemKey, tier, dur, activeDiscountEvent.value);
+        if (f < 1) {
+            const pct = Math.round((1 - f) * 100);
+            if (pct > best) best = pct;
+        }
+    }
+    return best;
+};
+
+// Item State
 const itemQuantities = reactive({});
 const selectedDurations = reactive({});
 
-const initSelectedDurations = () => {
-    for (const [key, val] of Object.entries(SHOP_ITEMS.items)) {
-        if (val.costs) {
-            for (const [tier, durs] of Object.entries(val.costs)) {
-                if (!selectedDurations[`${key}_${tier}`]) {
-                    selectedDurations[`${key}_${tier}`] = Object.keys(durs)[0];
-                }
-            }
+for (const [key, val] of Object.entries(SHOP_ITEMS.items)) {
+    itemQuantities[key] = 1;
+    if (val.costs) {
+        for (const [tier, durs] of Object.entries(val.costs)) {
+            selectedDurations[`${key}_${tier}`] = Object.keys(durs)[0];
         }
     }
-};
-initSelectedDurations();
-for (const key of Object.keys(SHOP_ITEMS.items)) {
-    itemQuantities[key] = 1;
 }
-
-const activeCategoryMeta = computed(() =>
-    SHOP_ITEMS.categories.find((c) => c.id === activeCategory.value)
-);
 
 const formatNum = (n) => new Intl.NumberFormat('it-IT').format(Math.floor(n));
 
-const getItemsForCategory = (catId) => {
-    const res = {};
-    for (const [key, val] of Object.entries(SHOP_ITEMS.items)) {
-        if (val.cat === catId) res[key] = val;
-    }
-    return res;
-};
+// Catalog Filtering & Sorting
+const visibleCategories = computed(() =>
+    SHOP_ITEMS.categories.filter(c => {
+        if (c.id === 'construction') return activeDiscountEvent.value === 'construction';
+        if (c.id === 'expedition')   return activeDiscountEvent.value === 'expedition';
+        if (c.id === 'avatars')      return false;
+        return true;
+    })
+);
 
-/** Blocchi catalogo: amplificatori in due sottosezioni, altre categorie in un solo blocco */
-const displayCatalog = computed(() => {
-    const cat = activeCategory.value;
-    if (cat === 'boosters') {
+const fullCatalog = computed(() => {
+    return visibleCategories.value.map(cat => {
+        let blocks = [];
         const pair = (id) => ({ key: id, val: SHOP_ITEMS.items[id] });
-        return [
-            {
-                blockKey: 'boost-res',
-                titleKey: 'shop_boosters_sub_res',
-                items: ['booster_metal', 'booster_crystal', 'booster_deut'].map(pair),
-            },
-            {
-                blockKey: 'boost-en',
-                titleKey: 'shop_boosters_sub_energy',
-                items: [pair('booster_energy')],
-            },
-        ];
-    }
-    if (cat === 'construction') {
-        if (activeDiscountEvent.value !== 'construction') return [];
-        const pair = (id) => ({ key: id, val: SHOP_ITEMS.items[id] });
-        return [
-            {
-                blockKey: 'cons-std',
-                titleKey: 'shop_construction_sub_standard',
-                items: ['kraken', 'detroid', 'newtron'].map(pair),
-            },
-            {
-                blockKey: 'cons-life',
-                titleKey: 'shop_construction_sub_lifeforms',
-                items: ['kraken_lifeforms', 'detroid_lifeforms', 'newtron_lifeforms'].map(pair),
-            },
-        ];
-    }
-    const flat = getItemsForCategory(cat);
-    return [
-        {
-            blockKey: 'flat',
-            titleKey: null,
-            items: Object.entries(flat).map(([key, val]) => ({ key, val })),
-        },
-    ];
+        
+        if (cat.id === 'boosters') {
+            blocks = [
+                { blockKey: 'boost-res', titleKey: 'shop_boosters_sub_res', items: ['booster_metal','booster_crystal','booster_deut'].map(pair) },
+                { blockKey: 'boost-en', titleKey: 'shop_boosters_sub_energy', items: [pair('booster_energy')] },
+            ];
+        } else if (cat.id === 'construction') {
+            blocks = [
+                { blockKey: 'cons-std', titleKey: 'shop_construction_sub_standard', items: ['kraken','detroid','newtron'].map(pair) },
+                { blockKey: 'cons-life', titleKey: 'shop_construction_sub_lifeforms', items: ['kraken_lifeforms','detroid_lifeforms','newtron_lifeforms'].map(pair) },
+            ];
+        } else if (cat.id === 'expedition') {
+            blocks = [{ blockKey: 'exp-std', titleKey: null, items: ['exp_delay_50','exp_delay_75','exp_delay_100'].map(pair) }];
+        } else {
+            const flat = {};
+            for (const [k, v] of Object.entries(SHOP_ITEMS.items)) if (v.cat === cat.id) flat[k] = v;
+            blocks = [{ blockKey: 'flat', titleKey: null, items: Object.entries(flat).map(([k, v]) => ({ key: k, val: v })) }];
+        }
+
+        // Apply bubbling: items with active discounts go first
+        blocks = blocks.map(b => {
+            const sortedItems = [...b.items].sort((a, b) => {
+                const aH = isItemHighlighted(a.key, a.val.costs);
+                const bH = isItemHighlighted(b.key, b.val.costs);
+                if (aH && !bH) return -1;
+                if (!aH && bH) return 1;
+                return 0;
+            });
+            return { ...b, items: sortedItems };
+        });
+
+        return { id: cat.id, name: cat.name, blocks };
+    });
 });
 
+// Cart Logic
 const addToShopCart = (id, tier, duration, baseCost) => {
     const mult = Math.max(1, itemQuantities[id] || 1);
     const event = activeDiscountEvent.value;
     const cost = getCalculatedCost(id, tier, duration, baseCost);
     const cbPerUnit = event === 'cashback' ? Math.floor(cost * 0.2) : 0;
-
+    
     const existing = shopCart.value.find(i => i.id === id && i.tier === tier && i.duration === duration && i.event === event);
-    if(existing) {
+    if (existing) {
         existing.mult += mult;
-        existing.cost += (cost * mult);
-        existing.cashback += (cbPerUnit * mult);
+        existing.cost += cost * mult;
+        existing.cashback += cbPerUnit * mult;
     } else {
-        shopCart.value.push({ 
-            id, 
-            tier, 
-            duration, 
-            mult, 
-            unitCost: cost,
-            cost: cost * mult,
-            cashback: cbPerUnit * mult,
-            event
-        });
+        shopCart.value.push({ id, tier, duration, mult, unitCost: cost, cost: cost * mult, cashback: cbPerUnit * mult, event, tKey: id });
     }
+    
     itemQuantities[id] = 1;
+    lastAddedId.value = id;
     cartJustAdded.value = true;
-    setTimeout(() => { cartJustAdded.value = false; }, 300);
+    setTimeout(() => { cartJustAdded.value = false; lastAddedId.value = null; }, 1200);
 };
 
-const removeShopCart = (index) => shopCart.value.splice(index, 1);
-const clearCart = () => shopCart.value = [];
+const removeShopCart = (idx) => shopCart.value.splice(idx, 1);
+const clearCart = () => { shopCart.value = []; };
 
-const getDurationDiscount = (itemData, tierName, durKey) => {
-    const costs = itemData?.costs?.[tierName];
-    if(!costs) return 0;
-    
-    const durDays = { "7d": 7, "30d": 30, "90d": 90 };
-    if(!durDays[durKey] || !costs["7d"]) return 0;
-    if(durKey === "7d") return 0;
+const totalShopCartMO = computed(() => shopCart.value.reduce((s, i) => s + i.cost, 0));
+const totalShopCartCashback = computed(() => shopCart.value.reduce((s, i) => s + (i.cashback || 0), 0));
+const cartTotalQty = computed(() => shopCart.value.reduce((s, i) => s + i.mult, 0));
 
-    const cost7dPerDay = costs["7d"] / 7;
-    const currentCostPerDay = costs[durKey] / durDays[durKey];
-    
-    const discount = 1 - (currentCostPerDay / cost7dPerDay);
-    return discount > 0.01 ? Math.round(discount * 100) : 0;
-};
-
-const totalShopCartMO = computed(() => shopCart.value.reduce((acc, curr) => acc + curr.cost, 0));
-const totalShopCartCashback = computed(() => shopCart.value.reduce((acc, curr) => acc + (curr.cashback || 0), 0));
-
-/** Quantità totale righe carrello (somma pezzi) per badge */
-const cartTotalQty = computed(() => shopCart.value.reduce((acc, row) => acc + row.mult, 0));
-
-let cartEscapeHandler = null;
-watch(cartDrawerOpen, (open) => {
-    if (typeof document === 'undefined') return;
-    document.body.style.overflow = open ? 'hidden' : '';
-    if (cartEscapeHandler) {
-        window.removeEventListener('keydown', cartEscapeHandler);
-        cartEscapeHandler = null;
-    }
-    if (open) {
-        cartEscapeHandler = (e) => {
-            if (e.key === 'Escape') cartDrawerOpen.value = false;
-        };
-        window.addEventListener('keydown', cartEscapeHandler);
-    }
-});
-
-onBeforeUnmount(() => {
-    if (typeof document === 'undefined') return;
-    document.body.style.overflow = '';
-    if (cartEscapeHandler) window.removeEventListener('keydown', cartEscapeHandler);
-});
-
-const getTierColorClass = (tier) => {
-    if(tier === 'platinum') return 'text-purple-400 font-bold';
-    if(tier === 'gold') return 'text-yellow-400 font-bold';
-    if(tier === 'silver') return 'text-slate-300 font-bold';
-    if(tier === 'bronze') return 'text-orange-500 font-bold';
-    return 'text-cyan-400 font-bold';
-};
-
-const getTierBorderClass = (tier, itemKey) => {
-    if (itemKey === 'booster_energy' && tier !== 'none') {
-        return 'border-amber-500/70 bg-amber-950/25 hover:bg-amber-900/35';
-    }
-    if(tier === 'none') {
-        if(itemKey.includes('metal')) return 'border-red-500 bg-red-900/20 hover:bg-red-600/30';
-        if(itemKey.includes('crystal')) return 'border-blue-500 bg-blue-900/20 hover:bg-blue-600/30';
-        if(itemKey.includes('deut')) return 'border-green-500 bg-green-900/20 hover:bg-green-600/30';
-        if(itemKey.includes('collector') || itemKey.includes('geologist')) return 'border-yellow-500 bg-yellow-900/20 hover:bg-yellow-600/30';
-        if(itemKey.includes('general') || itemKey.includes('warrior') || itemKey.includes('admiral')) return 'border-red-500 bg-red-900/20 hover:bg-red-600/30';
-        if(itemKey.includes('discoverer') || itemKey.includes('researcher') || itemKey.includes('technocrat')) return 'border-blue-500 bg-blue-900/20 hover:bg-blue-600/30';
-        return 'border-cyan-500 bg-cyan-900/20 hover:bg-cyan-600/30';
-    }
-    if(tier === 'platinum') return 'border-purple-500 bg-purple-900/20 hover:bg-purple-600/30';
-    if(tier === 'gold') return 'border-yellow-500 bg-yellow-900/20 hover:bg-yellow-600/30';
-    if(tier === 'silver') return 'border-slate-400 bg-slate-700/20 hover:bg-slate-500/30';
-    if(tier === 'bronze') return 'border-orange-500 bg-orange-900/20 hover:bg-orange-600/30';
-    return 'border-cyan-500 bg-cyan-900/20 hover:bg-cyan-600/30';
-};
-
-/** Ordine tier in UI: platino → oro → argento → bronzo → none */
+// Tiers & Labels
 const TIER_DISPLAY_ORDER = ['platinum', 'gold', 'silver', 'bronze', 'none'];
-
-const tiersForDisplay = (itemKey, costs) => {
-    if (!costs || typeof costs !== 'object') return [];
-    return TIER_DISPLAY_ORDER
-        .filter((t) => costs[t] != null)
-        .filter((t) => {
-            if (itemKey.includes('booster') && t === 'bronze' && activeDiscountEvent.value !== 'boosters') {
-                return false;
-            }
-            return true;
-        })
-        .map((t) => [t, costs[t]]);
-};
 
 const getTierDisplayName = (itemKey, tier) => {
     let suffix = '';
     if (String(itemKey).includes('booster')) {
-        if (tier === 'platinum') suffix = ' 40%';
-        if (tier === 'gold') suffix = ' 30%';
-        if (tier === 'silver') suffix = ' 20%';
-        if (tier === 'bronze') suffix = ' 10%';
+        const map = { platinum: ' 40%', gold: ' 30%', silver: ' 20%', bronze: ' 10%' };
+        suffix = map[tier] || '';
     } else if (itemKey === 'fields_planet') {
-        if (tier === 'platinum') suffix = ' (+20)';
-        if (tier === 'gold') suffix = ' (+15)';
-        if (tier === 'silver') suffix = ' (+9)';
-        if (tier === 'bronze') suffix = ' (+4)';
+        suffix = { platinum: ' (+20)', gold: ' (+15)', silver: ' (+9)', bronze: ' (+4)' }[tier] || '';
     } else if (itemKey === 'fields_moon') {
-        if (tier === 'platinum') suffix = ' (+8)';
-        if (tier === 'gold') suffix = ' (+6)';
-        if (tier === 'silver') suffix = ' (+4)';
-        if (tier === 'bronze') suffix = ' (+2)';
+        suffix = { platinum: ' (+8)', gold: ' (+6)', silver: ' (+4)', bronze: ' (+2)' }[tier] || '';
     } else if (itemKey === 'moons') {
-        if (tier === 'gold') return '30min';
-        if (tier === 'silver') return '60min';
-        if (tier === 'bronze') return '90min';
+        return { gold: '30min', silver: '60min', bronze: '90min' }[tier] || tier;
     } else if (itemKey === 'slot_expedition') {
-        if (tier === 'gold') suffix = ' (+3)';
-        if (tier === 'silver') suffix = ' (+2)';
-        if (tier === 'bronze') suffix = ' (+1)';
+        suffix = { gold: ' (+3)', silver: ' (+2)', bronze: ' (+1)' }[tier] || '';
     } else if (itemKey === 'slot_fleet') {
-        if (tier === 'gold') suffix = ' (+6)';
-        if (tier === 'silver') suffix = ' (+4)';
-        if (tier === 'bronze') suffix = ' (+2)';
+        suffix = { gold: ' (+6)', silver: ' (+4)', bronze: ' (+2)' }[tier] || '';
     }
-    
-    // Assumiamo che ci sia una traduzione come tier_platinum in locales
-    const baseName = t(`tier_${tier}`) || tier;
-    return `${baseName}${suffix}`;
+    return `${t(`tier_${tier}`) || tier}${suffix}`;
+};
+
+const getTierColorClass = (tier) => {
+    if (tier === 'platinum') return 'glow-purple text-purple-200';
+    if (tier === 'gold')     return 'glow-yellow text-yellow-200';
+    if (tier === 'silver')   return 'glow-slate text-slate-200';
+    if (tier === 'bronze')   return 'glow-orange text-orange-200';
+    return 'text-cyan-200';
 };
 </script>
 
 <template>
-  <div class="max-w-[min(100rem,calc(100%-1.5rem))] mx-auto px-4 md:px-8 mt-6 md:mt-10 pb-12">
+  <div class="shop-v4-root items-start">
     
-    <!-- Header Cart Integration -->
-    <Teleport to="#header-actions" v-if="isMounted">
-        <button
-            type="button"
-            class="group relative flex items-center gap-2 md:gap-3 rounded-xl border transition-all focus:outline-none"
-            :class="[
-                shopCart.length > 0 ? 'border-cyan-500/50 bg-cyan-900/20 px-3 py-1.5 hover:bg-cyan-900/40 md:px-4 md:py-2 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'border-transparent bg-transparent px-2 py-1.5 hover:border-white/10 hover:bg-white/5 md:px-3 md:py-2',
-                {'scale-110 !border-green-400 !bg-green-900/30': cartJustAdded}
-            ]"
-            :aria-expanded="cartDrawerOpen"
-            @click="cartDrawerOpen = true"
-        >
-            <div class="relative flex items-center justify-center transition-colors" :class="shopCart.length > 0 ? 'text-cyan-400 shadow-cyan-500/50 drop-shadow-md' : 'text-gray-400 group-hover:text-cyan-400'">
-                <svg class="h-5 w-5 md:h-6 md:w-6 transition-transform" :class="{'scale-125 text-green-400': cartJustAdded}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                <div
-                    v-if="cartTotalQty > 0"
-                    class="absolute -right-2 -top-2 flex h-4 min-w-[1rem] md:h-5 md:min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] md:text-[10px] font-black text-[#0b0e14] shadow-md transition-all"
-                    :class="cartJustAdded ? 'bg-green-400 scale-125' : 'bg-cyan-500'"
-                >{{ cartTotalQty > 99 ? '99+' : cartTotalQty }}</div>
-            </div>
-            <div class="hidden md:flex flex-col items-start leading-none ml-1">
-                <span v-if="shopCart.length > 0" class="text-[10px] md:text-sm font-mono font-bold transition-colors" :class="cartJustAdded ? 'text-green-300' : 'text-cyan-100'">{{ formatNum(totalShopCartMO) }}</span>
-                <span v-else class="text-[10px] md:text-xs font-bold uppercase tracking-wider text-gray-500">{{ t('shop_cart_button') }}</span>
-            </div>
-        </button>
-    </Teleport>
-
-    <!-- Page Header -->
-    <div class="mb-8 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-        <div class="text-center sm:text-left flex-1 min-w-0">
-            <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                Shopping List
-            </h1>
-            <div class="mt-2 h-1 w-24 bg-cyan-500 mx-auto sm:mx-0 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.5)]"></div>
-        </div>
-    </div>
-
-    <!-- Intro Section & Event Simulator -->
-    <div class="flex flex-col md:flex-row gap-4 mb-8">
-        <div class="flex-1 card-glass p-5 border-l-4 border-l-cyan-500/50 bg-cyan-500/5 backdrop-blur-md">
-            <div class="flex items-start gap-4">
-                <div class="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 shrink-0">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-300 leading-relaxed font-medium">Aggiungi gli Item dal catalogo OGame cliccando sui tasti corrispondenti a livello e durata. Puoi impostare la quantità prima di cliccare.</p>
-                </div>
-            </div>
-        </div>
+    <!-- ════ SIDEBAR LEFT (Sticky) ════ -->
+    <aside class="shop-sidebar-left hidden lg:flex flex-col">
+      <div class="sidebar-scrollable custom-scrollbar">
         
-        <div class="w-full md:w-72 shrink-0 card-glass p-5 border-t border-white/10 bg-[#0b0e14]/80 backdrop-blur-md flex flex-col justify-center">
-            <label for="event-simulator" class="block text-[10px] font-bold uppercase tracking-widest text-cyan-400 mb-2 flex items-center gap-2">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Simula Evento Sconto
-            </label>
-            <select
-                id="event-simulator"
-                v-model="activeDiscountEvent"
-                class="w-full appearance-none rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 text-sm font-medium text-white shadow-inner outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+        <!-- Events Section -->
+        <div class="sidebar-section">
+          <label class="section-label">
+            <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Evento Attivo
+          </label>
+          <div class="event-nav space-y-1 mt-3">
+            <button
+              v-for="evt in DISCOUNT_EVENTS" :key="evt.id"
+              type="button"
+              @click="activeDiscountEvent = evt.id"
+              class="event-btn"
+              :class="{ 'event-active': activeDiscountEvent === evt.id }"
             >
-                <option v-for="evt in DISCOUNT_EVENTS" :key="evt.id" :value="evt.id">{{ t(evt.label) }}</option>
-            </select>
-        </div>
-    </div>
-
-    <div class="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
-        
-        <!-- Sidebar categorie (schermi larghi) -->
-        <aside class="hidden lg:flex lg:w-56 xl:w-60 shrink-0 flex-col lg:sticky lg:top-24 self-start">
-            <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-3 px-1">{{ t('shop_nav_label') }}</p>
-            <nav
-                class="rounded-2xl border border-white/10 bg-[#0b0e14]/70 backdrop-blur-sm p-1.5 space-y-0.5 shadow-inner"
-                aria-label="Categorie shop"
-            >
-                <button
-                    v-for="cat in SHOP_ITEMS.categories"
-                    :key="cat.id"
-                    type="button"
-                    @click="activeCategory = cat.id"
-                    class="w-full text-left px-3 py-2.5 rounded-xl text-xs xl:text-sm font-medium transition-all duration-200 border border-transparent leading-snug"
-                    :class="activeCategory === cat.id
-                        ? 'bg-cyan-600/20 text-cyan-200 border-cyan-500/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                        : 'text-gray-400 hover:text-white hover:bg-white/[0.06]'"
-                >
-                    {{ t(cat.name) }}
-                </button>
-            </nav>
-        </aside>
-
-        <!-- Catalogo centrale -->
-        <div class="min-w-0 flex-1 space-y-6 w-full order-first lg:order-none">
-            
-            <!-- Mobile / tablet: select categorie -->
-            <div class="lg:hidden">
-                <label for="shop-category-select" class="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">{{ t('shop_nav_label') }}</label>
-                <select
-                    id="shop-category-select"
-                    v-model="activeCategory"
-                    class="w-full appearance-none rounded-xl border border-white/10 bg-[#0b0e14]/90 px-4 py-3 text-sm font-medium text-white shadow-inner outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
-                >
-                    <option
-                        v-for="cat in SHOP_ITEMS.categories"
-                        :key="cat.id"
-                        :value="cat.id"
-                    >
-                        {{ t(cat.name) }}
-                    </option>
-                </select>
-            </div>
-
-            <!-- Sezione categoria attiva: titolo + hint + immagine rappresentativa -->
-            <header
-                v-if="activeCategoryMeta"
-                class="flex flex-col sm:flex-row sm:items-center gap-4 p-4 md:p-5 rounded-2xl border border-white/10 bg-gradient-to-br from-[#0b0e14]/90 to-black/40 shadow-lg"
-            >
-                <div
-                    v-if="categoryHeroSrc(activeCategory)"
-                    class="shrink-0 flex items-center justify-center w-full sm:w-auto"
-                >
-                    <div class="rounded-xl bg-black/50 border border-white/10 p-3 shadow-inner">
-                        <img
-                            :src="categoryHeroSrc(activeCategory)"
-                            alt=""
-                            class="w-20 h-20 md:w-24 md:h-24 object-contain"
-                            loading="lazy"
-                        />
-                    </div>
-                </div>
-                <div class="min-w-0 flex-1 text-center sm:text-left">
-                    <h2 class="text-lg md:text-xl font-bold text-white tracking-tight">
-                        {{ t(activeCategoryMeta.name) }}
-                    </h2>
-                    <p class="text-sm text-gray-400 mt-1.5 leading-relaxed max-w-3xl">
-                        {{ t(shopCatHintKey(activeCategory)) }}
-                    </p>
-                </div>
-            </header>
-
-            <!-- Griglia articoli (blocchi: sottosezioni amplificatori o lista unica) -->
-            <div class="space-y-8">
-                <section
-                    v-for="block in displayCatalog"
-                    :key="block.blockKey"
-                    class="space-y-4"
-                >
-                    <h3
-                        v-if="block.titleKey"
-                        class="text-[11px] font-bold text-cyan-500/90 uppercase tracking-[0.2em] border-b border-white/10 pb-2"
-                    >
-                        {{ t(block.titleKey) }}
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-5">
-                        <article
-                            v-for="entry in block.items"
-                            :key="entry.key"
-                            class="card-glass p-0 flex flex-col h-full overflow-hidden border border-white/10 hover:border-cyan-500/25 transition-colors rounded-2xl"
-                        >
-                            <!-- Intestazione card: asset + titolo + quantità -->
-                            <div class="p-4 md:p-5 border-b border-white/10 bg-black/20">
-                                <div class="flex gap-3 md:gap-4">
-                                    <div
-                                        class="shrink-0 w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl bg-black/45 border border-white/10 flex items-center justify-center overflow-hidden"
-                                    >
-                                        <img
-                                            v-if="shopItemImageSrc(entry.key)"
-                                            :src="shopItemImageSrc(entry.key)"
-                                            :alt="t(entry.key)"
-                                            class="w-[88%] h-[88%] object-contain drop-shadow-md"
-                                            loading="lazy"
-                                        />
-                                        <svg
-                                            v-else
-                                            class="w-8 h-8 text-cyan-500/50"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                            aria-hidden="true"
-                                        >
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                        </svg>
-                                    </div>
-                                    <div class="min-w-0 flex-1 flex flex-col justify-center gap-2">
-                                        <h4 class="text-sm md:text-[0.95rem] font-bold text-white leading-snug">
-                                            {{ t(entry.key) }}
-                                        </h4>
-                                        <div class="flex items-center gap-2 flex-wrap">
-                                            <span class="text-[10px] uppercase font-bold text-gray-500 tracking-wide">{{ t('shop_label_qty') }}</span>
-                                            <input
-                                                type="number"
-                                                v-model.number="itemQuantities[entry.key]"
-                                                @focus="$event.target.select()"
-                                                min="1"
-                                                class="bg-black/50 border border-white/15 rounded-lg text-white text-xs font-mono w-14 px-2 py-1.5 text-right outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="p-4 md:p-5 flex-grow flex flex-col justify-end gap-4">
-                                
-                                <div class="space-y-3">
-                                    <div
-                                        v-for="[tierName, durations] in tiersForDisplay(entry.key, entry.val.costs)"
-                                        :key="tierName"
-                                        class="rounded-xl border border-white/5 bg-black/40 p-3 lg:p-4 flex flex-col gap-3 lg:gap-3.5 shadow-inner"
-                                        :class="getTierBorderClass(tierName, entry.key)"
-                                    >
-                                        <div v-if="tierName !== 'none' || Object.keys(durations).length > 1" class="flex items-center gap-3" :class="tierName !== 'none' ? 'justify-between' : 'justify-end'">
-                                             <span v-if="tierName !== 'none'" class="text-[11px] lg:text-xs font-bold uppercase tracking-wider min-w-[70px] leading-tight" :class="getTierColorClass(tierName)">
-                                                  {{ getTierDisplayName(entry.key, tierName) }}
-                                             </span>
-                                             <div v-if="Object.keys(durations).length > 1" class="flex p-0.5 bg-[#0b0e14] rounded-md border border-white/10 gap-0.5 shadow-sm overflow-x-auto">
-                                                 <button 
-                                                     v-for="(_, dur) in durations" :key="dur"
-                                                     type="button"
-                                                     @click="selectedDurations[`${entry.key}_${tierName}`] = dur"
-                                                     class="px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-sm transition-colors whitespace-nowrap"
-                                                     :class="selectedDurations[`${entry.key}_${tierName}`] === dur ? 'bg-cyan-600/90 text-white shadow-md' : 'text-gray-500 hover:text-white hover:bg-white/5'"
-                                                 >
-                                                     {{ dur === 'base' ? 'Base' : t('dur_' + dur).replace(' Days', 'd').replace(' Giorni', 'g') }}
-                                                 </button>
-                                             </div>
-                                        </div>
-                                
-                                        <button 
-                                            type="button"
-                                            @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])"
-                                            class="group w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5 lg:px-4 lg:py-3 rounded-lg border border-transparent bg-white/5 hover:bg-white/10 hover:border-cyan-500/40 transition-all active:scale-[0.98]"
-                                        >
-                                            <span class="text-[11px] lg:text-xs font-bold text-white flex items-center gap-1.5 lg:gap-2 group-hover:text-cyan-200 transition-colors">
-                                                <svg class="w-4 h-4 lg:w-4 lg:h-4 text-cyan-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
-                                                <span v-if="getDurationDiscount(entry.val, tierName, selectedDurations[`${entry.key}_${tierName}`]) > 0" class="text-[9px] bg-green-600 px-1.5 py-0.5 rounded shadow-sm ml-0.5 text-white">
-                                                     -{{ getDurationDiscount(entry.val, tierName, selectedDurations[`${entry.key}_${tierName}`]) }}%
-                                                </span>
-                                            </span>
-                                            <span class="text-[11px] lg:text-xs font-mono font-bold flex flex-wrap items-center sm:justify-end gap-1.5 w-full sm:w-auto" :class="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]] ? 'text-green-400' : 'text-cyan-100'">
-                                                <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]" class="opacity-60 line-through text-[10px] text-cyan-700 decoration-cyan-500/50">
-                                                    {{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}
-                                                </span>
-                                                <span class="flex items-baseline gap-1">
-                                                    {{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}
-                                                    <span class="text-[9px] opacity-70 font-sans tracking-widest">MO</span>
-                                                </span>
-                                            </span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                            </div>
-                        </article>
-                    </div>
-                </section>
-            </div>
-
+              <span class="btn-icon">{{ evt.icon }}</span>
+              <span class="btn-label">{{ t(evt.label) }}</span>
+            </button>
+          </div>
         </div>
 
-    </div>
+        <div class="sidebar-divider"></div>
 
-    <!-- Drawer carrello (full-height da destra, stile flyout) -->
-    <Teleport to="body">
+        <!-- Categories Section -->
+        <div class="sidebar-section">
+          <label class="section-label">Sezioni</label>
+          <div class="cat-nav space-y-1 mt-3">
+            <button
+              v-for="cat in visibleCategories" :key="cat.id"
+              type="button"
+              @click="scrollToCategory(cat.id)"
+              class="cat-btn"
+              :class="{ 'cat-active': activeCategory === cat.id }"
+            >
+              {{ t(cat.name) }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ════ MAIN CONTENT ════ -->
+    <main class="shop-main-content">
+      
+      <!-- Mobile Event Bar (Horizontal Scroll) -->
+      <div class="lg:hidden px-4 pt-6 pb-2">
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Eventi Attivi</span>
+        </div>
+        <div class="mobile-event-bar flex gap-2 overflow-x-auto pb-4 custom-scrollbar no-scrollbar">
+          <button
+            v-for="evt in DISCOUNT_EVENTS" :key="evt.id"
+            @click="activeDiscountEvent = evt.id"
+            class="mobile-evt-btn shrink-0"
+            :class="{ 'mobile-evt-active': activeDiscountEvent === evt.id }"
+          >
+            <span class="text-lg">{{ evt.icon }}</span>
+            <span class="text-[10px] font-bold whitespace-nowrap">{{ t(evt.label) }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Page Title Area -->
+      <div class="catalog-header px-4 md:px-10 pt-8 pb-4">
+        <h1 class="text-3xl md:text-4xl font-black italic uppercase tracking-tighter text-white">Shopping List</h1>
+      </div>
+
+      <!-- Catalog Grid -->
+      <div class="catalog-sections px-4 md:px-10 pb-20 space-y-12 mt-6">
         <div
-            v-show="cartDrawerOpen"
-            id="shop-cart-drawer"
-            class="fixed inset-0 z-[100] flex justify-end"
-            role="dialog"
-            aria-modal="true"
-            :aria-hidden="!cartDrawerOpen"
+          v-for="catData in fullCatalog" :key="catData.id"
+          :id="'cat-section-' + catData.id"
+          class="scroll-mt-[100px]"
         >
-            <div
-                class="absolute inset-0 bg-black/55 backdrop-blur-[2px] transition-opacity"
-                aria-hidden="true"
-                @click="cartDrawerOpen = false"
-            />
-            <aside
-                class="relative z-10 flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#080b12] shadow-[-16px_0_48px_rgba(0,0,0,0.55)]"
-            >
-                <div class="flex items-center justify-between gap-3 border-b border-white/10 bg-black/50 px-4 py-4">
-                    <h3 id="cart-drawer-title" class="text-base font-bold uppercase tracking-wider text-white flex items-center gap-2">
-                        <svg class="w-5 h-5 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                        {{ t('shop_cart_button') }}
-                    </h3>
-                    <div class="flex items-center gap-2">
+          <div class="section-divider flex items-center gap-4 mb-6">
+            <h2 class="text-xs font-black uppercase tracking-[0.4em] text-cyan-400/80">{{ t(catData.name) }}</h2>
+            <div class="h-px flex-1 bg-gradient-to-r from-cyan-500/20 to-transparent"></div>
+          </div>
+
+          <div class="section-blocks space-y-10">
+            <div v-for="block in catData.blocks" :key="block.blockKey" class="block-wrap">
+              <h3 v-if="block.titleKey" class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-4 pl-1">
+                {{ t(block.titleKey) }}
+              </h3>
+
+              <div class="product-grid grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
+                <article
+                  v-for="entry in block.items" :key="entry.key"
+                  class="product-card"
+                  :class="{ 
+                    'card-highlight': isItemHighlighted(entry.key, entry.val.costs),
+                    'just-added': lastAddedId === entry.key
+                  }"
+                >
+                  <!-- Card Top: Name -->
+                  <div class="card-header p-3 pb-0">
+                    <h4 class="text-[11px] font-bold leading-tight text-gray-200 min-h-[2.5rem] line-clamp-2">
+                      {{ t(entry.key) }}
+                    </h4>
+                  </div>
+
+                  <!-- Card Mid: Image -->
+                  <div class="card-image-wrap px-3 py-2">
+                    <div class="img-container relative h-36 bg-white/[0.03] rounded-xl overflow-hidden border border-white/5 shadow-inner flex items-center justify-center group">
+                      <img
+                        :src="shopItemImageSrc(entry.key)"
+                        :alt="t(entry.key)"
+                        class="product-img h-[85%] w-[85%] object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                      <div v-if="isItemHighlighted(entry.key, entry.val.costs) && getBestDiscountPctForCard(entry.key, entry.val.costs) > 0"
+                           class="discount-overlay absolute top-1.5 right-1.5 bg-green-500 text-black text-[9px] font-black px-2 py-0.5 rounded-md shadow-lg">
+                        -{{ getBestDiscountPctForCard(entry.key, entry.val.costs) }}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Card Bottom: Controls -->
+                  <div class="card-footer p-3 pt-0 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="qty-control flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded border border-white/10">
+                        <span class="text-[7px] font-bold text-gray-600">QTÀ</span>
+                        <input type="number" v-model.number="itemQuantities[entry.key]" min="1" class="qty-input" />
+                      </div>
+                    </div>
+
+                    <div class="tier-stack space-y-1">
+                      <div v-for="[tierName, durations] in TIER_DISPLAY_ORDER.filter(t => entry.val.costs && entry.val.costs[t]).map(t => [t, entry.val.costs[t]])" :key="tierName">
+                        
+                        <div v-if="Object.keys(durations).length > 1" class="segmented-control flex p-0.5 mb-1.5 bg-black/50 rounded-lg border border-white/5">
+                          <button
+                            v-for="(_, dur) in durations" :key="dur"
+                            @click="selectedDurations[`${entry.key}_${tierName}`] = dur"
+                            class="seg-btn"
+                            :class="{ 'seg-active': selectedDurations[`${entry.key}_${tierName}`] === dur }"
+                          >
+                            {{ dur === 'base' ? 'STD' : dur }}
+                          </button>
+                        </div>
+
                         <button
-                            v-if="shopCart.length > 0"
-                            type="button"
-                            class="text-[10px] uppercase font-bold text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors border border-red-500/20"
-                            @click="clearCart"
+                          @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])"
+                          class="add-btn flex items-center justify-between"
+                          :class="[getTierColorClass(tierName), { 'btn-discounted': isItemHighlighted(entry.key, entry.val.costs) }]"
                         >
-                            {{ t('shop_cart_clear') }}
+                          <span class="tier-label text-[9px] font-black uppercase leading-none truncate max-w-[45%]">
+                            {{ tierName !== 'none' ? getTierDisplayName(entry.key, tierName) : 'OK' }}
+                          </span>
+                          <span class="price-block flex flex-col items-end leading-none">
+                            <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]"
+                                  class="text-[8px] line-through opacity-40 font-mono mb-0.5">
+                              {{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}
+                            </span>
+                            <span class="mo-text font-black text-xs">
+                              {{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}
+                              <span class="text-[7px] opacity-60 ml-0.5 font-bold">MO</span>
+                            </span>
+                          </span>
                         </button>
-                        <button
-                            type="button"
-                            class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                            :aria-label="t('shop_cart_close')"
-                            @click="cartDrawerOpen = false"
-                        >
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
+                      </div>
                     </div>
-                </div>
-
-                <div class="flex min-h-0 flex-1 flex-col">
-                    <div class="custom-scrollbar flex-1 overflow-y-auto p-4">
-                        <div
-                            v-if="shopCart.length === 0"
-                            class="flex flex-col items-center justify-center py-16 text-center text-sm leading-relaxed text-gray-500"
-                        >
-                            <svg class="mb-4 h-16 w-16 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-                            <p>{{ t('shop_cart_empty_hint') }}</p>
-                            <p class="mt-2 text-xs text-gray-600">{{ t('shop_cart_empty_catalog_hint') }}</p>
-                        </div>
-
-                        <div v-else class="space-y-3">
-                            <div
-                                v-for="(item, index) in shopCart"
-                                :key="index"
-                                class="group flex justify-between gap-3 rounded-xl border border-white/10 bg-black/60 p-3 shadow-sm transition-all hover:border-cyan-500/30 hover:bg-black/80"
-                            >
-                                <div class="min-w-0 flex-1">
-                                    <div class="mb-1 text-xs font-bold leading-tight text-white break-words">{{ item.mult }}× {{ t(item.id) }}</div>
-                                    <div class="flex flex-wrap items-center gap-2 text-[10px]">
-                                        <span v-if="item.tier !== 'none'" :class="getTierColorClass(item.tier)" class="uppercase">{{ getTierDisplayName(item.id, item.tier) }}</span>
-                                        <span v-if="item.duration !== 'base'" class="font-bold text-gray-400 bg-gray-800/80 px-1 rounded">{{ t('dur_' + item.duration) }}</span>
-                                        <span v-if="item.event && item.event !== 'none'" class="font-bold text-cyan-200 bg-cyan-900/40 px-1 rounded border border-cyan-500/20 flex items-center gap-1">
-                                            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                            {{ t('shop_event_' + item.event) }}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="flex shrink-0 flex-col items-end justify-between">
-                                    <button
-                                        type="button"
-                                        class="rounded p-1 text-gray-600 opacity-50 transition-opacity hover:bg-red-500/20 hover:text-red-500 group-hover:opacity-100"
-                                        :aria-label="'Rimuovi'"
-                                        @click="removeShopCart(index)"
-                                    >
-                                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                    </button>
-                                    <span class="mt-2 font-mono text-xs font-bold text-cyan-400">{{ formatNum(item.cost) }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="border-t border-cyan-500/30 bg-black/90 p-5 shadow-[0_-12px_32px_rgba(0,0,0,0.85)]">
-                        <div class="space-y-2">
-                             <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-green-400">
-                                 <span>Cashback Accumulato</span>
-                                 <span class="font-mono text-base">+{{ formatNum(totalShopCartCashback) }} MO</span>
-                             </div>
-                             <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-cyan-500/80">
-                                 <span>Totale Spesa MO</span>
-                                 <span>MO</span>
-                             </div>
-                             <div class="text-right font-mono text-3xl font-black text-white drop-shadow-[0_0_20px_rgba(6,182,212,0.5)] sm:text-4xl">
-                                 {{ formatNum(totalShopCartMO) }}
-                             </div>
-                             <div v-if="totalShopCartCashback > 0" class="text-right mt-1 pt-1 border-t border-white/5 flex items-center justify-end gap-2">
-                                 <span class="text-[10px] uppercase tracking-wider text-gray-500">Costo Netto Reale</span>
-                                 <span class="text-xl font-mono font-bold text-gray-300">{{ formatNum(totalShopCartMO - totalShopCartCashback) }}</span>
-                             </div>
-                        </div>
-                    </div>
-                </div>
-            </aside>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+    </main>
+
+    <!-- ════ SIDEBAR RIGHT: STICKY CART ════ -->
+    <aside class="shop-sidebar-right hidden xl:flex flex-col">
+      <div class="cart-sticky-container custom-scrollbar">
+        <div class="panel-header flex items-center justify-between mb-6">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+            </div>
+            <span class="text-xs font-black uppercase tracking-[0.2em] text-white">Carrello</span>
+          </div>
+          <button @click="clearCart" class="text-[10px] font-bold text-red-500/40 hover:text-red-400 transition-colors uppercase tracking-tighter" v-if="shopCart.length > 0">Reset</button>
+        </div>
+        
+        <div class="cart-scroll-area space-y-3">
+          <div v-for="(item, idx) in [...shopCart].reverse()" :key="idx" class="cart-row-v4 group flex items-center justify-between gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:border-cyan-500/20 transition-all">
+            <div class="flex-1 min-w-0">
+              <div class="text-[10px] font-black text-gray-200 truncate">{{ item.mult }}× {{ t(item.tKey) }}</div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-[8px] font-bold text-gray-500 uppercase">{{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : '' }}</span>
+                <span v-if="item.duration !== 'base'" class="text-[8px] font-black text-cyan-500/60">{{ item.duration }}</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end">
+              <span class="text-[11px] font-mono font-black text-cyan-400">{{ formatNum(item.cost) }}</span>
+              <button @click="removeShopCart(shopCart.length - 1 - idx)" class="text-[8px] text-red-500/60 opacity-0 group-hover:opacity-100 uppercase font-black tracking-tighter">Rimuovi</button>
+            </div>
+          </div>
+          <div v-if="shopCart.length === 0" class="flex flex-col items-center justify-center py-12 opacity-20 filter grayscale">
+            <svg class="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+            <span class="text-[10px] uppercase font-black tracking-widest italic">Vuoto</span>
+          </div>
+        </div>
+
+        <div v-if="shopCart.length > 0" class="panel-total mt-10 pt-6 border-t border-white/10">
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Totale MO</span>
+            <span class="text-2xl font-black text-white glow-white">{{ formatNum(totalShopCartMO) }}</span>
+          </div>
+          <button @click="cartDrawerOpen = true" class="checkout-btn w-full">
+            Dettaglio Acquisto
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ════ FULL CART DRAWER (Mobile/Desktop Detail) ════ -->
+    <Teleport to="body">
+      <div v-show="cartDrawerOpen" class="fixed inset-0 z-[100] flex justify-end">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="cartDrawerOpen = false" />
+        <aside class="relative z-10 w-full max-w-xl bg-[#06080d] border-l border-white/10 flex flex-col shadow-2xl overflow-hidden">
+          <div class="header-drawer flex items-center justify-between px-8 py-6 border-b border-white/5 bg-black/40">
+            <span class="text-xs font-black uppercase tracking-[0.3em] text-white flex items-center gap-4">
+              <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+              Riepilogo Database
+            </span>
+            <button @click="cartDrawerOpen = false" class="p-3 hover:bg-white/5 rounded-full text-gray-500 transition-all"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+          </div>
+          <div class="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
+            <div v-for="(item, idx) in shopCart" :key="idx" class="flex items-center justify-between gap-6 p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-cyan-500/40 transition-all relative overflow-hidden group">
+              <div v-if="item.event && item.event !== 'none'" class="absolute top-0 left-0 w-1 h-full bg-green-500/40"></div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-black text-gray-100 uppercase tracking-tight italic">{{ item.mult }}× {{ t(item.tKey) }}</div>
+                <div class="flex gap-3 mt-2">
+                  <span class="text-[9px] font-black text-gray-500 uppercase px-2 py-1 bg-black/50 rounded border border-white/5">{{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : 'Base' }}</span>
+                  <span v-if="item.duration !== 'base'" class="text-[9px] font-black text-cyan-400 uppercase px-2 py-1 bg-cyan-400/10 rounded">{{ item.duration }}</span>
+                  <span v-if="item.event && item.event !== 'none'" class="text-[9px] font-bold text-green-500 uppercase flex items-center gap-1"><span class="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span> {{ t('shop_event_' + item.event) }}</span>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-1">
+                <span class="text-lg font-black text-cyan-400 font-mono tracking-tighter">{{ formatNum(item.cost) }}</span>
+                <span class="text-[9px] text-gray-600 font-bold uppercase">{{ formatNum(item.unitCost) }} / ud</span>
+              </div>
+              <button @click="removeShopCart(idx)" class="absolute -right-4 group-hover:right-4 opacity-0 group-hover:opacity-100 p-2 bg-red-500/20 text-red-500 rounded-full transition-all outline-none"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            </div>
+          </div>
+          <div class="p-10 border-t border-white/10 bg-black/80">
+             <div class="flex items-center justify-between mb-2 opacity-50">
+                <span class="text-[10px] font-black uppercase text-gray-400">Subtotale Costi</span>
+                <span class="text-sm font-bold text-gray-300">{{ formatNum(totalShopCartMO) }} MO</span>
+             </div>
+             <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mb-8">
+                <span class="text-[10px] font-black uppercase text-green-500">Rimborso Cashback Stima</span>
+                <span class="text-sm font-black text-green-500">+ {{ formatNum(totalShopCartCashback) }} MO</span>
+             </div>
+             <div class="flex items-baseline justify-between gap-6 mb-10">
+                <span class="text-xs font-black text-gray-500 uppercase tracking-widest">Totale Richiesto</span>
+                <span class="text-5xl font-black text-white glow-white tracking-tighter">{{ formatNum(totalShopCartMO) }} <span class="text-lg opacity-40 font-normal">MO</span></span>
+             </div>
+             <button @click="cartDrawerOpen = false" class="w-full py-5 bg-white text-black text-xs font-black uppercase tracking-[0.4em] rounded-2xl hover:bg-cyan-400 transition-all shadow-[0_20px_40px_rgba(0,0,0,0.5)] active:scale-95">Torna allo Shop</button>
+          </div>
+        </aside>
+      </div>
     </Teleport>
+
   </div>
 </template>
+
+<style scoped>
+/* ─── BASE LAYOUT ─── */
+.shop-v4-root {
+  display: flex;
+  min-height: calc(100vh - 72px);
+  background: radial-gradient(circle at 10% 10%, rgba(6, 182, 212, 0.05), transparent 800px);
+}
+
+.shop-sidebar-left {
+  width: 260px;
+  position: sticky;
+  top: 72px;
+  height: calc(100vh - 72px);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(5, 5, 5, 0.6);
+  backdrop-filter: blur(15px);
+  z-index: 30;
+}
+
+.shop-sidebar-right {
+  width: 300px;
+  position: sticky;
+  top: 72px;
+  height: calc(100vh - 72px);
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(5, 5, 5, 0.6);
+  backdrop-filter: blur(15px);
+  z-index: 30;
+}
+
+.sidebar-scrollable, .cart-sticky-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem 1.5rem;
+}
+
+.shop-main-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ─── MOBILE EVENT BAR ─── */
+.mobile-event-bar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.mobile-evt-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  color: #6b7280;
+  transition: all 0.3s;
+}
+.mobile-evt-active {
+  background: rgba(6, 182, 212, 0.15);
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #22d3ee;
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px -5px rgba(6, 182, 212, 0.2);
+}
+
+/* ─── PRODUCT CARDS ─── */
+.product-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  position: relative;
+}
+.product-card:hover { border-color: rgba(255, 255, 255, 0.15); transform: translateY(-4px); }
+
+.card-highlight { border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.03); }
+
+/* ─── SIDEBAR ELEMENTS ─── */
+.section-label { font-size: 10px; font-weight: 900; text-transform: uppercase; color: #4b5563; letter-spacing: 0.25em; display: flex; align-items: center; gap: 8px; }
+.event-btn, .cat-btn { width: 100%; display: flex; align-items: center; padding: 12px 16px; border-radius: 14px; font-size: 11px; font-weight: 700; transition: all 0.25s; border: 1px solid transparent; color: #52525b; }
+.event-active { background: rgba(6, 182, 212, 0.12); border-color: rgba(6, 182, 212, 0.4); color: #22d3ee; }
+.cat-active { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); color: #fff; }
+
+.sidebar-divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05) 50%, transparent); margin: 2rem 0; }
+
+/* ─── CARD CONTROLS ─── */
+.qty-input { background: transparent; border: none; color: #fff; font-family: monospace; font-size: 11px; font-weight: 900; width: 30px; text-align: center; outline: none; }
+.seg-btn { flex: 1; font-size: 10px; font-weight: 900; text-transform: uppercase; padding: 8px 4px; border-radius: 6px; color: #52525b; transition: all 0.2s; }
+.seg-active { background: #1e293b; color: #fff; }
+.add-btn { width: 100%; border-radius: 12px; padding: 8px 12px; transition: all 0.2s; border: 1px solid rgba(255, 255, 255, 0.05); background: rgba(0, 0, 0, 0.4); }
+.add-btn:hover { background: rgba(255, 255, 255, 0.1); transform: scale(1.02); }
+.btn-discounted { border-color: rgba(34, 197, 94, 0.5); }
+
+/* ─── CHECKOUT BTN ─── */
+.checkout-btn { width: 100%; py: 4; background: #22d3ee; color: #000; font-size: 10px; font-weight: 950; text-transform: uppercase; letter-spacing: 0.15em; border-radius: 14px; padding: 12px; transition: all 0.3s; box-shadow: 0 10px 20px -10px rgba(6,182,212,0.5); }
+.checkout-btn:hover { background: #fff; transform: translateY(-2px); }
+
+/* ─── GLOWS ─── */
+.glow-white { text-shadow: 0 0 20px rgba(255, 255, 255, 0.3); }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 1440px) {
+  .shop-sidebar-right { display: none; }
+}
+@media (max-width: 1024px) {
+  .shop-sidebar-left { display: none; }
+}
+@media (max-width: 768px) {
+  .product-grid { grid-template-columns: 1fr; }
+}
+
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+</style>

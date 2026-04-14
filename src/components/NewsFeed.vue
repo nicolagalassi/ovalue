@@ -1,11 +1,10 @@
 <template>
-  <section class="news-feed card-glass group transition-all duration-500 hover:shadow-neon-blue" aria-label="News Feed">
+  <section class="news-feed rounded-2xl border border-white/5 bg-[#0b0e14]/80 backdrop-blur-md p-4 md:p-6 mb-2" aria-label="News Feed">
     <!-- Header -->
     <div class="news-feed__header">
       <div class="news-feed__title-group">
         <span class="news-feed__icon" aria-hidden="true">📡</span>
         <h2 class="news-feed__title">{{ t('news_feed_title') }}</h2>
-        <span class="news-feed__subtitle">{{ t('news_feed_subtitle') }}</span>
       </div>
       <div class="news-feed__controls">
         <span v-if="lastUpdated" class="news-feed__last-updated">

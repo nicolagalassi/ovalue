@@ -120,11 +120,11 @@ const { t } = useLanguage();
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- OStats Link -->
             <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer" class="group relative bg-[#0b0e14]/40 backdrop-blur-sm border border-white/5 rounded-xl p-4 transition-all duration-300 hover:border-cyan-500/35 hover:bg-[#0b0e14]/60 flex items-center gap-4">
-                <div class="flex-shrink-0 h-12 md:h-14 flex items-center rounded-xl bg-[#0b0e14]/95 px-2.5 py-1.5 border border-white/15 ring-1 ring-inset ring-white/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_4px_14px_-4px_rgba(0,0,0,0.45)] group-hover:border-cyan-400/45 group-hover:ring-cyan-400/20 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_22px_-4px_rgba(34,211,238,0.22)] group-hover:scale-[1.03] transition-all">
+                <div class="flex-shrink-0 w-24 h-12 md:w-28 md:h-14 flex items-center justify-center rounded-xl bg-[#0b0e14]/95 p-2 border border-white/15 ring-1 ring-inset ring-white/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_4px_14px_-4px_rgba(0,0,0,0.45)] group-hover:border-cyan-400/45 group-hover:ring-cyan-400/20 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_22px_-4px_rgba(34,211,238,0.22)] group-hover:scale-[1.03] transition-all">
                     <img
                         src="/Immagini%20Ogame/ostats-logo-v3.png"
                         :alt="t('card_ostats_title')"
-                        class="h-full w-auto max-h-10 md:max-h-12 max-w-[min(11.5rem,48vw)] object-contain object-left drop-shadow-[0_2px_6px_rgba(0,0,0,0.55)] contrast-[1.06]"
+                        class="h-full w-full object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.55)] contrast-[1.06]"
                     />
                 </div>
                 <div class="min-w-0">
@@ -138,13 +138,11 @@ const { t } = useLanguage();
 
             <!-- OgameUtilities Link -->
             <a href="https://www.ogameutilities.it/index.html" target="_blank" rel="noopener noreferrer" class="group relative bg-[#0b0e14]/40 backdrop-blur-sm border border-white/5 rounded-xl p-4 transition-all duration-300 hover:border-indigo-500/35 hover:bg-[#0b0e14]/60 flex items-center gap-4">
-                <div class="flex-shrink-0 h-12 w-12 md:h-14 md:w-14 flex items-center justify-center rounded-xl bg-[#0b0e14]/95 p-2 border border-white/15 ring-1 ring-inset ring-white/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_4px_14px_-4px_rgba(0,0,0,0.45)] group-hover:border-indigo-400/45 group-hover:ring-indigo-400/20 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_22px_-4px_rgba(129,140,248,0.22)] group-hover:scale-[1.03] transition-all">
+                <div class="flex-shrink-0 w-24 h-12 md:w-28 md:h-14 flex items-center justify-center rounded-xl bg-[#0b0e14]/95 p-2 border border-white/15 ring-1 ring-inset ring-white/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_4px_14px_-4px_rgba(0,0,0,0.45)] group-hover:border-indigo-400/45 group-hover:ring-indigo-400/20 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_22px_-4px_rgba(129,140,248,0.22)] group-hover:scale-[1.03] transition-all">
                     <img
                         src="/Immagini%20Ogame/ogame%20util.ico"
                         :alt="t('card_ou_title')"
-                        width="48"
-                        height="48"
-                        class="max-h-full max-w-full h-9 w-9 md:h-10 md:w-10 object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.55)]"
+                        class="h-full w-full object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.55)]"
                     />
                 </div>
                 <div class="min-w-0">

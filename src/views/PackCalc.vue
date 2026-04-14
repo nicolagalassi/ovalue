@@ -23,7 +23,7 @@ const settings = reactive({
     packValue: 300000000, 
     shopDiscount: 0,      
     moBonus: 0,
-    paymentBonus: false,
+    paymentBonus: true,
     smartRounding: false,
     bldCostRdc: 0, 
     lfRsrLabLevel: 0,
@@ -89,23 +89,29 @@ const addToQueue = () => {
         costC = lfCosts[1] * mult;
         costD = lfCosts[2] * mult;
     } else {
-        const factor = Math.pow(itemData.factor, lvl - 1); 
-        costM = Math.floor(itemData.cost[0] * factor); 
-        costC = Math.floor(itemData.cost[1] * factor); 
-        costD = Math.floor(itemData.cost[2] * factor);
-        
-        if (['metal_mine', 'crystal_mine', 'deuterium_synthesizer'].includes(builder.item)) { 
-            const minLvl = parseInt(settings.minLevel) || 0; 
-            const discount = Math.min(0.5, minLvl * 0.005); 
-            if (discount > 0) { 
-                costM = Math.floor(costM * (1 - discount)); 
-                costC = Math.floor(costC * (1 - discount)); 
-                costD = Math.floor(costD * (1 - discount)); 
-            } 
+        costM = 0; costC = 0; costD = 0;
+        const startLvl = parseInt(builder.startLevel) || 0;
+        const endLvl = lvl;
+        for (let i = startLvl + 1; i <= endLvl; i++) {
+            const factor = Math.pow(itemData.factor, i - 1); 
+            let curM = Math.floor(itemData.cost[0] * factor); 
+            let curC = Math.floor(itemData.cost[1] * factor); 
+            let curD = Math.floor(itemData.cost[2] * factor);
+            
+            if (['metal_mine', 'crystal_mine', 'deuterium_synthesizer'].includes(builder.item)) { 
+                const minLvl = parseInt(settings.minLevel) || 0; 
+                const discount = Math.min(0.5, minLvl * 0.005); 
+                if (discount > 0) { 
+                    curM = Math.floor(curM * (1 - discount)); 
+                    curC = Math.floor(curC * (1 - discount)); 
+                    curD = Math.floor(curD * (1 - discount)); 
+                } 
+            }
+            costM += curM; costC += curC; costD += curD;
         }
         costM *= mult; costC *= mult; costD *= mult;
     }
-    const displayLevel = isLF ? `${builder.startLevel} → ${lvl}` : lvl;
+    const displayLevel = (builder.cat !== 'fleet' && builder.startLevel < lvl - 1) ? `${builder.startLevel} → ${lvl}` : lvl;
     queue.value.push({ key: builder.item, cat: builder.cat, level: displayLevel, amount: mult, m: costM, c: costC, d: costD }); 
     updateInputsFromQueue();
 };
@@ -301,11 +307,11 @@ onMounted(() => {
                         </select>
                     </div>
                     <div class="md:col-span-1" v-if="builder.cat !== 'fleet'">
-                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ builder.cat.startsWith('lf_') ? t('lbl_target_level') : t('lbl_level') }}</label>
+                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1 lg:truncate" :title="t('lbl_target_level')">{{ t('lbl_target_level') }}</label>
                         <input type="number" v-model.number="builder.level" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono">
                     </div>
-                    <div class="md:col-span-1" v-if="builder.cat.startsWith('lf_')">
-                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_start_level') }}</label>
+                    <div class="md:col-span-1" v-if="builder.cat !== 'fleet'">
+                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1 lg:truncate" :title="t('lbl_start_level')">{{ t('lbl_start_level') }}</label>
                         <input type="number" v-model.number="builder.startLevel" @focus="$event.target.select()" min="0" class="input-glass w-full px-2 py-2 text-sm font-mono">
                     </div>
                     <div class="md:col-span-1 relative">
@@ -413,27 +419,27 @@ onMounted(() => {
                                 </button>
                             </div>
                             
-                            <div class="grid grid-cols-3 gap-3 mt-1 pl-2 bg-black/30 rounded-lg p-3 border border-white/5">
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-1.5 mb-0.5">
-                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-500"></div>
-                                        <span class="text-[9px] font-black text-gray-500 uppercase tracking-tighter leading-none">Metal</span>
+                            <div class="flex flex-col gap-2 mt-2 bg-black/30 rounded-lg p-3 border border-white/5">
+                                <div class="flex flex-row justify-between items-center gap-2">
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-500 shadow-[0_0_5px_rgba(107,114,128,0.5)]"></div>
+                                        <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Metal</span>
                                     </div>
-                                    <span class="text-sm font-mono font-black text-white leading-none">{{ formatNum(item.m) }}</span>
+                                    <span class="text-[13px] md:text-sm font-mono font-black text-white truncate">{{ formatNum(item.m) }}</span>
                                 </div>
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-1.5 mb-0.5">
-                                        <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                                        <span class="text-[9px] font-black text-blue-500 uppercase tracking-tighter leading-none">Crystal</span>
+                                <div class="flex flex-row justify-between items-center gap-2">
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]"></div>
+                                        <span class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Crystal</span>
                                     </div>
-                                    <span class="text-sm font-mono font-black text-blue-300 leading-none">{{ formatNum(item.c) }}</span>
+                                    <span class="text-[13px] md:text-sm font-mono font-black text-blue-300 truncate">{{ formatNum(item.c) }}</span>
                                 </div>
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-1.5 mb-0.5">
-                                        <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                                        <span class="text-[9px] font-black text-green-500 uppercase tracking-tighter leading-none">Deut</span>
+                                <div class="flex flex-row justify-between items-center gap-2">
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
+                                        <span class="text-[10px] font-black text-green-500 uppercase tracking-widest">Deut</span>
                                     </div>
-                                    <span class="text-sm font-mono font-black text-green-300 leading-none">{{ formatNum(item.d) }}</span>
+                                    <span class="text-[13px] md:text-sm font-mono font-black text-green-300 truncate">{{ formatNum(item.d) }}</span>
                                 </div>
                             </div>
                         </div>
@@ -450,72 +456,72 @@ onMounted(() => {
                 
                 <div class="flex flex-col gap-4 mt-6">
                     <!-- Metal -->
-                    <div class="bg-black/20 rounded-xl p-4 border border-white/5 relative overflow-hidden group">
+                    <div class="bg-black/20 rounded-xl p-3 md:p-4 border border-white/5 relative overflow-hidden group">
                         <div class="absolute inset-0 bg-gradient-to-r from-gray-500/0 via-gray-500/5 to-gray-500/0 opacity-0 group-hover:opacity-100 transition duration-500"></div>
                         <div class="flex items-center justify-between mb-3 relative z-10">
                             <div class="flex items-center gap-2">
-                                <div class="w-6 h-6 rounded bg-gray-600/50 flex items-center justify-center text-[10px] text-white shadow-inner font-bold">M</div>
-                                <span class="font-bold text-sm text-gray-300 uppercase">{{ t('res_metal') }}</span>
+                                <div class="w-5 h-5 md:w-6 md:h-6 rounded bg-gray-600/50 flex items-center justify-center text-[10px] text-white shadow-inner font-bold">M</div>
+                                <span class="font-bold text-[13px] md:text-sm text-gray-300 uppercase">{{ t('res_metal') }}</span>
                             </div>
-                            <span v-if="calculation.needM > 0" class="text-[10px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded border border-red-500/20">{{ t('msg_missing') }}: {{ formatNum(calculation.needM) }}</span>
-                            <span v-else class="text-[10px] font-bold text-green-500 bg-green-900/30 px-2 py-0.5 rounded border border-green-500/20">{{ t('msg_covered') }}</span>
+                            <span v-if="calculation.needM > 0" class="text-[9px] md:text-[10px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded border border-red-500/20 whitespace-nowrap">{{ t('msg_missing') }}: {{ formatNum(calculation.needM) }}</span>
+                            <span v-else class="text-[9px] md:text-[10px] font-bold text-green-500 bg-green-900/30 px-2 py-0.5 rounded border border-green-500/20 whitespace-nowrap">{{ t('msg_covered') }}</span>
                         </div>
-                        <div class="grid grid-cols-2 gap-4 relative z-10">
+                        <div class="flex flex-col sm:grid sm:grid-cols-2 gap-2.5 sm:gap-4 relative z-10">
                             <div>
-                                <label class="block text-[9px] uppercase font-bold text-gray-500 mb-1">{{ t('lbl_cost_list') }}</label>
-                                <input type="text" v-model="formMet" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-gray-200 text-sm bg-black/40">
+                                <label class="block text-[9px] uppercase font-bold text-gray-500 mb-1 lg:mb-1.5">{{ t('lbl_cost_list') }}</label>
+                                <input type="text" v-model="formMet" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-gray-200 text-[13px] md:text-sm bg-black/40">
                             </div>
                             <div>
-                                <label class="block text-[9px] uppercase font-bold text-green-500/70 mb-1">{{ t('lbl_stock_avail') }}</label>
-                                <input type="text" v-model="stockMet" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500 text-sm bg-black/40">
+                                <label class="block text-[9px] uppercase font-bold text-green-500/70 mb-1 lg:mb-1.5">{{ t('lbl_stock_avail') }}</label>
+                                <input type="text" v-model="stockMet" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500 text-[13px] md:text-sm bg-black/40">
                             </div>
                         </div>
                     </div>
 
                     <!-- Crystal -->
-                    <div class="bg-black/20 rounded-xl p-4 border border-white/5 relative overflow-hidden group">
+                    <div class="bg-black/20 rounded-xl p-3 md:p-4 border border-white/5 relative overflow-hidden group">
                         <div class="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/5 to-blue-500/0 opacity-0 group-hover:opacity-100 transition duration-500"></div>
                         <div class="flex items-center justify-between mb-3 relative z-10">
                             <div class="flex items-center gap-2">
-                                <div class="w-6 h-6 rounded bg-blue-600/50 flex items-center justify-center text-[10px] text-white shadow-inner font-bold">C</div>
-                                <span class="font-bold text-sm text-gray-300 uppercase">{{ t('res_crystal') }}</span>
+                                <div class="w-5 h-5 md:w-6 md:h-6 rounded bg-blue-600/50 flex items-center justify-center text-[10px] text-white shadow-inner font-bold">C</div>
+                                <span class="font-bold text-[13px] md:text-sm text-gray-300 uppercase">{{ t('res_crystal') }}</span>
                             </div>
-                            <span v-if="calculation.needC > 0 && calculation.totalMSU <= 0" class="text-[10px] font-bold text-amber-500 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">{{ t('msg_covered_surplus') }}</span>
-                            <span v-else-if="calculation.needC > 0" class="text-[10px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded border border-red-500/20">{{ t('msg_missing') }}: {{ formatNum(calculation.needC) }}</span>
-                            <span v-else class="text-[10px] font-bold text-green-500 bg-green-900/30 px-2 py-0.5 rounded border border-green-500/20">{{ t('msg_covered') }}</span>
+                            <span v-if="calculation.needC > 0 && calculation.totalMSU <= 0" class="text-[9px] md:text-[10px] font-bold text-amber-500 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20 whitespace-nowrap">{{ t('msg_covered_surplus') }}</span>
+                            <span v-else-if="calculation.needC > 0" class="text-[9px] md:text-[10px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded border border-red-500/20 whitespace-nowrap">{{ t('msg_missing') }}: {{ formatNum(calculation.needC) }}</span>
+                            <span v-else class="text-[9px] md:text-[10px] font-bold text-green-500 bg-green-900/30 px-2 py-0.5 rounded border border-green-500/20 whitespace-nowrap">{{ t('msg_covered') }}</span>
                         </div>
-                        <div class="grid grid-cols-2 gap-4 relative z-10">
+                        <div class="flex flex-col sm:grid sm:grid-cols-2 gap-2.5 sm:gap-4 relative z-10">
                             <div>
-                                <label class="block text-[9px] uppercase font-bold text-gray-500 mb-1">{{ t('lbl_cost_list') }}</label>
-                                <input type="text" v-model="formCry" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-blue-200 text-sm bg-black/40">
+                                <label class="block text-[9px] uppercase font-bold text-gray-500 mb-1 lg:mb-1.5">{{ t('lbl_cost_list') }}</label>
+                                <input type="text" v-model="formCry" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-blue-200 text-[13px] md:text-sm bg-black/40">
                             </div>
                             <div>
-                                <label class="block text-[9px] uppercase font-bold text-green-500/70 mb-1">{{ t('lbl_stock_avail') }}</label>
-                                <input type="text" v-model="stockCry" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500 text-sm bg-black/40">
+                                <label class="block text-[9px] uppercase font-bold text-green-500/70 mb-1 lg:mb-1.5">{{ t('lbl_stock_avail') }}</label>
+                                <input type="text" v-model="stockCry" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500 text-[13px] md:text-sm bg-black/40">
                             </div>
                         </div>
                     </div>
 
                     <!-- Deuterium -->
-                    <div class="bg-black/20 rounded-xl p-4 border border-white/5 relative overflow-hidden group">
+                    <div class="bg-black/20 rounded-xl p-3 md:p-4 border border-white/5 relative overflow-hidden group">
                         <div class="absolute inset-0 bg-gradient-to-r from-green-500/0 via-green-500/5 to-green-500/0 opacity-0 group-hover:opacity-100 transition duration-500"></div>
                         <div class="flex items-center justify-between mb-3 relative z-10">
                             <div class="flex items-center gap-2">
-                                <div class="w-6 h-6 rounded bg-green-600/50 flex items-center justify-center text-[10px] text-white shadow-inner font-bold">D</div>
-                                <span class="font-bold text-sm text-gray-300 uppercase">{{ t('res_deuterium') }}</span>
+                                <div class="w-5 h-5 md:w-6 md:h-6 rounded bg-green-600/50 flex items-center justify-center text-[10px] text-white shadow-inner font-bold">D</div>
+                                <span class="font-bold text-[13px] md:text-sm text-gray-300 uppercase">{{ t('res_deuterium') }}</span>
                             </div>
-                            <span v-if="calculation.needD > 0 && calculation.totalMSU <= 0" class="text-[10px] font-bold text-amber-500 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">{{ t('msg_covered_surplus') }}</span>
-                            <span v-else-if="calculation.needD > 0" class="text-[10px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded border border-red-500/20">{{ t('msg_missing') }}: {{ formatNum(calculation.needD) }}</span>
-                            <span v-else class="text-[10px] font-bold text-green-500 bg-green-900/30 px-2 py-0.5 rounded border border-green-500/20">{{ t('msg_covered') }}</span>
+                            <span v-if="calculation.needD > 0 && calculation.totalMSU <= 0" class="text-[9px] md:text-[10px] font-bold text-amber-500 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20 whitespace-nowrap">{{ t('msg_covered_surplus') }}</span>
+                            <span v-else-if="calculation.needD > 0" class="text-[9px] md:text-[10px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded border border-red-500/20 whitespace-nowrap">{{ t('msg_missing') }}: {{ formatNum(calculation.needD) }}</span>
+                            <span v-else class="text-[9px] md:text-[10px] font-bold text-green-500 bg-green-900/30 px-2 py-0.5 rounded border border-green-500/20 whitespace-nowrap">{{ t('msg_covered') }}</span>
                         </div>
-                        <div class="grid grid-cols-2 gap-4 relative z-10">
+                        <div class="flex flex-col sm:grid sm:grid-cols-2 gap-2.5 sm:gap-4 relative z-10">
                             <div>
-                                <label class="block text-[9px] uppercase font-bold text-gray-500 mb-1">{{ t('lbl_cost_list') }}</label>
-                                <input type="text" v-model="formDeu" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-green-200 text-sm bg-black/40">
+                                <label class="block text-[9px] uppercase font-bold text-gray-500 mb-1 lg:mb-1.5">{{ t('lbl_cost_list') }}</label>
+                                <input type="text" v-model="formDeu" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-green-200 text-[13px] md:text-sm bg-black/40">
                             </div>
                             <div>
-                                <label class="block text-[9px] uppercase font-bold text-green-500/70 mb-1">{{ t('lbl_stock_avail') }}</label>
-                                <input type="text" v-model="stockDeu" @focus="$event.target.select()" class="input-glass w-full py-2 px-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500 text-sm bg-black/40">
+                                <label class="block text-[9px] uppercase font-bold text-green-500/70 mb-1 lg:mb-1.5">{{ t('lbl_stock_avail') }}</label>
+                                <input type="text" v-model="stockDeu" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-gray-400 border-green-900/30 focus:border-green-500 text-[13px] md:text-sm bg-black/40">
                             </div>
                         </div>
                     </div>
@@ -594,17 +600,17 @@ onMounted(() => {
 
             <div class="card-glass p-6 border-t-4 border-t-purple-600">
                 <div class="flex flex-col gap-4 mb-6">
-                    <div class="flex justify-between items-center">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <h3 class="text-sm font-bold text-gray-300 uppercase flex items-center gap-2">
                             <svg class="w-4 h-4 text-purple-500" fill="currentColor" viewBox="0 0 20 20"><path d="M13 7H7v6h6V7z"/><path fill-rule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1v-2H2a1 1 0 110-2h1V7a2 2 0 012-2h2V2zM5 7v6h10V7H5z" clip-rule="evenodd"/></svg>
                             <span>{{ t('lbl_cost_dm') }}</span>
                         </h3>
-                        <div class="flex flex-col gap-2">
-                             <span class="text-[10px] text-gray-400 uppercase font-bold">{{ t('lbl_shop_discount') }}</span>
-                             <div class="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/5 w-fit">
-                                 <button @click="settings.shopDiscount = 0" :class="settings.shopDiscount === 0 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all">0%</button>
-                                 <button @click="settings.shopDiscount = 20" :class="settings.shopDiscount === 20 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all">-20%</button>
-                                 <button @click="settings.shopDiscount = 30" :class="settings.shopDiscount === 30 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all">-30%</button>
+                        <div class="flex flex-col gap-2 w-full sm:w-auto">
+                             <span class="text-[10px] text-gray-400 uppercase font-bold">OFFERTA PACCHETTI</span>
+                             <div class="flex flex-1 sm:flex-none items-center gap-1 bg-black/40 p-1.5 rounded-lg border border-white/5">
+                                 <button @click="settings.shopDiscount = 0" :class="settings.shopDiscount === 0 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all flex-1 sm:flex-none">0%</button>
+                                 <button @click="settings.shopDiscount = 20" :class="settings.shopDiscount === 20 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all flex-1 sm:flex-none">-20%</button>
+                                 <button @click="settings.shopDiscount = 30" :class="settings.shopDiscount === 30 ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all flex-1 sm:flex-none">-30%</button>
                              </div>
                         </div>
                     </div>

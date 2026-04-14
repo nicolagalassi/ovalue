@@ -45,34 +45,38 @@ const PROXY_CHAIN = [
  * @typedef {{ title: string, link: string, pubDate: string, category: string }} FeedItem
  */
 export async function fetchOGameFeed() {
-  let lastError;
-
-  for (const makeUrl of PROXY_CHAIN) {
-    try {
-      const xml = await _fetchViaProxy(makeUrl, FEED_URL);
+  const controller = new AbortController();
+  const promises = PROXY_CHAIN.map(makeUrl => 
+    _fetchViaProxy(makeUrl, FEED_URL, controller.signal).then(xml => {
       if (xml) {
         const items = _parseRSS(xml);
         if (items.length > 0) return items;
       }
-    } catch (err) {
-      lastError = err;
-      // continue to next proxy
-    }
-  }
+      throw new Error('Empty or invalid RSS');
+    })
+  );
 
-  throw new Error(lastError?.message ?? 'All RSS proxy attempts failed');
+  try {
+    const fastestResult = await Promise.any(promises);
+    controller.abort(); // Cancel slower requests
+    return fastestResult;
+  } catch (err) {
+    throw new Error('All RSS proxy attempts failed: ' + err.message);
+  }
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
-async function _fetchViaProxy(makeUrl, targetUrl) {
+async function _fetchViaProxy(makeUrl, targetUrl, externalSignal) {
   const proxyUrl = makeUrl(targetUrl);
+  
+  const timeoutId = setTimeout(() => externalSignal.abort(), 8000);
 
   const res = await fetch(proxyUrl, {
     method: 'GET',
     headers: { Accept: 'application/rss+xml, application/xml, text/xml, */*' },
-    signal: AbortSignal.timeout(8_000),
-  });
+    signal: externalSignal,
+  }).finally(() => clearTimeout(timeoutId));
 
   if (!res.ok) throw new Error(`HTTP ${res.status} — ${proxyUrl}`);
 
@@ -103,12 +107,16 @@ function _parseRSS(xmlString) {
 
   return Array.from(doc.querySelectorAll('item'))
     .slice(0, MAX_ITEMS)
-    .map((item) => ({
-      title:    _clean(_text(item, 'title') || _text(item, 'description') || '(no title)'),
-      link:     _text(item, 'link') || _text(item, 'guid') || '#',
-      pubDate:  _text(item, 'pubDate') || '',
-      category: _clean(_text(item, 'category') || _inferCategory(_text(item, 'title') || '')),
-    }))
+    .map((item) => {
+      const title = _clean(_text(item, 'title') || _text(item, 'description') || '(no title)');
+      const pubDate = _text(item, 'pubDate') || '';
+      return {
+        title,
+        link:     _text(item, 'link') || _text(item, 'guid') || '#',
+        pubDate,
+        category: _clean(_text(item, 'category') || _inferCategory(title, pubDate)),
+      };
+    })
     .filter((it) => it.title && it.link !== '#');
 }
 
@@ -127,13 +135,45 @@ function _clean(str) {
     .trim();
 }
 
-function _inferCategory(text) {
+function _inferCategory(text, pubDateStr = '') {
   const t = text.toLowerCase();
+  
+  // Highlight Offers/Sales only if active
+  if (/sale|discount|offer|cashback|relocation|items|%/.test(t)) {
+    const isOfferActive = () => {
+      const now = new Date();
+      now.setHours(0,0,0,0);
+      
+      const matches = [...text.matchAll(/(\d{1,2})\.(\d{1,2})\.?/g)];
+      if (matches.length > 0) {
+        let latestTimestamp = 0;
+        for (const match of matches) {
+          const day = parseInt(match[1]);
+          const month = parseInt(match[2]);
+          if (day > 0 && day <= 31 && month > 0 && month <= 12) {
+            const d = new Date(now.getFullYear(), month - 1, day, 23, 59, 59);
+            if (d.getTime() > latestTimestamp) {
+              latestTimestamp = d.getTime();
+            }
+          }
+        }
+        return latestTimestamp >= now.getTime();
+      }
+
+      if (pubDateStr) {
+        const pubDate = new Date(pubDateStr);
+        if ((Date.now() - pubDate.getTime()) < 2 * 24 * 3600 * 1000) return true;
+      }
+      return false;
+    };
+    
+    return isOfferActive() ? 'Offer' : 'Past Offer';
+  }
+  
   if (/happy hour|hh\b/.test(t))              return 'Event';
   if (/\bevent\b|task reward/.test(t))        return 'Event';
   if (/v\d+\.\d+|version|changelog/.test(t)) return 'Changelog';
   if (/maintenance|maint/.test(t))            return 'Maintenance';
   if (/new universe|uni \d+/.test(t))         return 'New Universe';
-  if (/sale|discount|offer/.test(t))          return 'Sale';
   return 'News';
 }

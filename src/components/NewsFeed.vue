@@ -45,48 +45,54 @@
     </div>
 
     <!-- News items or empty -->
-    <div v-else class="news-feed__scroll-container">
-      <TransitionGroup name="news-item" tag="ul" class="news-feed__list" role="list">
-        <li
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-2">
+      <TransitionGroup name="news-item">
+        <a
           v-for="(item, index) in visibleItems"
           :key="item.link"
-          class="news-feed__item"
+          :href="item.link"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="relative overflow-hidden group rounded-xl border p-5 flex flex-col justify-start min-h-[130px] transition-all duration-300 hover:-translate-y-1"
+          :class="{
+            'bg-[#ff2a6d]/[0.08] border-[#ff2a6d]/40 shadow-[0_4px_20px_rgba(255,42,109,0.15)] hover:border-[#ff2a6d]/80 hover:shadow-[0_4px_30px_rgba(255,42,109,0.25)]': normalizeCat(item.category) === 'offer',
+            'bg-[#00f0ff]/[0.05] border-[#00f0ff]/20 shadow-[0_4px_20px_rgba(0,240,255,0.05)] hover:border-[#00f0ff]/50 hover:shadow-[0_4px_30px_rgba(0,240,255,0.15)]': normalizeCat(item.category) !== 'offer'
+          }"
           :style="{ '--index': index }"
         >
-          <a
-            class="news-feed__item-link"
-            :href="item.link"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <div class="news-feed__item-header">
-              <span class="news-feed__item-category" :data-category="normalizeCat(item.category)">
-                {{ item.category || t('news_feed_default_category') }}
+          <!-- Background glow for offer -->
+          <div v-if="normalizeCat(item.category) === 'offer'" class="absolute -right-10 -top-10 w-32 h-32 bg-[#ff2a6d] rounded-full blur-[70px] opacity-30 group-hover:opacity-50 transition-opacity pointer-events-none"></div>
+          
+          <div class="relative z-10 w-full">
+            <div class="flex justify-between items-start mb-3">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border"
+                :class="{
+                  'bg-[#ff2a6d]/20 text-[#ff3a7a] border-[#ff2a6d]/40': normalizeCat(item.category) === 'offer',
+                  'bg-[#00f0ff]/10 text-cyan-400 border-cyan-400/30': normalizeCat(item.category) !== 'offer'
+                }"
+              >
+                <span v-if="normalizeCat(item.category) === 'offer'" class="text-sm leading-none drop-shadow-[0_0_5px_rgba(255,42,109,0.5)]">🔥</span>
+                {{ t('news_cat_' + normalizeCat(item.category)) || item.category }}
               </span>
-              <time class="news-feed__item-date" :datetime="item.pubDate">
-                {{ formatDate(item.pubDate) }}
-              </time>
+              <time class="text-[10px] font-mono text-gray-500 whitespace-nowrap ml-2">{{ formatDate(item.pubDate) }}</time>
             </div>
-            <p class="news-feed__item-title">{{ item.title }}</p>
-            <span class="news-feed__item-arrow" aria-hidden="true">→</span>
-          </a>
-        </li>
+            <h3 class="text-sm font-bold text-white group-hover:text-blue-50 transition-colors drop-shadow-md leading-snug pr-6" :class="{'text-[15px] text-[#ff3a7a]': normalizeCat(item.category) === 'offer'}">
+              {{ item.title }}
+            </h3>
+          </div>
+          
+          <div class="absolute right-4 bottom-4 flex items-center justify-center w-6 h-6 rounded-full bg-white/5 border border-white/10 text-white/50 group-hover:bg-white/10 group-hover:text-white group-hover:border-white/30 transition-all duration-300">
+             <span class="text-xs group-hover:translate-x-[1px] transition-transform">→</span>
+          </div>
+        </a>
       </TransitionGroup>
-    </div>
-
-    <!-- Show more / less -->
-    <div v-if="!loading && !error && items.length > previewCount" class="news-feed__toggle">
-      <button class="news-feed__toggle-btn" @click="expanded = !expanded">
-        <span v-if="!expanded">{{ t('news_feed_show_more') }}</span>
-        <span v-else>{{ t('news_feed_show_less') }}</span>
-        <svg
-          width="12" height="12" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.5"
-          :style="{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s ease' }"
-        >
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
-      </button>
+      
+      <!-- Empty state when no active offers exist -->
+      <div v-if="visibleItems.length === 0" class="col-span-1 md:col-span-2 lg:col-span-3 py-10 flex flex-col items-center justify-center text-center border border-white/5 rounded-xl bg-black/20">
+         <span class="text-3xl mb-3 opacity-50 grayscale">📡</span>
+         <p class="text-gray-400 font-bold text-sm tracking-wider uppercase">{{ t('news_empty_title') }}</p>
+         <p class="text-gray-600 text-xs mt-1 max-w-xs">{{ t('news_empty_desc') }}</p>
+      </div>
     </div>
 
     <!-- Footer link -->
@@ -129,14 +135,22 @@ const lastUpdated = ref(null)
 const expanded    = ref(false)
 
 // ── Computed ─────────────────────────────────────────────────────────────────
-const visibleItems = computed(() =>
-  expanded.value ? items.value : items.value.slice(0, previewCount)
-)
+const visibleItems = computed(() => {
+  return items.value.filter(item => {
+    const cat = normalizeCat(item.category);
+    // Ignore past offers
+    if (cat === 'past_offer') return false;
+    // Show active offers, events, and important updates. Exclude standard 'news' unless it's an event.
+    return cat === 'offer' || cat === 'event' || cat === 'update' || cat === 'universe' || cat === 'maintenance';
+  }).slice(0, 6); // show up to 6 active banners
+})
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function normalizeCat(cat) {
   if (!cat) return 'default'
   const c = cat.toLowerCase()
+  if (c === 'past offer') return 'past_offer'
+  if (c.includes('offer') || c.includes('sale') || c.includes('discount')) return 'offer'
   if (c.includes('event') || c.includes('happy')) return 'event'
   if (c.includes('news') || c.includes('info'))  return 'news'
   if (c.includes('changelog') || c.includes('version') || c.includes('update')) return 'update'
@@ -439,158 +453,8 @@ onUnmounted(() => clearInterval(timer))
   z-index: 1;
 }
 
-.news-feed__scroll-container {
-  max-height: 320px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--nf-accent) transparent;
-}
-
-.news-feed__scroll-container::-webkit-scrollbar {
-  width: 4px;
-}
-
-.news-feed__scroll-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.news-feed__scroll-container::-webkit-scrollbar-thumb {
-  background: var(--nf-accent);
-  border-radius: 10px;
-}
-
-/* ─── Item ───────────────────────────────────────────────────────── */
-.news-feed__item {
-  border-bottom: 1px solid var(--nf-border);
-}
-
-.news-feed__item:last-child {
-  border-bottom: none;
-}
-
-.news-feed__item-link {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
-  align-items: center;
-  column-gap: 12px;
-  row-gap: 2px;
-  padding: 8px 16px;
-  text-decoration: none;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.news-feed__item-link::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 2px;
-  background: var(--nf-accent);
-  transform: scaleY(0);
-  transform-origin: top;
-  transition: transform 0.2s ease;
-}
-
-.news-feed__item-link:hover {
-  background: rgba(0, 191, 255, 0.05);
-}
-
-.news-feed__item-link:hover::before {
-  transform: scaleY(1);
-}
-
-.news-feed__item-header {
-  grid-column: 1;
-  grid-row: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.news-feed__item-category {
-  font-family: var(--nf-mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 2px 7px;
-  border-radius: 3px;
-  border: 1px solid currentColor;
-  flex-shrink: 0;
-}
-
 /* Category colour palette */
-[data-category="event"]       { color: #ffb800; border-color: rgba(255,184,0,0.3); background: rgba(255,184,0,0.06); }
-[data-category="update"]      { color: #00ff9d; border-color: rgba(0,255,157,0.3); background: rgba(0,255,157,0.06); }
-[data-category="maintenance"] { color: #ff8c42; border-color: rgba(255,140,66,0.3); background: rgba(255,140,66,0.06); }
-[data-category="news"]        { color: #00f0ff; border-color: rgba(0,240,255,0.3); background: rgba(0,240,255,0.06); }
-[data-category="universe"]    { color: #9d00ff; border-color: rgba(157,0,255,0.3); background: rgba(157,0,255,0.06); }
-[data-category="default"]     { color: #64748b; border-color: rgba(100,116,139,0.3); background: rgba(100,116,139,0.06); }
-
-.news-feed__item-date {
-  font-family: var(--nf-mono);
-  font-size: 10px;
-  color: var(--nf-text-dim);
-  white-space: nowrap;
-}
-
-.news-feed__item-title {
-  grid-column: 1;
-  grid-row: 2;
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 1.35;
-  color: var(--nf-text);
-  transition: color 0.15s;
-}
-
-.news-feed__item-link:hover .news-feed__item-title {
-  color: #e8f4ff;
-}
-
-.news-feed__item-arrow {
-  grid-column: 2;
-  grid-row: 1 / 3;
-  font-size: 16px;
-  color: var(--nf-text-dim);
-  transition: color 0.15s, transform 0.15s;
-  align-self: center;
-}
-
-.news-feed__item-link:hover .news-feed__item-arrow {
-  color: var(--nf-accent);
-  transform: translateX(3px);
-}
-
-/* ─── Toggle ─────────────────────────────────────────────────────── */
-.news-feed__toggle {
-  padding: 10px 18px;
-  border-top: 1px solid var(--nf-border);
-  display: flex;
-  justify-content: center;
-  position: relative;
-  z-index: 1;
-}
-
-.news-feed__toggle-btn {
-  background: transparent;
-  border: none;
-  color: var(--nf-accent);
-  cursor: pointer;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  letter-spacing: 0.06em;
-  padding: 3px 6px;
-  border-radius: 4px;
-  transition: background 0.15s;
-}
-
-.news-feed__toggle-btn:hover {
-  background: rgba(0, 191, 255, 0.08);
-}
+/* Note: Using tailwind and inline classes now, but preserving these just in case */
 
 /* ─── Footer ─────────────────────────────────────────────────────── */
 .news-feed__footer {

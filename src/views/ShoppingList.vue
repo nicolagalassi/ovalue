@@ -280,6 +280,15 @@ const getTierColorClass = (tier) => {
     if (tier === 'bronze')   return 'glow-orange text-orange-200';
     return 'text-cyan-200';
 };
+// Swipe delete logic
+const swipeState = reactive({ idx: null, startX: 0, currentXP: 0 });
+const tsStart = (e, idx) => { swipeState.idx = idx; swipeState.startX = e.touches[0].clientX; swipeState.currentXP = 0; };
+const tsMove = (e, idx) => { if (swipeState.idx !== idx) return; const diff = swipeState.startX - e.touches[0].clientX; if (diff > 0) swipeState.currentXP = Math.min(diff, 100); else swipeState.currentXP = 0; };
+const tsEnd = (idx) => { if (swipeState.idx !== idx) return; if (swipeState.currentXP >= 60) removeShopCart(idx); swipeState.idx = null; swipeState.currentXP = 0; };
+const getSwipeStyle = (idx) => {
+    if (swipeState.idx === idx) return { transform: `translateX(-${swipeState.currentXP}px)`, transition: 'none' };
+    return { transform: 'translateX(0)', transition: 'transform 0.3s ease-out' };
+};
 </script>
 
 <template>
@@ -332,22 +341,45 @@ const getTierColorClass = (tier) => {
     <!-- ════ MAIN CONTENT ════ -->
     <main class="shop-main-content">
       
-      <!-- Mobile Event Bar (Horizontal Scroll) -->
+      <!-- Mobile Event & Category Bar (Horizontal Scroll) -->
       <div class="lg:hidden px-4 pt-6 pb-2">
-        <div class="flex items-center gap-2 mb-3">
-          <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-          <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Eventi Attivi</span>
-        </div>
-        <div class="mobile-event-bar flex gap-2 overflow-x-auto pb-4 custom-scrollbar no-scrollbar">
-          <button
-            v-for="evt in DISCOUNT_EVENTS" :key="evt.id"
-            @click="activeDiscountEvent = evt.id"
-            class="mobile-evt-btn shrink-0"
-            :class="{ 'mobile-evt-active': activeDiscountEvent === evt.id }"
-          >
-            <span class="text-lg">{{ evt.icon }}</span>
-            <span class="text-[10px] font-bold whitespace-nowrap">{{ t(evt.label) }}</span>
-          </button>
+        <div class="flex flex-col gap-4">
+            <!-- Eventi -->
+            <div>
+              <div class="flex items-center gap-2 mb-3">
+                <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Eventi Attivi</span>
+              </div>
+              <div class="mobile-event-bar flex gap-2 overflow-x-auto pb-6 pt-2 px-1 custom-scrollbar no-scrollbar -ml-1">
+                <button
+                  v-for="evt in DISCOUNT_EVENTS" :key="evt.id"
+                  @click="activeDiscountEvent = evt.id"
+                  class="mobile-evt-btn shrink-0"
+                  :class="{ 'mobile-evt-active': activeDiscountEvent === evt.id }"
+                >
+                  <span class="text-lg">{{ evt.icon }}</span>
+                  <span class="text-[10px] font-bold whitespace-nowrap">{{ t(evt.label) }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Categorie -->
+            <div>
+              <div class="flex items-center gap-2 mb-3 mt-1">
+                <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Categorie</span>
+              </div>
+              <div class="mobile-event-bar flex gap-2 overflow-x-auto pb-6 pt-2 px-1 custom-scrollbar no-scrollbar -ml-1">
+                <button
+                  v-for="cat in visibleCategories" :key="cat.id"
+                  @click="scrollToCategory(cat.id)"
+                  class="shrink-0 py-2.5 px-4 flex items-center justify-center rounded-xl border transition-all text-[11px] font-bold whitespace-nowrap"
+                  :class="activeCategory === cat.id ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 shadow-[0_10px_20px_-5px_rgba(6,182,212,0.2)]' : 'bg-white/5 border-white/5 text-gray-400 hover:text-gray-200'"
+                >
+                  {{ t(cat.name) }}
+                </button>
+              </div>
+            </div>
         </div>
       </div>
 
@@ -374,7 +406,7 @@ const getTierColorClass = (tier) => {
                 {{ t(block.titleKey) }}
               </h3>
 
-              <div class="product-grid grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
+              <div class="product-grid grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-2 md:gap-4">
                 <article
                   v-for="entry in block.items" :key="entry.key"
                   class="product-card"
@@ -384,15 +416,15 @@ const getTierColorClass = (tier) => {
                   }"
                 >
                   <!-- Card Top: Name -->
-                  <div class="card-header p-3 pb-0">
+                  <div class="card-header p-2 md:p-3 pb-0">
                     <h4 class="text-[11px] font-bold leading-tight text-gray-200 min-h-[2.5rem] line-clamp-2">
                       {{ t(entry.key) }}
                     </h4>
                   </div>
 
                   <!-- Card Mid: Image -->
-                  <div class="card-image-wrap px-3 py-2">
-                    <div class="img-container relative h-36 bg-white/[0.03] rounded-xl overflow-hidden border border-white/5 shadow-inner flex items-center justify-center group">
+                  <div class="card-image-wrap px-2 md:px-3 py-2">
+                    <div class="img-container relative h-20 md:h-36 bg-white/[0.03] rounded-xl overflow-hidden border border-white/5 shadow-inner flex items-center justify-center group">
                       <img
                         :src="shopItemImageSrc(entry.key)"
                         :alt="t(entry.key)"
@@ -407,7 +439,7 @@ const getTierColorClass = (tier) => {
                   </div>
 
                   <!-- Card Bottom: Controls -->
-                  <div class="card-footer p-3 pt-0 space-y-2">
+                  <div class="card-footer p-2 md:p-3 pt-0 space-y-2">
                     <div class="flex items-center justify-between gap-2">
                       <div class="qty-control flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded border border-white/10">
                         <span class="text-[7px] font-bold text-gray-600">QTÀ</span>
@@ -434,8 +466,9 @@ const getTierColorClass = (tier) => {
                           class="add-btn flex items-center justify-between"
                           :class="[getTierColorClass(tierName), { 'btn-discounted': isItemHighlighted(entry.key, entry.val.costs) }]"
                         >
-                          <span class="tier-label text-[9px] font-black uppercase leading-none truncate max-w-[45%]">
-                            {{ tierName !== 'none' ? getTierDisplayName(entry.key, tierName) : 'OK' }}
+                          <span class="tier-label text-[9px] font-black uppercase leading-none truncate max-w-[45%] flex items-center gap-1">
+                            <template v-if="tierName !== 'none'">{{ getTierDisplayName(entry.key, tierName) }}</template>
+                            <svg v-else class="w-3.5 h-3.5 m-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 5v14m7-7H5"></path></svg>
                           </span>
                           <span class="price-block flex flex-col items-end leading-none">
                             <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]"
@@ -504,6 +537,14 @@ const getTierColorClass = (tier) => {
       </div>
     </aside>
 
+    <!-- Mobile Floating Cart Button -->
+    <div class="xl:hidden fixed bottom-6 right-6 z-40">
+      <button @click="cartDrawerOpen = true" class="relative bg-cyan-500 text-black p-4 rounded-full shadow-[0_10px_25px_rgba(6,182,212,0.5)] active:scale-95 transition-transform border border-cyan-400">
+         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+         <span v-if="shopCart.length > 0" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#050505]">{{ cartTotalQty }}</span>
+      </button>
+    </div>
+
     <!-- ════ FULL CART DRAWER (Mobile/Desktop Detail) ════ -->
     <Teleport to="body">
       <div v-show="cartDrawerOpen" class="fixed inset-0 z-[100] flex justify-end">
@@ -516,38 +557,48 @@ const getTierColorClass = (tier) => {
             </span>
             <button @click="cartDrawerOpen = false" class="p-3 hover:bg-white/5 rounded-full text-gray-500 transition-all"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
           </div>
-          <div class="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
-            <div v-for="(item, idx) in shopCart" :key="idx" class="flex items-center justify-between gap-6 p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-cyan-500/40 transition-all relative overflow-hidden group">
-              <div v-if="item.event && item.event !== 'none'" class="absolute top-0 left-0 w-1 h-full bg-green-500/40"></div>
-              <div class="flex-1 min-w-0">
-                <div class="text-sm font-black text-gray-100 uppercase tracking-tight italic">{{ item.mult }}× {{ t(item.tKey) }}</div>
-                <div class="flex gap-3 mt-2">
-                  <span class="text-[9px] font-black text-gray-500 uppercase px-2 py-1 bg-black/50 rounded border border-white/5">{{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : 'Base' }}</span>
-                  <span v-if="item.duration !== 'base'" class="text-[9px] font-black text-cyan-400 uppercase px-2 py-1 bg-cyan-400/10 rounded">{{ item.duration }}</span>
-                  <span v-if="item.event && item.event !== 'none'" class="text-[9px] font-bold text-green-500 uppercase flex items-center gap-1"><span class="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span> {{ t('shop_event_' + item.event) }}</span>
+          <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-3 custom-scrollbar overflow-x-hidden">
+            <div v-for="(item, idx) in shopCart" :key="idx" class="relative group overflow-hidden rounded-2xl w-full">
+              <!-- Delete background -->
+              <div class="absolute inset-0 bg-red-600/90 flex justify-end items-center px-6 cursor-pointer" @click="removeShopCart(idx)">
+                <span class="text-xs font-black uppercase text-white mr-2 hidden lg:block">Elimina</span>
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              </div>
+
+              <!-- Item container -->
+              <div class="relative bg-[#06080d] flex items-center justify-between gap-4 p-4 md:p-5 border border-white/5 hover:border-cyan-500/40 w-full"
+                   @touchstart="tsStart($event, idx)"
+                   @touchmove="tsMove($event, idx)"
+                   @touchend="tsEnd(idx)"
+                   :style="getSwipeStyle(idx)">
+                <div v-if="item.event && item.event !== 'none'" class="absolute top-0 left-0 w-1 h-full bg-green-500/40"></div>
+                <div class="flex-1 min-w-[50%]">
+                  <div class="text-sm font-black text-gray-100 uppercase tracking-tight italic line-clamp-1 pr-2">{{ item.mult }}× {{ t(item.tKey) }}</div>
+                  <div class="flex gap-2 mt-2">
+                    <span class="text-[9px] font-black text-gray-400 uppercase px-1.5 py-0.5 bg-black/50 rounded border border-white/5">{{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : 'Base' }}</span>
+                    <span v-if="item.duration !== 'base'" class="text-[9px] font-black text-cyan-400 uppercase px-1.5 py-0.5 bg-cyan-400/10 rounded">{{ item.duration }}</span>
+                  </div>
+                </div>
+                <div class="flex flex-col items-end gap-0.5 flex-shrink-0">
+                  <span class="text-base md:text-lg font-black text-cyan-400 font-mono tracking-tighter">{{ formatNum(item.cost) }}</span>
+                  <span class="text-[9px] text-gray-600 font-bold uppercase">{{ formatNum(item.unitCost) }} / ud</span>
                 </div>
               </div>
-              <div class="flex flex-col items-end gap-1">
-                <span class="text-lg font-black text-cyan-400 font-mono tracking-tighter">{{ formatNum(item.cost) }}</span>
-                <span class="text-[9px] text-gray-600 font-bold uppercase">{{ formatNum(item.unitCost) }} / ud</span>
-              </div>
-              <button @click="removeShopCart(idx)" class="absolute -right-4 group-hover:right-4 opacity-0 group-hover:opacity-100 p-2 bg-red-500/20 text-red-500 rounded-full transition-all outline-none"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>
             </div>
           </div>
-          <div class="p-10 border-t border-white/10 bg-black/80">
-             <div class="flex items-center justify-between mb-2 opacity-50">
-                <span class="text-[10px] font-black uppercase text-gray-400">Subtotale Costi</span>
-                <span class="text-sm font-bold text-gray-300">{{ formatNum(totalShopCartMO) }} MO</span>
+          <div class="p-6 md:p-10 border-t border-white/10 bg-black/80">
+             <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mb-4 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
+                <span class="text-[10px] font-black uppercase text-green-500 flex items-center gap-1.5">
+                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                   Cashback Previsto
+                </span>
+                <span class="text-xs font-black text-green-400 font-mono tracking-tight">+ {{ formatNum(totalShopCartCashback) }} MO</span>
              </div>
-             <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mb-8">
-                <span class="text-[10px] font-black uppercase text-green-500">Rimborso Cashback Stima</span>
-                <span class="text-sm font-black text-green-500">+ {{ formatNum(totalShopCartCashback) }} MO</span>
+             <div class="flex items-baseline justify-between gap-4 mb-6 md:mb-10 px-2">
+                <span class="text-xs font-black text-gray-500 uppercase tracking-widest text-[11px]">Totale Ordine</span>
+                <span class="text-4xl font-black text-white glow-white tracking-tighter">{{ formatNum(totalShopCartMO) }} <span class="text-sm opacity-40 font-normal">MO</span></span>
              </div>
-             <div class="flex items-baseline justify-between gap-6 mb-10">
-                <span class="text-xs font-black text-gray-500 uppercase tracking-widest">Totale Richiesto</span>
-                <span class="text-5xl font-black text-white glow-white tracking-tighter">{{ formatNum(totalShopCartMO) }} <span class="text-lg opacity-40 font-normal">MO</span></span>
-             </div>
-             <button @click="cartDrawerOpen = false" class="w-full py-5 bg-white text-black text-xs font-black uppercase tracking-[0.4em] rounded-2xl hover:bg-cyan-400 transition-all shadow-[0_20px_40px_rgba(0,0,0,0.5)] active:scale-95">Torna allo Shop</button>
+             <button @click="cartDrawerOpen = false" class="w-full py-4 bg-white text-black text-[11px] font-black uppercase tracking-[0.4em] rounded-2xl hover:bg-cyan-400 transition-all shadow-[0_15px_30px_rgba(0,0,0,0.4)] active:scale-95">Salva e Chiudi</button>
           </div>
         </aside>
       </div>
@@ -663,9 +714,7 @@ const getTierColorClass = (tier) => {
 @media (max-width: 1024px) {
   .shop-sidebar-left { display: none; }
 }
-@media (max-width: 768px) {
-  .product-grid { grid-template-columns: 1fr; }
-}
+/* Layout is handled by grid-cols-* classes directly */
 
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

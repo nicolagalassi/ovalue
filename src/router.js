@@ -39,6 +39,15 @@ const routes = [
             title: 'Shopping List - OValue',
             description: 'Crea una lista della spesa per strutture, navi e ricerche e calcola il costo totale in risorse.'
         }
+    },
+    {
+        path: '/:pathMatch(.*)*',
+        name: 'NotFound',
+        component: () => import('./views/NotFound.vue'),
+        meta: {
+            title: '404 - Pagina Non Trovata - OValue',
+            description: 'La pagina che stai cercando non esiste.'
+        }
     }
 ];
 

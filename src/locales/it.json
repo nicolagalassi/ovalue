@@ -479,5 +479,8 @@
     "shop_event_slots": "Sconto Slot (30%)",
     "shop_event_expedition": "Evento Turbo Spedizioni (-20%)",
     "ingame_merchant": "Mercante di Risorse",
-    "ingame_relocate": "Relocazione Pianeta"
+    "ingame_relocate": "Relocazione Pianeta",
+    "page_not_found": "404 - Pagina Non Trovata",
+    "page_not_found_desc": "La pagina che cerchi potrebbe essere stata rimossa, rinominata o non essere mai esistita.",
+    "shop_event_discount": "Sconto Item generico (15%)"
 }

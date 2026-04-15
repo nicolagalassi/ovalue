@@ -95,6 +95,7 @@ watch(activeDiscountEvent, () => nextTick(setupObserver));
 // Events
 const DISCOUNT_EVENTS = [
     { id: 'none',         label: 'shop_event_none',         icon: '✕' },
+    { id: 'discount',     label: 'shop_event_discount',     icon: '🏷️' },
     { id: 'boosters',     label: 'shop_event_boosters',     icon: '⚡' },
     { id: 'resources',    label: 'shop_event_resources',    icon: '📦' },
     { id: 'classes',      label: 'shop_event_classes',      icon: '🎓' },
@@ -110,6 +111,12 @@ const DISCOUNT_EVENTS = [
 // Calculation Helpers
 const isItemDiscounted = (itemKey, tier, eventId) => {
     if (eventId === 'none') return false;
+    if (eventId === 'discount') {
+        const item = SHOP_ITEMS.items[itemKey];
+        const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
+        if (item && !excludeCats.includes(item.cat)) return true;
+        return false;
+    }
     if (eventId === 'boosters'     && String(itemKey).includes('booster')) return true;
     if (eventId === 'resources'    && String(itemKey).includes('res_package')) return true;
     if (eventId === 'classes'      && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return true;
@@ -127,6 +134,11 @@ const isItemHighlighted = (itemKey, costs) => {
 };
 
 const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
+    if (eventId === 'discount') {
+        const item = SHOP_ITEMS.items[itemKey];
+        const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
+        if (item && !excludeCats.includes(item.cat)) return 0.85;
+    }
     if (eventId === 'boosters' && String(itemKey).includes('booster')) {
         if (dur === '7d')  return 0.9;
         if (dur === '30d') return 0.85;
@@ -255,22 +267,17 @@ const cartTotalQty = computed(() => shopCart.value.reduce((s, i) => s + i.mult, 
 const TIER_DISPLAY_ORDER = ['platinum', 'gold', 'silver', 'bronze', 'none'];
 
 const getTierDisplayName = (itemKey, tier) => {
-    let suffix = '';
-    if (String(itemKey).includes('booster')) {
-        const map = { platinum: ' 40%', gold: ' 30%', silver: ' 20%', bronze: ' 10%' };
-        suffix = map[tier] || '';
-    } else if (itemKey === 'fields_planet') {
-        suffix = { platinum: ' (+20)', gold: ' (+15)', silver: ' (+9)', bronze: ' (+4)' }[tier] || '';
-    } else if (itemKey === 'fields_moon') {
-        suffix = { platinum: ' (+8)', gold: ' (+6)', silver: ' (+4)', bronze: ' (+2)' }[tier] || '';
-    } else if (itemKey === 'moons') {
-        return { gold: '30min', silver: '60min', bronze: '90min' }[tier] || tier;
-    } else if (itemKey === 'slot_expedition') {
-        suffix = { gold: ' (+3)', silver: ' (+2)', bronze: ' (+1)' }[tier] || '';
-    } else if (itemKey === 'slot_fleet') {
-        suffix = { gold: ' (+6)', silver: ' (+4)', bronze: ' (+2)' }[tier] || '';
-    }
-    return `${t(`tier_${tier}`) || tier}${suffix}`;
+    return t(`tier_${tier}`) || tier;
+};
+
+const getTierSuffix = (itemKey, tier) => {
+    if (String(itemKey).includes('booster')) return { platinum: '40%', gold: '30%', silver: '20%', bronze: '10%' }[tier] || '';
+    if (itemKey === 'fields_planet') return { platinum: '+20', gold: '+15', silver: '+9', bronze: '+4' }[tier] || '';
+    if (itemKey === 'fields_moon') return { platinum: '+8', gold: '+6', silver: '+4', bronze: '+2' }[tier] || '';
+    if (itemKey === 'moons') return { gold: '30min', silver: '60min', bronze: '90min' }[tier] || '';
+    if (itemKey === 'slot_expedition') return { gold: '+3', silver: '+2', bronze: '+1' }[tier] || '';
+    if (itemKey === 'slot_fleet') return { gold: '+6', silver: '+4', bronze: '+2' }[tier] || '';
+    return '';
 };
 
 const getTierColorClass = (tier) => {
@@ -466,8 +473,11 @@ const getSwipeStyle = (idx) => {
                           class="add-btn flex items-center justify-between"
                           :class="[getTierColorClass(tierName), { 'btn-discounted': isItemHighlighted(entry.key, entry.val.costs) }]"
                         >
-                          <span class="tier-label text-[9px] font-black uppercase leading-none truncate max-w-[45%] flex items-center gap-1">
-                            <template v-if="tierName !== 'none'">{{ getTierDisplayName(entry.key, tierName) }}</template>
+                          <span class="tier-label text-[9px] font-black uppercase leading-none truncate max-w-[55%] flex items-center gap-1.5 focus-visible:outline-none">
+                            <template v-if="tierName !== 'none'">
+                              <span>{{ getTierDisplayName(entry.key, tierName) }}</span>
+                              <span v-if="getTierSuffix(entry.key, tierName)" class="inline-flex items-center justify-center px-1.5 py-[2px] ml-0.5 rounded-sm text-[10px] font-black bg-cyan-400 text-black whitespace-nowrap shadow-[0_0_8px_rgba(34,211,238,0.4)] tracking-wide">{{ getTierSuffix(entry.key, tierName) }}</span>
+                            </template>
                             <svg v-else class="w-3.5 h-3.5 m-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 5v14m7-7H5"></path></svg>
                           </span>
                           <span class="price-block flex flex-col items-end leading-none">
@@ -510,7 +520,10 @@ const getSwipeStyle = (idx) => {
             <div class="flex-1 min-w-0">
               <div class="text-[10px] font-black text-gray-200 truncate">{{ item.mult }}× {{ t(item.tKey) }}</div>
               <div class="flex items-center gap-2 mt-1">
-                <span class="text-[8px] font-bold text-gray-500 uppercase">{{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : '' }}</span>
+                <span class="text-[8px] font-bold text-gray-500 uppercase flex items-center gap-1.5">
+                  {{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : '' }}
+                  <span v-if="item.tier !== 'none' && getTierSuffix(item.tKey, item.tier)" class="text-[9px] font-black text-cyan-400 tracking-wider">{{ getTierSuffix(item.tKey, item.tier) }}</span>
+                </span>
                 <span v-if="item.duration !== 'base'" class="text-[8px] font-black text-cyan-500/60">{{ item.duration }}</span>
               </div>
             </div>
@@ -575,7 +588,10 @@ const getSwipeStyle = (idx) => {
                 <div class="flex-1 min-w-[50%]">
                   <div class="text-sm font-black text-gray-100 uppercase tracking-tight italic line-clamp-1 pr-2">{{ item.mult }}× {{ t(item.tKey) }}</div>
                   <div class="flex gap-2 mt-2">
-                    <span class="text-[9px] font-black text-gray-400 uppercase px-1.5 py-0.5 bg-black/50 rounded border border-white/5">{{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : 'Base' }}</span>
+                    <span class="text-[9px] font-black text-gray-400 uppercase px-1.5 py-0.5 bg-black/50 rounded border border-white/5 flex items-center gap-1.5">
+                      {{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : 'Base' }}
+                      <span v-if="item.tier !== 'none' && getTierSuffix(item.tKey, item.tier)" class="text-[10px] text-cyan-400 tracking-wider">{{ getTierSuffix(item.tKey, item.tier) }}</span>
+                    </span>
                     <span v-if="item.duration !== 'base'" class="text-[9px] font-black text-cyan-400 uppercase px-1.5 py-0.5 bg-cyan-400/10 rounded">{{ item.duration }}</span>
                   </div>
                 </div>

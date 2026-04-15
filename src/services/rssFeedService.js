@@ -135,45 +135,79 @@ function _clean(str) {
     .trim();
 }
 
+const monthMap = {
+  'jan': 0, 'january': 0, 'feb': 1, 'february': 1,
+  'mar': 2, 'march': 2, 'apr': 3, 'april': 3,
+  'may': 4, 'jun': 5, 'june': 5,
+  'jul': 6, 'july': 6, 'aug': 7, 'august': 7,
+  'sep': 8, 'september': 8, 'oct': 9, 'october': 9,
+  'nov': 10, 'november': 10, 'dec': 11, 'december': 11
+};
+
 function _inferCategory(text, pubDateStr = '') {
   const t = text.toLowerCase();
+  let baseCat = 'News';
   
-  // Highlight Offers/Sales only if active
-  if (/sale|discount|offer|cashback|relocation|items|%/.test(t)) {
-    const isOfferActive = () => {
-      const now = new Date();
-      now.setHours(0,0,0,0);
-      
-      const matches = [...text.matchAll(/(\d{1,2})\.(\d{1,2})\.?/g)];
-      if (matches.length > 0) {
-        let latestTimestamp = 0;
-        for (const match of matches) {
-          const day = parseInt(match[1]);
-          const month = parseInt(match[2]);
-          if (day > 0 && day <= 31 && month > 0 && month <= 12) {
-            const d = new Date(now.getFullYear(), month - 1, day, 23, 59, 59);
-            if (d.getTime() > latestTimestamp) {
-              latestTimestamp = d.getTime();
-            }
-          }
-        }
-        return latestTimestamp >= now.getTime();
-      }
+  if (/sale|discount|offer|cashback|relocation|items|%/.test(t)) baseCat = 'Offer';
+  else if (/happy hour|hh\b|\bevent\b|task reward/.test(t)) baseCat = 'Event';
+  else if (/v\d+\.\d+|version|changelog/.test(t)) return 'Changelog';
+  else if (/maintenance|maint/.test(t)) return 'Maintenance';
+  else if (/new universe|uni \d+/.test(t)) return 'New Universe';
 
-      if (pubDateStr) {
-        const pubDate = new Date(pubDateStr);
-        if ((Date.now() - pubDate.getTime()) < 2 * 24 * 3600 * 1000) return true;
-      }
-      return false;
-    };
+  if (baseCat === 'Offer' || baseCat === 'Event') {
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    const todayNum = now.getTime();
     
-    return isOfferActive() ? 'Offer' : 'Past Offer';
+    let earliest = Infinity;
+    let latest = 0;
+    let foundDate = false;
+
+    // 1. DD.MM
+    const matchesNumeric = [...text.matchAll(/(\d{1,2})\.(\d{1,2})\.?/g)];
+    if (matchesNumeric.length > 0) {
+      foundDate = true;
+      for (const match of matchesNumeric) {
+        const day = parseInt(match[1]);
+        const month = parseInt(match[2]) - 1;
+        if (day > 0 && day <= 31 && month >= 0 && month <= 11) {
+          const dStart = new Date(now.getFullYear(), month, day, 0, 0, 0).getTime();
+          const dEnd = new Date(now.getFullYear(), month, day, 23, 59, 59).getTime();
+          if (dStart < earliest) earliest = dStart;
+          if (dEnd > latest) latest = dEnd;
+        }
+      }
+    }
+
+    // 2. Month DD-DD
+    const matchesWord = [...text.matchAll(/([a-zA-Z]+)\s+(\d{1,2})(?:[^\d]+(\d{1,2}))?/g)];
+    for (const match of matchesWord) {
+      const monthStr = match[1].toLowerCase();
+      if (monthMap[monthStr] !== undefined) {
+        foundDate = true;
+        const month = monthMap[monthStr];
+        const startDay = parseInt(match[2]);
+        const endDay = match[3] ? parseInt(match[3]) : startDay;
+        const dStart = new Date(now.getFullYear(), month, startDay, 0, 0, 0).getTime();
+        const dEnd = new Date(now.getFullYear(), month, endDay, 23, 59, 59).getTime();
+        if (dStart < earliest) earliest = dStart;
+        if (dEnd > latest) latest = dEnd;
+      }
+    }
+
+    if (foundDate) {
+      if (todayNum >= earliest && todayNum <= latest) return `Active ${baseCat}`;
+      if (todayNum < earliest) return `Future ${baseCat}`;
+      return `Past ${baseCat}`;
+    }
+
+    if (pubDateStr) {
+      const pubDate = new Date(pubDateStr);
+      if ((Date.now() - pubDate.getTime()) < 2 * 24 * 3600 * 1000) return `Active ${baseCat}`;
+    }
+    
+    return `Past ${baseCat}`;
   }
   
-  if (/happy hour|hh\b/.test(t))              return 'Event';
-  if (/\bevent\b|task reward/.test(t))        return 'Event';
-  if (/v\d+\.\d+|version|changelog/.test(t)) return 'Changelog';
-  if (/maintenance|maint/.test(t))            return 'Maintenance';
-  if (/new universe|uni \d+/.test(t))         return 'New Universe';
-  return 'News';
+  return baseCat;
 }

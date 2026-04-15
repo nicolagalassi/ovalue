@@ -60,22 +60,25 @@
           :style="{ '--index': index }"
         >
           <!-- Background glow for offer -->
-          <div v-if="normalizeCat(item.category) === 'offer'" class="absolute -right-10 -top-10 w-32 h-32 bg-[#ff2a6d] rounded-full blur-[70px] opacity-30 group-hover:opacity-50 transition-opacity pointer-events-none"></div>
+          <div v-if="normalizeCat(item.category) === 'active_offer'" class="absolute -right-10 -top-10 w-32 h-32 bg-[#ff2a6d] rounded-full blur-[70px] opacity-30 group-hover:opacity-50 transition-opacity pointer-events-none"></div>
           
           <div class="relative z-10 w-full">
             <div class="flex justify-between items-start mb-3">
               <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border"
                 :class="{
-                  'bg-[#ff2a6d]/20 text-[#ff3a7a] border-[#ff2a6d]/40': normalizeCat(item.category) === 'offer',
-                  'bg-[#00f0ff]/10 text-cyan-400 border-cyan-400/30': normalizeCat(item.category) !== 'offer'
+                  'bg-[#ff2a6d]/20 text-[#ff3a7a] border-[#ff2a6d]/40': normalizeCat(item.category) === 'active_offer',
+                  'bg-[#ffb800]/10 text-amber-500 border-amber-500/40': normalizeCat(item.category) === 'active_event',
+                  'bg-[#9d00ff]/10 text-purple-400 border-purple-500/40': normalizeCat(item.category) === 'future_offer' || normalizeCat(item.category) === 'future_event',
+                  'bg-[#00f0ff]/10 text-cyan-400 border-cyan-400/30': normalizeCat(item.category) !== 'active_offer' && normalizeCat(item.category) !== 'active_event' && !normalizeCat(item.category).includes('future')
                 }"
               >
-                <span v-if="normalizeCat(item.category) === 'offer'" class="text-sm leading-none drop-shadow-[0_0_5px_rgba(255,42,109,0.5)]">🔥</span>
+                <span v-if="normalizeCat(item.category) === 'active_offer'" class="text-sm leading-none drop-shadow-[0_0_5px_rgba(255,42,109,0.5)]">🔥</span>
+                <span v-else-if="normalizeCat(item.category) === 'future_offer' || normalizeCat(item.category) === 'future_event'" class="text-sm leading-none drop-shadow-[0_0_5px_rgba(157,0,255,0.5)]">⏳</span>
                 {{ t('news_cat_' + normalizeCat(item.category)) || item.category }}
               </span>
               <time class="text-[10px] font-mono text-gray-500 whitespace-nowrap ml-2">{{ formatDate(item.pubDate) }}</time>
             </div>
-            <h3 class="text-sm font-bold text-white group-hover:text-blue-50 transition-colors drop-shadow-md leading-snug pr-6" :class="{'text-[15px] text-[#ff3a7a]': normalizeCat(item.category) === 'offer'}">
+            <h3 class="text-sm font-bold text-white group-hover:text-blue-50 transition-colors drop-shadow-md leading-snug pr-6" :class="{'text-[15px] text-[#ff3a7a]': normalizeCat(item.category) === 'active_offer'}">
               {{ item.title }}
             </h3>
           </div>
@@ -135,23 +138,38 @@ const expanded    = ref(false)
 
 // ── Computed ─────────────────────────────────────────────────────────────────
 const visibleItems = computed(() => {
-  return items.value.filter(item => {
+  const filtered = items.value.filter(item => {
     const cat = normalizeCat(item.category);
-    // Ignore past offers
-    if (cat === 'past_offer') return false;
-    // Show active offers, events, and important updates. Exclude standard 'news' unless it's an event.
-    return cat === 'offer' || cat === 'event' || cat === 'update' || cat === 'universe' || cat === 'maintenance';
-  }).slice(0, 6); // show up to 6 active banners
+    if (cat.includes('past')) return false;
+    return cat.includes('active') || cat.includes('future') || cat === 'update' || cat === 'universe' || cat === 'maintenance';
+  });
+
+  filtered.sort((a, b) => {
+    const catA = normalizeCat(a.category);
+    const catB = normalizeCat(b.category);
+    const scoreA = catA.includes('active') ? 3 : (catA.includes('future') ? 2 : 1);
+    const scoreB = catB.includes('active') ? 3 : (catB.includes('future') ? 2 : 1);
+    
+    if (scoreA !== scoreB) {
+      return scoreB - scoreA;
+    }
+    return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
+  });
+
+  return filtered.slice(0, 6);
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function normalizeCat(cat) {
   if (!cat) return 'default'
   const c = cat.toLowerCase()
+  if (c === 'active offer') return 'active_offer'
+  if (c === 'active event') return 'active_event'
+  if (c === 'future offer') return 'future_offer'
+  if (c === 'future event') return 'future_event'
   if (c === 'past offer') return 'past_offer'
-  if (c.includes('offer') || c.includes('sale') || c.includes('discount')) return 'offer'
-  if (c.includes('event') || c.includes('happy')) return 'event'
-  if (c.includes('news') || c.includes('info'))  return 'news'
+  if (c === 'past event') return 'past_event'
+  
   if (c.includes('changelog') || c.includes('version') || c.includes('update')) return 'update'
   if (c.includes('maint'))   return 'maintenance'
   if (c.includes('universe') || c.includes('new uni')) return 'universe'

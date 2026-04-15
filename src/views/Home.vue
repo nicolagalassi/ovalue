@@ -23,84 +23,84 @@ const { t } = useLanguage();
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 2xl:gap-8 max-w-7xl w-full">
             
             <!-- Tool 1: Production Core -->
-            <router-link to="/metal" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] hover:-translate-y-1 py-4 md:py-5 flex flex-col justify-center">
+            <router-link to="/metal" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] hover:-translate-y-1 hover:bg-[#0b0e14]/90 py-6 md:py-8 flex flex-col items-center justify-center text-center">
                 
                 <div class="absolute -right-6 -bottom-6 2xl:-right-10 2xl:-bottom-10 text-cyan-500/5 group-hover:text-cyan-500/10 group-hover:scale-110 group-hover:-rotate-12 transition duration-700 ease-in-out pointer-events-none">
                      <svg class="w-32 h-32 md:w-40 md:h-40 2xl:w-80 2xl:h-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                 </div>
                 
-                <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-600 to-transparent opacity-50 group-hover:opacity-100 transition"></div>
+                <div class="absolute left-0 top-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-600 to-transparent opacity-50 group-hover:opacity-100 transition"></div>
                 
-                <div class="flex flex-row items-center w-full px-5 md:px-6 relative z-10 gap-4 md:gap-5">
-                    <div class="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-xl bg-cyan-900/20 border border-cyan-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.1)]">
-                        <svg class="w-5 h-5 md:w-6 md:h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                <div class="flex flex-col items-center w-full px-4 md:px-6 relative z-10 gap-3 md:gap-4">
+                    <div class="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-cyan-900/20 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.15)] group-hover:scale-110 transition-transform duration-500">
+                        <svg class="w-8 h-8 md:w-10 md:h-10 text-cyan-400 group-hover:text-cyan-300 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                     </div>
 
-                    <div class="flex-grow min-w-0">
-                        <h2 class="text-base md:text-lg font-bold text-white group-hover:text-cyan-400 transition mb-0.5 md:mb-1 flex items-center gap-2 break-words whitespace-normal leading-tight">
+                    <div class="flex-grow min-w-0 flex flex-col items-center">
+                        <h2 class="text-xl md:text-2xl font-bold text-white group-hover:text-cyan-400 transition mb-1 md:mb-2 flex items-center gap-2 break-words whitespace-normal leading-tight">
                             {{ t('card_metal_title') }}
                         </h2>
-                        <p class="text-[11px] md:text-xs text-gray-500 leading-tight mb-2 pr-0 break-words whitespace-normal">
+                        <p class="hidden md:block text-[11px] md:text-sm text-gray-400 leading-snug mb-3 px-2 break-words whitespace-normal">
                             {{ t('card_metal_desc') }}
                         </p>
-                        <span class="text-[10px] md:text-xs 2xl:text-sm font-bold text-cyan-600 uppercase tracking-wider group-hover:text-cyan-400 transition flex items-center gap-1">
-                            {{ t('btn_open') }} <span class="text-base md:text-lg leading-none">›</span>
+                        <span class="text-xs md:text-sm font-bold text-cyan-600 uppercase tracking-widest group-hover:text-cyan-400 transition flex items-center gap-1 mt-1">
+                            {{ t('btn_open') }} <span class="text-lg md:text-xl leading-none">›</span>
                         </span>
                     </div>
                 </div>
             </router-link>
 
             <!-- Tool 2: Pack Exchange -->
-            <router-link to="/pack" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.15)] hover:-translate-y-1 py-4 md:py-5 flex flex-col justify-center">
+            <router-link to="/pack" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.15)] hover:-translate-y-1 hover:bg-[#0b0e14]/90 py-6 md:py-8 flex flex-col items-center justify-center text-center">
                 
                 <div class="absolute -right-6 -bottom-6 2xl:-right-10 2xl:-bottom-10 text-amber-500/5 group-hover:text-amber-500/10 group-hover:scale-110 group-hover:-rotate-12 transition duration-700 ease-in-out pointer-events-none">
                      <svg class="w-32 h-32 md:w-40 md:h-40 2xl:w-80 2xl:h-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 </div>
 
-                <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-amber-600 to-transparent opacity-50 group-hover:opacity-100 transition"></div>
+                <div class="absolute left-0 top-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-600 to-transparent opacity-50 group-hover:opacity-100 transition"></div>
                 
-                <div class="flex flex-row items-center w-full px-5 md:px-6 relative z-10 gap-4 md:gap-5">
-                    <div class="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-xl bg-amber-900/20 border border-amber-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-                        <svg class="w-5 h-5 md:w-6 md:h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="flex flex-col items-center w-full px-4 md:px-6 relative z-10 gap-3 md:gap-4">
+                    <div class="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-amber-900/20 border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.15)] group-hover:scale-110 transition-transform duration-500">
+                        <svg class="w-8 h-8 md:w-10 md:h-10 text-amber-400 group-hover:text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </div>
 
-                    <div class="flex-grow min-w-0">
-                        <h2 class="text-base md:text-lg font-bold text-white group-hover:text-amber-400 transition mb-0.5 md:mb-1 flex items-center gap-2 break-words whitespace-normal leading-tight">
+                    <div class="flex-grow min-w-0 flex flex-col items-center">
+                        <h2 class="text-xl md:text-2xl font-bold text-white group-hover:text-amber-400 transition mb-1 md:mb-2 flex items-center gap-2 break-words whitespace-normal leading-tight">
                             {{ t('card_pack_title') }}
                         </h2>
-                        <p class="text-[11px] md:text-xs text-gray-500 leading-tight mb-2 pr-0 break-words whitespace-normal">
+                        <p class="hidden md:block text-[11px] md:text-sm text-gray-400 leading-snug mb-3 px-2 break-words whitespace-normal">
                             {{ t('card_pack_desc') }}
                         </p>
-                        <span class="text-[10px] md:text-xs 2xl:text-sm font-bold text-amber-600 uppercase tracking-wider group-hover:text-amber-400 transition flex items-center gap-1">
-                            {{ t('btn_open') }} <span class="text-base md:text-lg leading-none">›</span>
+                        <span class="text-xs md:text-sm font-bold text-amber-600 uppercase tracking-widest group-hover:text-amber-400 transition flex items-center gap-1 mt-1">
+                            {{ t('btn_open') }} <span class="text-lg md:text-xl leading-none">›</span>
                         </span>
                     </div>
                 </div>
             </router-link>
 
             <!-- Tool 3: Shopping List -->
-            <router-link to="/shopping" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-purple-500/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] hover:-translate-y-1 py-4 md:py-5 flex flex-col justify-center">
+            <router-link to="/shopping" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-purple-500/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] hover:-translate-y-1 hover:bg-[#0b0e14]/90 py-6 md:py-8 flex flex-col items-center justify-center text-center">
                 
                 <div class="absolute -right-6 -bottom-6 2xl:-right-10 2xl:-bottom-10 text-purple-500/5 group-hover:text-purple-500/10 group-hover:scale-110 group-hover:-rotate-12 transition duration-700 ease-in-out pointer-events-none">
                      <svg class="w-32 h-32 md:w-40 md:h-40 2xl:w-80 2xl:h-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                 </div>
 
-                <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-purple-600 to-transparent opacity-50 group-hover:opacity-100 transition"></div>
+                <div class="absolute left-0 top-0 right-0 h-1 bg-gradient-to-r from-transparent via-purple-600 to-transparent opacity-50 group-hover:opacity-100 transition"></div>
                 
-                <div class="flex flex-row items-center w-full px-5 md:px-6 relative z-10 gap-4 md:gap-5">
-                    <div class="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-xl bg-purple-900/20 border border-purple-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.1)]">
-                        <svg class="w-5 h-5 md:w-6 md:h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                <div class="flex flex-col items-center w-full px-4 md:px-6 relative z-10 gap-3 md:gap-4">
+                    <div class="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-purple-900/20 border border-purple-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.15)] group-hover:scale-110 transition-transform duration-500">
+                        <svg class="w-8 h-8 md:w-10 md:h-10 text-purple-400 group-hover:text-purple-300 drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                     </div>
 
-                    <div class="flex-grow min-w-0">
-                        <h2 class="text-base md:text-lg font-bold text-white group-hover:text-purple-400 transition mb-0.5 md:mb-1 flex items-center gap-2 break-words whitespace-normal leading-tight">
+                    <div class="flex-grow min-w-0 flex flex-col items-center">
+                        <h2 class="text-xl md:text-2xl font-bold text-white group-hover:text-purple-400 transition mb-1 md:mb-2 flex items-center gap-2 break-words whitespace-normal leading-tight">
                             {{ t('shopping_title') }}
                         </h2>
-                        <p class="text-[11px] md:text-xs text-gray-500 leading-tight mb-2 pr-0 break-words whitespace-normal">
+                        <p class="hidden md:block text-[11px] md:text-sm text-gray-400 leading-snug mb-3 px-2 break-words whitespace-normal">
                             {{ t('card_shopping_desc') }}
                         </p>
-                        <span class="text-[10px] md:text-xs 2xl:text-sm font-bold text-purple-600 uppercase tracking-wider group-hover:text-purple-400 transition flex items-center gap-1">
-                            {{ t('btn_open') }} <span class="text-base md:text-lg leading-none">›</span>
+                        <span class="text-xs md:text-sm font-bold text-purple-600 uppercase tracking-widest group-hover:text-purple-400 transition flex items-center gap-1 mt-1">
+                            {{ t('btn_open') }} <span class="text-lg md:text-xl leading-none">›</span>
                         </span>
                     </div>
                 </div>

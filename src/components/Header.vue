@@ -12,6 +12,11 @@ const {
 
 const isLangMenuOpen = ref(false);
 const isProfileMenuOpen = ref(false);
+const isProfileModalOpen = ref(false);
+const modalTitle = ref('');
+const modalInput = ref('');
+const modalAction = ref('create'); // 'create' or 'rename'
+const editingProfileId = ref('');
 
 const changeLang = (lang) => {
     setLanguage(lang);
@@ -19,13 +24,32 @@ const changeLang = (lang) => {
 };
 
 const handleCreateProfile = () => {
-    const name = prompt(t('prompt_new_profile'));
-    if (name) createProfile(name);
+    modalTitle.value = t('prompt_new_profile');
+    modalInput.value = '';
+    modalAction.value = 'create';
+    isProfileModalOpen.value = true;
+    isProfileMenuOpen.value = false;
 };
 
 const handleRenameProfile = (id, oldName) => {
-    const name = prompt(t('prompt_rename'), oldName);
-    if (name) renameProfile(id, name);
+    modalTitle.value = t('prompt_rename');
+    modalInput.value = oldName;
+    modalAction.value = 'rename';
+    editingProfileId.value = id;
+    isProfileModalOpen.value = true;
+    isProfileMenuOpen.value = false;
+};
+
+const confirmProfileModal = () => {
+    if (!modalInput.value.trim()) return;
+    
+    if (modalAction.value === 'create') {
+        createProfile(modalInput.value.trim());
+    } else {
+        renameProfile(editingProfileId.value, modalInput.value.trim());
+    }
+    
+    isProfileModalOpen.value = false;
 };
 
 const handleDeleteProfile = (id) => {
@@ -197,4 +221,48 @@ const triggerImportAll = () => document.getElementById('globalImportInput').clic
       </div>
     </div>
   </header>
+
+  <!-- Profile Modal -->
+  <Transition name="fade">
+      <div v-if="isProfileModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="isProfileModalOpen = false"></div>
+          <div class="card-glass w-full max-w-md p-8 relative z-10 border border-white/10 shadow-2xl animate-in zoom-in duration-300">
+              <div class="flex items-center justify-between mb-6">
+                  <div class="flex items-center gap-3">
+                      <div class="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                      </div>
+                      <h2 class="text-xl font-black text-white uppercase tracking-tighter">{{ modalTitle }}</h2>
+                  </div>
+                  <button @click="isProfileModalOpen = false" class="text-gray-500 hover:text-white transition">
+                      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+              </div>
+              
+              <div class="mb-6">
+                  <input 
+                    v-model="modalInput" 
+                    @keyup.enter="confirmProfileModal"
+                    autofocus
+                    class="input-glass w-full px-4 py-3 text-white font-bold" 
+                    :placeholder="t('prompt_new_profile')"
+                  >
+              </div>
+              
+              <div class="flex justify-end gap-3">
+                  <button @click="isProfileModalOpen = false" class="px-6 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition">
+                      {{ t('help_btn_close') }}
+                  </button>
+                  <button @click="confirmProfileModal" class="px-8 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider transition shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+                      OK
+                  </button>
+              </div>
+          </div>
+      </div>
+  </Transition>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>

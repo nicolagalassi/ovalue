@@ -1,12 +1,15 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useLanguage } from './composables/useLanguage';
+import { useProfiles } from './composables/useProfiles';
 import Header from './components/Header.vue';
 
 const { t } = useLanguage();
+const { loadProfiles } = useProfiles();
 const showSupportBanner = ref(false);
 
 onMounted(() => {
+  loadProfiles();
   if (localStorage.getItem('hide_support_banner') !== 'true') {
     showSupportBanner.value = true;
   }

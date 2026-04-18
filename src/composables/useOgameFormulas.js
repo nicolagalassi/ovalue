@@ -21,11 +21,17 @@ export function useOgameFormulas() {
         return 1.0;
     };
 
-    // Calcolo Cap Crawler (Identico)
-    const calcCrawlerCap = (metal, crystal, deut, isCollector, hasGeologist) => {
+    // Calcolo Cap Crawler (Centralizzato)
+    const calcCrawlerCap = (metal, crystal, deut, isCollector, hasGeologist, rocktalEnhancement = 0) => {
         const mineSum = parseInt(metal||0) + parseInt(crystal||0) + parseInt(deut||0);
         let max = mineSum * 8;
-        if (isCollector && hasGeologist) max = Math.floor(max * 1.10); 
+        
+        if (isCollector && hasGeologist) {
+            const collFactor = 1 + (parseFloat(rocktalEnhancement || 0) / 100);
+            const geoBonus = 0.1 * collFactor;
+            max = Math.floor(max * (1 + geoBonus));
+        }
+        
         return max;
     };
 

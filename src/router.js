@@ -41,6 +41,14 @@ const routes = [
         }
     },
     {
+        path: '/help',
+        component: () => import('./views/Help.vue'),
+        meta: {
+            title: 'Help Center - OValue',
+            description: 'Guida completa all\'utilizzo degli strumenti di OValue.'
+        }
+    },
+    {
         path: '/:pathMatch(.*)*',
         name: 'NotFound',
         component: () => import('./views/NotFound.vue'),

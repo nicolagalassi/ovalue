@@ -56,16 +56,10 @@ const breakdown = computed(() => {
         totPerc += 5; 
     }
     
-    const itemV = parseInt(p.item||0);
+    const itemV = (parseInt(p.item)||0) + (parseInt(p.itemCustom)||0);
     if (itemV > 0) { 
         bonuses.push({n: t('lbl_item'), v: itemV}); 
         totPerc += itemV; 
-    }
-
-    const itemCustomV = parseInt(p.itemCustom||0);
-    if (itemCustomV > 0) { 
-        bonuses.push({n: t('lbl_item_additional'), v: itemCustomV}); 
-        totPerc += itemCustomV; 
     }
 
     const magma = parseInt(p.magma) || 0;
@@ -87,8 +81,8 @@ const breakdown = computed(() => {
         totPerc += g.lfBonus; 
     }
 
-    const geoFactor = g.geologist ? (1 + (0.1 * collFactor)) : 1;
-    const maxCraw = Math.floor(calcCrawlerCap(met, cry, deu, false, false) * geoFactor);
+    const isCollector = g.playerClass === 'collector';
+    const maxCraw = calcCrawlerCap(met, cry, deu, isCollector, g.geologist, g.rocktalEnhancement);
     const craw = parseInt(p.crawlers) || 0;
     const actCraw = Math.min(craw, maxCraw);
     
@@ -126,7 +120,7 @@ const breakdown = computed(() => {
             <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-800 to-black flex items-center justify-center text-ogame-accent font-bold text-sm shadow-lg border border-white/5 font-mono">
                 {{ index + 1 }}
             </div>
-            <span class="font-bold text-gray-200 tracking-wide">{{ t('lbl_planet') }}</span>
+            <input type="text" v-model="planet.name" class="bg-transparent border-none text-gray-200 font-bold tracking-wide focus:ring-0 p-0 w-32 placeholder:text-gray-600" :placeholder="t('lbl_planet')">
         </div>
         <div class="flex gap-2">
             <button @click="emit('clone')" :title="t('btn_clone')" class="p-2 bg-blue-500/10 hover:bg-blue-500/30 text-blue-400 rounded-lg transition">

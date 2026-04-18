@@ -3,13 +3,15 @@ import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { OGAME_DB } from '../data/ogame_db';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
+import { useProfiles } from '../composables/useProfiles';
 
 const { t, currentLang } = useLanguage();
 const { getBuildCostLF } = useOgameFormulas();
+const { activeProfile, saveProfiles } = useProfiles();
 
 // --- STATO ---
 const queue = ref([]);
-const isAutoLoaded = ref(false);
+const isAutoLoaded = ref(true);
 
 // Input e Stock
 const inputs = reactive({ metal: 0, crystal: 0, deuterium: 0 });
@@ -30,13 +32,43 @@ const settings = reactive({
     minLevel: 0,
 });
 
+// Sync with profile
+watch(activeProfile, (newP) => {
+    if (newP && newP.packExchange) {
+        Object.assign(settings, JSON.parse(JSON.stringify(newP.packExchange.settings)));
+        Object.assign(stock, JSON.parse(JSON.stringify(newP.packExchange.stock)));
+        queue.value = JSON.parse(JSON.stringify(newP.packExchange.queue));
+        
+        // Auto-load pack value if enabled
+        if (isAutoLoaded.value && newP.production?.daily) {
+            settings.packValue = newP.production.daily;
+        }
+    }
+}, { immediate: true });
+
+// Auto-update pack value if production changes and auto-load is on
+watch(() => activeProfile.value?.production?.daily, (newVal) => {
+    if (newVal && isAutoLoaded.value) {
+        settings.packValue = newVal;
+    }
+});
+
+// Save changes back to profile
+watch([settings, stock, queue], () => {
+    if (activeProfile.value) {
+        activeProfile.value.packExchange.settings = JSON.parse(JSON.stringify(settings));
+        activeProfile.value.packExchange.stock = JSON.parse(JSON.stringify(stock));
+        activeProfile.value.packExchange.queue = JSON.parse(JSON.stringify(queue.value));
+        saveProfiles();
+    }
+}, { deep: true });
 // --- HELPER ---
 const dmLabel = computed(() => currentLang.value === 'it' ? 'MO' : 'DM');
 const formatNum = (n) => new Intl.NumberFormat('it-IT').format(Math.floor(n));
 
 const createFormattedInput = (targetObj, key, isPackVal = false) => computed({
     get() { 
-        return isNaN(targetObj[key]) ? '0' : new Intl.NumberFormat('it-IT').format(targetObj[key]); 
+        return isNaN(targetObj[key]) ? '0' : new Intl.NumberFormat('it-IT').format(Math.floor(targetObj[key])); 
     },
     set(newValue) {
         const rawValue = String(newValue).replace(/[^0-9-]/g, '');
@@ -126,8 +158,6 @@ const updateInputsFromQueue = () => {
     inputs.crystal = c; 
     inputs.deuterium = d; 
 };
-
-const removalInProgress = ref(false); // Dummy for cleaner removal
 
 // --- CORE CALCULATION LOGIC ---
 const calculation = computed(() => {
@@ -254,11 +284,6 @@ const resetFields = () => {
     queue.value = []; inputs.metal = 0; inputs.crystal = 0; inputs.deuterium = 0; stock.metal = 0; stock.crystal = 0; stock.deuterium = 0;
     settings.shopDiscount = 0; settings.moBonus = 0; settings.smartRounding = false;
 };
-
-onMounted(() => { 
-    const cachedMetal = localStorage.getItem('ogameDailyMetal'); 
-    if (cachedMetal) { const val = parseInt(cachedMetal); if (val > 0) { settings.packValue = val; isAutoLoaded.value = true; } } 
-});
 </script>
 
 <template>

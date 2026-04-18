@@ -105,8 +105,7 @@ const collBreakdown = computed(() => {
     return {
         mine: (25 * f).toFixed(2),
         crawler: (50 * f).toFixed(2),
-        geo: (10 * f).toFixed(2),
-        overload: (150).toFixed(2)
+        geo: (10 * f).toFixed(2)
     };
 });
 
@@ -234,7 +233,7 @@ const importData = (e) => {
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 {{ t('lbl_collector_detail') }}
             </h4>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="bg-white/5 rounded-xl p-3 border border-white/5">
                     <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">{{ t('lbl_mine_prod_ext') }}</div>
                     <div class="text-xl font-bold text-white font-mono">+{{ collBreakdown.mine }}%</div>
@@ -246,10 +245,6 @@ const importData = (e) => {
                 <div class="bg-white/5 rounded-xl p-3 border border-white/5">
                     <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">{{ t('lbl_max_crawlers_geo_ext') }}</div>
                     <div class="text-xl font-bold text-white font-mono">+{{ collBreakdown.geo }}%</div>
-                </div>
-                <div class="bg-white/5 rounded-xl p-3 border border-white/5">
-                    <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">{{ t('lbl_crawler_overload_ext') }}</div>
-                    <div class="text-xl font-bold text-white font-mono">{{ collBreakdown.overload }}%</div>
                 </div>
             </div>
         </div>

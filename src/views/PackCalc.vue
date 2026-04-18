@@ -35,10 +35,13 @@ const dmLabel = computed(() => currentLang.value === 'it' ? 'MO' : 'DM');
 const formatNum = (n) => new Intl.NumberFormat('it-IT').format(Math.floor(n));
 
 const createFormattedInput = (targetObj, key, isPackVal = false) => computed({
-    get() { return new Intl.NumberFormat('it-IT').format(targetObj[key]); },
+    get() { 
+        return isNaN(targetObj[key]) ? '0' : new Intl.NumberFormat('it-IT').format(targetObj[key]); 
+    },
     set(newValue) {
-        const rawValue = newValue.replace(/[^0-9-]/g, '');
-        targetObj[key] = rawValue === '' ? 0 : parseInt(rawValue);
+        const rawValue = String(newValue).replace(/[^0-9-]/g, '');
+        const parsed = parseInt(rawValue);
+        targetObj[key] = isNaN(parsed) ? 0 : parsed;
         if (isPackVal) isAutoLoaded.value = false;
     }
 });
@@ -207,7 +210,21 @@ const euroOptimization = computed(() => {
     
     if (settings.smartRounding) {
         const threshold = 20; let improved = true; 
-        let flatList = []; optimalResult.packList.forEach(item => { for(let i=0; i<item.count; i++) flatList.push(item.pack); });
+        const maxPackCost = Math.max(...currentPacks.map(p => p.cost));
+        
+        let flatList = []; 
+        let largePacksCount = 0;
+        let largePack = null;
+
+        optimalResult.packList.forEach(item => { 
+            if (item.pack.cost === maxPackCost) {
+                largePacksCount += item.count;
+                largePack = item.pack;
+            } else {
+                for(let i=0; i<item.count; i++) flatList.push(item.pack); 
+            }
+        });
+
         while (improved) { 
             improved = false; flatList.sort((a,b) => b.cost - a.cost); 
             for (let candidatePack of currentPacks) { 
@@ -220,6 +237,10 @@ const euroOptimization = computed(() => {
             } 
         }
         const groupedMap = new Map(); let totalCost = 0; 
+        if (largePacksCount > 0 && largePack) {
+            groupedMap.set(largePack.cost, { count: largePacksCount, pack: largePack });
+            totalCost += largePack.cost * largePacksCount;
+        }
         flatList.forEach(p => { totalCost += p.cost; if (!groupedMap.has(p.cost)) groupedMap.set(p.cost, { count: 0, pack: p }); groupedMap.get(p.cost).count++; }); 
         optimalResult.packList = Array.from(groupedMap.values()); optimalResult.totalCost = totalCost;
     }

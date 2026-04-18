@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onBeforeUnmount, onMounted, nextTick } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
+import { useProfiles } from '../composables/useProfiles';
 import { SHOP_ITEMS } from '../data/ogame_db';
 
 /** 
@@ -9,6 +10,7 @@ import { SHOP_ITEMS } from '../data/ogame_db';
  */
 
 const { t } = useLanguage();
+const { activeProfile, saveProfiles } = useProfiles();
 const SHOP_IMG = '/Immagini%20Ogame';
 
 const SHOP_ITEM_IMAGES = {
@@ -60,6 +62,23 @@ const isMounted = ref(false);
 const cartJustAdded = ref(false);
 const lastAddedId = ref(null);
 
+// Sync with active profile
+watch(activeProfile, (newP) => {
+    if (newP && newP.shoppingList) {
+        shopCart.value = JSON.parse(JSON.stringify(newP.shoppingList.cart || []));
+        activeDiscountEvent.value = newP.shoppingList.activeEvent || 'none';
+    }
+}, { immediate: true });
+
+// Save changes back to profile
+watch([shopCart, activeDiscountEvent], () => {
+    if (activeProfile.value && activeProfile.value.shoppingList) {
+        activeProfile.value.shoppingList.cart = JSON.parse(JSON.stringify(shopCart.value));
+        activeProfile.value.shoppingList.activeEvent = activeDiscountEvent.value;
+        saveProfiles();
+    }
+}, { deep: true });
+
 // Sidebar / Scroll logic
 const scrollToCategory = (catId) => {
     activeCategory.value = catId;
@@ -96,6 +115,7 @@ watch(activeDiscountEvent, () => nextTick(setupObserver));
 const DISCOUNT_EVENTS = [
     { id: 'none',         label: 'shop_event_none',         icon: '✕' },
     { id: 'discount',     label: 'shop_event_discount',     icon: '🏷️' },
+    { id: 'discount_20',  label: 'shop_event_discount_20',  icon: '🔥' },
     { id: 'boosters',     label: 'shop_event_boosters',     icon: '⚡' },
     { id: 'resources',    label: 'shop_event_resources',    icon: '📦' },
     { id: 'classes',      label: 'shop_event_classes',      icon: '🎓' },
@@ -108,10 +128,12 @@ const DISCOUNT_EVENTS = [
     { id: 'expedition',   label: 'shop_event_expedition',   icon: '🌌' },
 ];
 
+const getEventInfo = (eventId) => DISCOUNT_EVENTS.find(e => e.id === eventId);
+
 // Calculation Helpers
 const isItemDiscounted = (itemKey, tier, eventId) => {
     if (eventId === 'none') return false;
-    if (eventId === 'discount') {
+    if (eventId === 'discount' || eventId === 'discount_20') {
         const item = SHOP_ITEMS.items[itemKey];
         const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
         if (item && !excludeCats.includes(item.cat)) return true;
@@ -138,6 +160,11 @@ const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
         const item = SHOP_ITEMS.items[itemKey];
         const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
         if (item && !excludeCats.includes(item.cat)) return 0.85;
+    }
+    if (eventId === 'discount_20') {
+        const item = SHOP_ITEMS.items[itemKey];
+        const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
+        if (item && !excludeCats.includes(item.cat)) return 0.80;
     }
     if (eventId === 'boosters' && String(itemKey).includes('booster')) {
         if (dur === '7d')  return 0.9;
@@ -526,6 +553,11 @@ const getSwipeStyle = (idx) => {
                 </span>
                 <span v-if="item.duration !== 'base'" class="text-[8px] font-black text-cyan-500/60">{{ item.duration }}</span>
               </div>
+              <!-- Applied Event -->
+              <div v-if="item.event && item.event !== 'none'" class="flex items-center gap-1 mt-1.5">
+                <span class="text-[9px] text-green-500">{{ getEventInfo(item.event)?.icon }}</span>
+                <span class="text-[8px] font-black text-green-500/80 uppercase tracking-tighter">{{ t(getEventInfo(item.event)?.label) }}</span>
+              </div>
             </div>
             <div class="flex flex-col items-end">
               <span class="text-[11px] font-mono font-black text-cyan-400">{{ formatNum(item.cost) }}</span>
@@ -593,6 +625,11 @@ const getSwipeStyle = (idx) => {
                       <span v-if="item.tier !== 'none' && getTierSuffix(item.tKey, item.tier)" class="text-[10px] text-cyan-400 tracking-wider">{{ getTierSuffix(item.tKey, item.tier) }}</span>
                     </span>
                     <span v-if="item.duration !== 'base'" class="text-[9px] font-black text-cyan-400 uppercase px-1.5 py-0.5 bg-cyan-400/10 rounded">{{ item.duration }}</span>
+                    <!-- Applied Event Tag -->
+                    <span v-if="item.event && item.event !== 'none'" class="text-[9px] font-black text-green-400 uppercase px-1.5 py-0.5 bg-green-400/10 rounded flex items-center gap-1">
+                      <span>{{ getEventInfo(item.event)?.icon }}</span>
+                      <span>{{ t(getEventInfo(item.event)?.label) }}</span>
+                    </span>
                   </div>
                 </div>
                 <div class="flex flex-col items-end gap-0.5 flex-shrink-0">
@@ -702,7 +739,7 @@ const getSwipeStyle = (idx) => {
 
 /* ─── SIDEBAR ELEMENTS ─── */
 .section-label { font-size: 10px; font-weight: 900; text-transform: uppercase; color: #4b5563; letter-spacing: 0.25em; display: flex; align-items: center; gap: 8px; }
-.event-btn, .cat-btn { width: 100%; display: flex; align-items: center; padding: 12px 16px; border-radius: 14px; font-size: 11px; font-weight: 700; transition: all 0.25s; border: 1px solid transparent; color: #52525b; }
+.event-btn, .cat-btn { width: 100%; display: flex; align-items: center; text-align: left; padding: 12px 16px; border-radius: 14px; font-size: 11px; font-weight: 700; transition: all 0.25s; border: 1px solid transparent; color: #52525b; }
 .event-active { background: rgba(6, 182, 212, 0.12); border-color: rgba(6, 182, 212, 0.4); color: #22d3ee; }
 .cat-active { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); color: #fff; }
 

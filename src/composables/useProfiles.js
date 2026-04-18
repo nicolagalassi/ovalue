@@ -38,6 +38,12 @@ const createDefaultPackExchange = () => ({
     queue: []
 });
 
+// Helper to create a default shopping list data object
+const createDefaultShoppingList = () => ({
+    cart: [],
+    activeEvent: 'none'
+});
+
 export function useProfiles() {
     const activeProfile = computed(() => profiles.value.find(p => p.id === activeProfileId.value));
 
@@ -47,6 +53,14 @@ export function useProfiles() {
 
         if (savedProfiles) {
             profiles.value = JSON.parse(savedProfiles);
+            
+            // Migration for existing profiles
+            profiles.value.forEach(p => {
+                if (!p.production) p.production = createDefaultProduction();
+                if (!p.packExchange) p.packExchange = createDefaultPackExchange();
+                if (!p.shoppingList) p.shoppingList = createDefaultShoppingList();
+            });
+
             activeProfileId.value = savedActiveId || (profiles.value[0]?.id || '');
         } else {
             // Migration from old MetalCalc profiles
@@ -60,7 +74,8 @@ export function useProfiles() {
                         id: p.id,
                         name: p.name,
                         production: p.data || createDefaultProduction(),
-                        packExchange: createDefaultPackExchange()
+                        packExchange: createDefaultPackExchange(),
+                        shoppingList: createDefaultShoppingList()
                     }));
                     activeProfileId.value = oldActiveId || (profiles.value[0]?.id || '');
                 } catch (e) {
@@ -79,7 +94,8 @@ export function useProfiles() {
             id: 'p' + Date.now(),
             name: 'Default',
             production: createDefaultProduction(),
-            packExchange: createDefaultPackExchange()
+            packExchange: createDefaultPackExchange(),
+            shoppingList: createDefaultShoppingList()
         };
         profiles.value = [defProfile];
         activeProfileId.value = defProfile.id;
@@ -95,7 +111,8 @@ export function useProfiles() {
             id: 'p' + Date.now(),
             name: name,
             production: createDefaultProduction(),
-            packExchange: createDefaultPackExchange()
+            packExchange: createDefaultPackExchange(),
+            shoppingList: createDefaultShoppingList()
         };
         profiles.value.push(newP);
         activeProfileId.value = newP.id;

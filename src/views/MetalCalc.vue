@@ -51,6 +51,7 @@ const createPlanet = () => ({
     pos: 8,
     item: 0, itemCustom: 0,
     magma: 0, human: 0,
+    lifeform: 'humans',
     crawlers: 0, overload: false
 });
 
@@ -64,11 +65,12 @@ const resetAll = () => {
 };
 
 const applyBulk = () => {
-    const val = parseInt(bulkValue.value);
-    if (isNaN(val)) return;
+    const val = bulkTarget.value === 'lifeform' ? bulkValue.value : parseInt(bulkValue.value);
+    if (bulkTarget.value !== 'lifeform' && isNaN(val)) return;
     planets.value.forEach(p => {
         if (bulkTarget.value === 'overload') p.overload = (val === 1);
         else if (bulkTarget.value === 'item') { if ([0,10,20,30,40].includes(val)) p.item = val; } 
+        else if (bulkTarget.value === 'lifeform') p.lifeform = val;
         else if (p.hasOwnProperty(bulkTarget.value)) p[bulkTarget.value] = val;
     });
 };
@@ -95,8 +97,13 @@ const totals = computed(() => {
         if (settings.allyClass === 'trader') totPerc += 5;
         
         totPerc += (parseInt(p.item)||0) + (parseInt(p.itemCustom)||0);
-        totPerc += (parseInt(p.magma)||0) * 2;
-        totPerc += (parseInt(p.human)||0) * 1.5;
+        
+        if (p.lifeform === 'rocktal') {
+            totPerc += (parseInt(p.magma)||0) * 2;
+        } else if (p.lifeform === 'humans') {
+            totPerc += (parseInt(p.human)||0) * 1.5;
+        }
+        
         totPerc += settings.lfBonus;
 
         const isCollector = settings.playerClass === 'collector';
@@ -297,10 +304,16 @@ const confirmImport = () => {
                 <option value="pos">{{ t('lbl_position') }}</option>
                 <option value="magma">{{ t('lbl_magma') }}</option>
                 <option value="human">{{ t('lbl_human') }}</option>
+                <option value="lifeform">{{ t('lbl_lifeform') }}</option>
                 <option value="crawlers">{{ t('lbl_crawlers') }}</option>
                 <option value="overload">{{ t('lbl_overload') }}</option>
             </select>
-            <input type="number" v-model="bulkValue" @focus="$event.target.select()" :placeholder="t('bulk_placeholder')" class="input-glass w-full px-3 py-2 text-sm font-mono">
+            <select v-if="bulkTarget === 'lifeform'" v-model="bulkValue" class="input-glass w-full px-3 py-2 text-sm">
+                <option value="humans">{{ t('opt_humans') }}</option>
+                <option value="rocktal">{{ t('opt_rocktal') }}</option>
+                <option value="mecha">{{ t('opt_mecha') }}</option>
+            </select>
+            <input v-else type="number" v-model="bulkValue" @focus="$event.target.select()" :placeholder="t('bulk_placeholder')" class="input-glass w-full px-3 py-2 text-sm font-mono">
             <button @click="applyBulk" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded-lg text-sm transition shadow-[0_0_15px_rgba(147,51,234,0.3)]">
                 {{ t('btn_bulk_apply') }}
             </button>

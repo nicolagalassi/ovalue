@@ -63,14 +63,14 @@ const breakdown = computed(() => {
     }
 
     const magma = parseInt(p.magma) || 0;
-    if (magma > 0) { 
+    if (magma > 0 && p.lifeform === 'rocktal') { 
         const v = magma * 2; 
         bonuses.push({n: `${t('lbl_magma')} (${magma})`, v}); 
         totPerc += v; 
     }
     
     const human = parseInt(p.human) || 0;
-    if (human > 0) { 
+    if (human > 0 && p.lifeform === 'humans') { 
         const v = human * 1.5; 
         bonuses.push({n: `${t('lbl_human')} (${human})`, v}); 
         totPerc += v; 
@@ -180,15 +180,42 @@ const breakdown = computed(() => {
             </div>
         </div>
 
+        <div class="space-y-1">
+            <label class="block text-[10px] uppercase font-bold text-gray-500 mb-1">{{ t('lbl_lifeform') }}</label>
+            <div class="grid grid-cols-3 gap-2">
+                <button 
+                    @click="planet.lifeform = 'humans'"
+                    class="px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase transition border"
+                    :class="planet.lifeform === 'humans' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-white/5 border-white/5 text-gray-500 hover:bg-white/10'"
+                >
+                    {{ t('opt_humans') }}
+                </button>
+                <button 
+                    @click="planet.lifeform = 'rocktal'"
+                    class="px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase transition border"
+                    :class="planet.lifeform === 'rocktal' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-white/5 border-white/5 text-gray-500 hover:bg-white/10'"
+                >
+                    {{ t('opt_rocktal') }}
+                </button>
+                <button 
+                    @click="planet.lifeform = 'mecha'"
+                    class="px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase transition border"
+                    :class="planet.lifeform === 'mecha' ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-white/5 border-white/5 text-gray-500 hover:bg-white/10'"
+                >
+                    {{ t('opt_mecha') }}
+                </button>
+            </div>
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
-            <div>
+            <div :class="{'opacity-30 grayscale pointer-events-none': planet.lifeform !== 'rocktal'}">
                 <div class="flex justify-between items-center mb-1">
                     <label class="block text-[10px] uppercase font-bold text-gray-500 truncate">{{ t('lbl_magma') }}</label>
                     <span class="text-[9px] font-bold text-cyan-400 px-1 bg-cyan-950/50 rounded">{{ t('lbl_rocktal_tag') }}</span>
                 </div>
                 <input type="number" v-model.number="planet.magma" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-sm font-mono border-l-2 border-l-cyan-500">
             </div>
-            <div>
+            <div :class="{'opacity-30 grayscale pointer-events-none': planet.lifeform !== 'humans'}">
                 <div class="flex justify-between items-center mb-1">
                     <label class="block text-[10px] uppercase font-bold text-gray-500 truncate">{{ t('lbl_human') }}</label>
                     <span class="text-[9px] font-bold text-blue-400 px-1 bg-blue-950/50 rounded">{{ t('lbl_humans_tag') }}</span>

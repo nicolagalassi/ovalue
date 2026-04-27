@@ -6,7 +6,7 @@ import { useProfiles } from '../composables/useProfiles';
 import PlanetCard from '../components/PlanetCard.vue';
 
 const { t } = useLanguage();
-const { calcMineProduction, getPosMult, calcCrawlerCap, formatNum } = useOgameFormulas();
+const { calcMineProduction, getPosMult, calcCrawlerCap, formatNum, parseDurationToTimestamp } = useOgameFormulas();
 const { activeProfile, saveProfiles } = useProfiles();
 
 const settings = reactive({
@@ -25,6 +25,7 @@ const bulkTarget = ref('metal');
 const bulkValue = ref('');
 const showImportModal = ref(false);
 const importText = ref('');
+const showIntro = ref(false);
 
 // Sync with active profile
 watch(activeProfile, (newP) => {
@@ -144,7 +145,7 @@ const confirmImport = () => {
     const text = importText.value;
     if (text) {
         try {
-            const startIdx = text.indexOf('{"settings":');
+            const startIdx = text.indexOf('{');
             const endIdx = text.lastIndexOf('}');
             
             if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) {
@@ -158,10 +159,85 @@ const confirmImport = () => {
                 if (data.settings && data.settings.plasma !== undefined) {
                     settings.plasma = data.settings.plasma;
                 }
+                
+                // Parse new data
+                if (data.universeSpeed) settings.ecoSpeed = parseInt(data.universeSpeed) || 8;
+                if (data.lfBonuses && data.lfBonuses.metal) {
+                    settings.lfBonus = parseFloat(data.lfBonuses.metal.replace(',', '.').replace('%', '')) || 0;
+                }
+                if (data.playerClass) {
+                    const c = data.playerClass.toLowerCase();
+                    if (c.includes('collezionista') || c.includes('collector')) {
+                        settings.playerClass = 'collector';
+                        if (data.lfBonuses && data.lfBonuses.classBonus) {
+                             settings.rocktalEnhancement = parseFloat(data.lfBonuses.classBonus.replace(',', '.').replace('%', '')) || 0;
+                        }
+                    } else {
+                        settings.playerClass = 'other';
+                    }
+                }
+
                 planets.value = data.planets.map(p => ({
                     ...createPlanet(),
                     ...p
                 }));
+
+                // Map expirations and Flags
+                if (activeProfile.value && activeProfile.value.expirations) {
+                     const exp = activeProfile.value.expirations;
+                     exp.officers = {};
+                     exp.globalItems = [];
+                     
+                     if (data.officers) {
+                         settings.geologist = data.officers['Geologo']?.active || false;
+                         const activeCount = Object.values(data.officers).filter(o => o.active).length;
+                         settings.staff = activeCount >= 5;
+
+                         for (const [type, info] of Object.entries(data.officers)) {
+                             if (info.active) {
+                                 const parsed = parseDurationToTimestamp(info.timeRemaining);
+                                 exp.officers[type] = {
+                                     active: true,
+                                     expires: parsed.expires,
+                                     totalDuration: parsed.total
+                                 };
+                             }
+                         }
+                     }
+                     
+                     const globalItemsMap = new Map();
+                     const isGlobalItem = (name) => !/(Amplificatore|Metallo|Cristallo|Deuterio|Metal|Crystal|Deuterium|Resource Amplifier)/i.test(name);
+
+                     if (data.globalItems) {
+                         data.globalItems.forEach(item => {
+                             if (isGlobalItem(item.name)) {
+                                 globalItemsMap.set(item.name, item.timeRemaining);
+                             }
+                         });
+                     }
+                     
+                     // Planets active items
+                     planets.value.forEach(p => {
+                         if (p.activeItems) {
+                             p.activeItems.forEach(item => {
+                                 if (isGlobalItem(item.name)) {
+                                     globalItemsMap.set(item.name, item.timeRemaining);
+                                 }
+                             });
+                         }
+                         p.activeItems = []; // Not needed for Expirations anymore
+                     });
+
+                     exp.globalItems = Array.from(globalItemsMap.entries()).map(([name, timeRemaining]) => {
+                         const parsed = parseDurationToTimestamp(timeRemaining);
+                         return {
+                             name,
+                             expires: parsed.expires,
+                             totalDuration: parsed.total
+                         };
+                     });
+                }
+
                 showImportModal.value = false;
                 alert("✅ Importazione completata!");
             } else {
@@ -196,9 +272,20 @@ const confirmImport = () => {
     </div>
 
     <!-- Intro Section -->
-    <div class="card-glass p-6 mb-8 border-l-4 border-l-cyan-500/50 bg-cyan-500/5 backdrop-blur-md relative overflow-hidden group">
-        <div class="flex flex-col md:flex-row items-center gap-6 relative z-10">
-            <div class="p-4 rounded-2xl bg-cyan-500/10 text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.1)] group-hover:scale-110 transition-transform duration-500">
+    <div class="card-glass mb-8 border-l-4 border-l-cyan-500/50 bg-cyan-500/5 backdrop-blur-md relative overflow-hidden">
+
+        <!-- Mobile: collapsed header -->
+        <button @click="showIntro = !showIntro" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-cyan-400">
+            <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span class="text-xs font-black uppercase tracking-widest">{{ t('metal_calc_title') }}</span>
+            </div>
+            <svg class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': showIntro }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+
+        <!-- Collapsible body on mobile, always visible on desktop -->
+        <div class="p-6 md:flex md:flex-row md:items-center md:gap-6 relative z-10 group" :class="showIntro ? 'block' : 'hidden md:flex'">
+            <div class="hidden md:block p-4 rounded-2xl bg-cyan-500/10 text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.1)] flex-shrink-0 group-hover:scale-110 transition-transform duration-500">
                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <div class="flex-grow">
@@ -209,7 +296,7 @@ const confirmImport = () => {
                 </a>
             </div>
         </div>
-        <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl group-hover:bg-cyan-500/10 transition-colors"></div>
+        <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl"></div>
     </div>
     
 

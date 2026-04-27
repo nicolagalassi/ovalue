@@ -20,7 +20,7 @@ const { t } = useLanguage();
     </div>
 
     <div class="flex-grow flex items-center justify-center w-full px-4 md:px-6 z-10 py-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 2xl:gap-8 max-w-7xl w-full">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 2xl:gap-8 max-w-7xl w-full">
             
             <!-- Tool 1: Production Core -->
             <router-link to="/metal" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] hover:-translate-y-1 hover:bg-[#0b0e14]/90 py-6 md:py-8 flex flex-col items-center justify-center text-center">
@@ -106,53 +106,93 @@ const { t } = useLanguage();
                 </div>
             </router-link>
 
+            <!-- Tool 4: Scadenziario -->
+            <router-link to="/expirations" class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-emerald-500/50 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] hover:-translate-y-1 hover:bg-[#0b0e14]/90 py-6 md:py-8 flex flex-col items-center justify-center text-center">
+                
+                <div class="absolute -right-6 -bottom-6 2xl:-right-10 2xl:-bottom-10 text-emerald-500/5 group-hover:text-emerald-500/10 group-hover:scale-110 group-hover:-rotate-12 transition duration-700 ease-in-out pointer-events-none">
+                     <svg class="w-32 h-32 md:w-40 md:h-40 2xl:w-80 2xl:h-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+
+                <div class="absolute left-0 top-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-600 to-transparent opacity-50 group-hover:opacity-100 transition"></div>
+                
+                <div class="flex flex-col items-center w-full px-4 md:px-6 relative z-10 gap-3 md:gap-4">
+                    <div class="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-emerald-900/20 border border-emerald-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.15)] group-hover:scale-110 transition-transform duration-500">
+                        <svg class="w-8 h-8 md:w-10 md:h-10 text-emerald-400 group-hover:text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+
+                    <div class="flex-grow min-w-0 flex flex-col items-center">
+                        <h2 class="text-xl md:text-2xl font-bold text-white group-hover:text-emerald-400 transition mb-1 md:mb-2 flex items-center gap-2 break-words whitespace-normal leading-tight">
+                            {{ t('card_expirations_title') }}
+                        </h2>
+                        <p class="hidden md:block text-[11px] md:text-sm text-gray-400 leading-snug mb-3 px-2 break-words whitespace-normal">
+                            {{ t('card_expirations_desc') }}
+                        </p>
+                        <span class="text-xs md:text-sm font-bold text-emerald-600 uppercase tracking-widest group-hover:text-emerald-400 transition flex items-center gap-1 mt-1">
+                            {{ t('btn_open') }} <span class="text-lg md:text-xl leading-none">›</span>
+                        </span>
+                    </div>
+                </div>
+            </router-link>
+
         </div>
     </div>
 
     <!-- ── External References ──────────────────────────────────────────── -->
     <div class="w-full max-w-7xl px-4 md:px-6 py-4 md:py-8 z-10 mx-auto">
         <h3 class="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-[0.2em] mb-4 md:mb-6 flex items-center gap-3">
-            <span class="w-8 md:w-12 h-[1px] bg-gradient-to-r from-transparent to-gray-800"></span>
+            <span class="w-8 md:w-12 h-[1px] bg-gradient-to-r from-transparent to-gray-800 flex-shrink-0"></span>
             {{ t('lbl_external_links') }}
             <span class="flex-grow h-[1px] bg-gradient-to-l from-transparent to-gray-800"></span>
         </h3>
-        
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <!-- OStats Link -->
-            <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer" class="group relative bg-[#0b0e14]/40 backdrop-blur-sm border border-white/5 rounded-xl p-4 transition-all duration-300 hover:border-cyan-500/35 hover:bg-[#0b0e14]/60 flex items-center gap-4">
-                <div class="flex-shrink-0 w-24 h-12 md:w-28 md:h-14 flex items-center justify-center rounded-xl bg-[#0b0e14]/95 p-2 border border-white/15 ring-1 ring-inset ring-white/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_4px_14px_-4px_rgba(0,0,0,0.45)] group-hover:border-cyan-400/45 group-hover:ring-cyan-400/20 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_22px_-4px_rgba(34,211,238,0.22)] group-hover:scale-[1.03] transition-all">
-                    <img
-                        src="/Immagini%20Ogame/ostats-logo-v3.png"
-                        :alt="t('card_ostats_title')"
-                        class="h-full w-full object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.55)] contrast-[1.06]"
-                    />
+
+            <!-- OStats -->
+            <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer"
+              class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-cyan-500/40 hover:shadow-[0_0_30px_rgba(6,182,212,0.1)] hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4"
+            >
+                <div class="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-transparent via-cyan-500/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                <div class="flex-shrink-0 w-16 h-10 flex items-center justify-center rounded-xl bg-black/40 border border-white/8 p-2 group-hover:border-cyan-500/30 transition-colors duration-300">
+                    <img src="/Immagini%20Ogame/ostats-logo-v3.png" :alt="t('card_ostats_title')" class="h-full w-full object-contain contrast-[1.05]" />
                 </div>
-                <div class="min-w-0">
-                    <h4 class="text-white text-sm md:text-base font-bold group-hover:text-cyan-400 transition">{{ t('card_ostats_title') }}</h4>
-                    <p class="text-[10px] md:text-xs text-gray-500 truncate">{{ t('card_ostats_desc') }}</p>
+
+                <div class="flex-grow min-w-0">
+                    <h4 class="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors duration-300 leading-tight">{{ t('card_ostats_title') }}</h4>
+                    <p class="text-[11px] text-gray-600 mt-0.5 leading-snug">{{ t('card_ostats_desc') }}</p>
                 </div>
-                <div class="ml-auto text-gray-600 group-hover:text-cyan-400 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+
+                <div class="flex-shrink-0 flex items-center gap-1.5 text-[10px] font-black text-gray-600 group-hover:text-cyan-400 uppercase tracking-widest transition-colors duration-300">
+                    <span class="hidden sm:block">{{ t('btn_visit') }}</span>
+                    <svg class="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
                 </div>
             </a>
 
-            <!-- OgameUtilities Link -->
-            <a href="https://www.ogameutilities.it/index.html" target="_blank" rel="noopener noreferrer" class="group relative bg-[#0b0e14]/40 backdrop-blur-sm border border-white/5 rounded-xl p-4 transition-all duration-300 hover:border-indigo-500/35 hover:bg-[#0b0e14]/60 flex items-center gap-4">
-                <div class="flex-shrink-0 w-24 h-12 md:w-28 md:h-14 flex items-center justify-center rounded-xl bg-[#0b0e14]/95 p-2 border border-white/15 ring-1 ring-inset ring-white/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_4px_14px_-4px_rgba(0,0,0,0.45)] group-hover:border-indigo-400/45 group-hover:ring-indigo-400/20 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_22px_-4px_rgba(129,140,248,0.22)] group-hover:scale-[1.03] transition-all">
-                    <img
-                        src="/Immagini%20Ogame/ogame%20util.ico"
-                        :alt="t('card_ou_title')"
-                        class="h-full w-full object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.55)]"
-                    />
+            <!-- OgameUtilities -->
+            <a href="https://www.ogameutilities.it/index.html" target="_blank" rel="noopener noreferrer"
+              class="group relative bg-[#0b0e14]/80 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden transition-all duration-500 hover:border-indigo-500/40 hover:shadow-[0_0_30px_rgba(99,102,241,0.1)] hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4"
+            >
+                <div class="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-transparent via-indigo-500/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                <div class="flex-shrink-0 w-16 h-10 flex items-center justify-center rounded-xl bg-black/40 border border-white/8 p-2 group-hover:border-indigo-500/30 transition-colors duration-300">
+                    <img src="/Immagini%20Ogame/ogame%20util.ico" :alt="t('card_ou_title')" class="h-full w-full object-contain" />
                 </div>
-                <div class="min-w-0">
-                    <h4 class="text-white text-sm md:text-base font-bold group-hover:text-indigo-400 transition">{{ t('card_ou_title') }}</h4>
-                    <p class="text-[10px] md:text-xs text-gray-500 truncate">{{ t('card_ou_desc') }}</p>
+
+                <div class="flex-grow min-w-0">
+                    <h4 class="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors duration-300 leading-tight">{{ t('card_ou_title') }}</h4>
+                    <p class="text-[11px] text-gray-600 mt-0.5 leading-snug">{{ t('card_ou_desc') }}</p>
                 </div>
-                <div class="ml-auto text-gray-600 group-hover:text-indigo-400 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+
+                <div class="flex-shrink-0 flex items-center gap-1.5 text-[10px] font-black text-gray-600 group-hover:text-indigo-400 uppercase tracking-widest transition-colors duration-300">
+                    <span class="hidden sm:block">{{ t('btn_visit') }}</span>
+                    <svg class="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
                 </div>
             </a>
+
         </div>
     </div>
 

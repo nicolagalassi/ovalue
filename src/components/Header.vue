@@ -96,9 +96,8 @@ const triggerImportAll = () => document.getElementById('globalImportInput').clic
 
       <!-- Navigation / Breadcrumbs for internal pages -->
       <div class="flex-grow min-w-0 flex flex-col md:flex-row md:items-center gap-3 md:gap-4" v-if="$route.path !== '/'">
-        <router-link to="/" class="self-start md:hidden inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[10px] font-bold text-gray-300 hover:text-white transition group">
-            <svg class="w-3 h-3 text-ogame-accent group-hover:-translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-            <span>{{ t('nav_back') }}</span>
+        <router-link to="/" class="self-start md:hidden flex items-center justify-center w-9 h-9 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-gray-300 hover:text-ogame-accent transition group" :title="t('nav_back')">
+            <svg class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
         </router-link>
       </div>
 
@@ -110,17 +109,6 @@ const triggerImportAll = () => document.getElementById('globalImportInput').clic
         <div id="header-actions" class="flex gap-2"></div>
 
         <div v-if="$route.path !== '/'" class="w-px h-8 bg-white/10 mx-1 hidden md:block"></div>
-
-        <router-link 
-          to="/help" 
-          class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:border-ogame-accent/50 hover:bg-white/10 transition text-gray-300 shadow-sm group"
-          :title="t('help_title')"
-        >
-          <svg class="w-4 h-4 text-ogame-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-          <span class="text-xs font-bold tracking-wider hidden sm:block">{{ t('nav_help') }}</span>
-        </router-link>
 
         <!-- Profiles Switcher -->
         <div class="relative" v-if="activeProfile">

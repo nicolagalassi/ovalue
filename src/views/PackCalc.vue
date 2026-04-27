@@ -12,6 +12,7 @@ const { activeProfile, saveProfiles } = useProfiles();
 // --- STATO ---
 const queue = ref([]);
 const isAutoLoaded = ref(true);
+const showIntro = ref(false);
 
 // Input e Stock
 const inputs = reactive({ metal: 0, crystal: 0, deuterium: 0 });
@@ -303,9 +304,20 @@ const resetFields = () => {
     </div>
 
     <!-- Intro Section -->
-    <div class="card-glass p-6 mb-8 border-l-4 border-l-ogame-warning/50 bg-ogame-warning/5 backdrop-blur-md">
-        <div class="flex items-start gap-4">
-            <div class="p-3 rounded-xl bg-ogame-warning/10 text-ogame-warning">
+    <div class="card-glass mb-8 border-l-4 border-l-ogame-warning/50 bg-ogame-warning/5 backdrop-blur-md">
+
+        <!-- Mobile: collapsed header -->
+        <button @click="showIntro = !showIntro" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-ogame-warning">
+            <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span class="text-xs font-black uppercase tracking-widest">{{ t('pack_calc_title') }}</span>
+            </div>
+            <svg class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': showIntro }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+
+        <!-- Collapsible body on mobile, always visible on desktop -->
+        <div class="p-6 flex items-start gap-4" :class="showIntro ? 'block' : 'hidden md:flex'">
+            <div class="hidden md:block p-3 rounded-xl bg-ogame-warning/10 text-ogame-warning flex-shrink-0">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <div>

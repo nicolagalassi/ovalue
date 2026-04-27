@@ -44,6 +44,12 @@ const createDefaultShoppingList = () => ({
     activeEvent: 'none'
 });
 
+// Helper to create a default expirations data object
+const createDefaultExpirations = () => ({
+    officers: {},
+    globalItems: []
+});
+
 export function useProfiles() {
     const activeProfile = computed(() => profiles.value.find(p => p.id === activeProfileId.value));
 
@@ -59,6 +65,7 @@ export function useProfiles() {
                 if (!p.production) p.production = createDefaultProduction();
                 if (!p.packExchange) p.packExchange = createDefaultPackExchange();
                 if (!p.shoppingList) p.shoppingList = createDefaultShoppingList();
+                if (!p.expirations) p.expirations = createDefaultExpirations();
             });
 
             activeProfileId.value = savedActiveId || (profiles.value[0]?.id || '');
@@ -75,7 +82,8 @@ export function useProfiles() {
                         name: p.name,
                         production: p.data || createDefaultProduction(),
                         packExchange: createDefaultPackExchange(),
-                        shoppingList: createDefaultShoppingList()
+                        shoppingList: createDefaultShoppingList(),
+                        expirations: createDefaultExpirations()
                     }));
                     activeProfileId.value = oldActiveId || (profiles.value[0]?.id || '');
                 } catch (e) {
@@ -95,7 +103,8 @@ export function useProfiles() {
             name: 'Default',
             production: createDefaultProduction(),
             packExchange: createDefaultPackExchange(),
-            shoppingList: createDefaultShoppingList()
+            shoppingList: createDefaultShoppingList(),
+            expirations: createDefaultExpirations()
         };
         profiles.value = [defProfile];
         activeProfileId.value = defProfile.id;
@@ -112,7 +121,8 @@ export function useProfiles() {
             name: name,
             production: createDefaultProduction(),
             packExchange: createDefaultPackExchange(),
-            shoppingList: createDefaultShoppingList()
+            shoppingList: createDefaultShoppingList(),
+            expirations: createDefaultExpirations()
         };
         profiles.value.push(newP);
         activeProfileId.value = newP.id;

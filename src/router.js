@@ -41,11 +41,11 @@ const routes = [
         }
     },
     {
-        path: '/help',
-        component: () => import('./views/Help.vue'),
+        path: '/expirations',
+        component: () => import('./views/ExpirationsView.vue'),
         meta: {
-            title: 'Help Center - OValue',
-            description: 'Guida completa all\'utilizzo degli strumenti di OValue.'
+            title: 'Scadenziario - OValue',
+            description: 'Gestisci e monitora le scadenze di ufficiali e item.'
         }
     },
     {

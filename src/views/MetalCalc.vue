@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useProfiles } from '../composables/useProfiles';

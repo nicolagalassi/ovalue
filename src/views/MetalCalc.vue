@@ -177,9 +177,14 @@ const confirmImport = () => {
                     }
                 }
 
+                const LIFEFORM_MAP = {
+                    Humans: 'humans', Rocktal: 'rocktal',
+                    Mechas: 'mecha', Kaelesh: 'mecha'
+                };
                 planets.value = data.planets.map(p => ({
                     ...createPlanet(),
-                    ...p
+                    ...p,
+                    lifeform: LIFEFORM_MAP[p.lifeform] ?? (p.lifeform && p.lifeform !== 'none' ? p.lifeform : createPlanet().lifeform)
                 }));
 
                 // Map expirations and Flags

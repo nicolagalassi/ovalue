@@ -193,15 +193,16 @@ function _inferCategory(text, pubDateStr = '', forceBaseType = null) {
       }
     }
 
-    // 2. Month DD-DD
-    const matchesWord = [...text.matchAll(/([a-zA-Z]+)\s+(\d{1,2})(?:[^\d]+(\d{1,2}))?/g)];
+    // 2. Month DD or Month DD-DD (separator must be dash/en-dash/em-dash)
+    const matchesWord = [...text.matchAll(/([a-zA-Z]+)\s+(\d{1,2})(?:\s*[-–—]\s*(\d{1,2}))?/g)];
     for (const match of matchesWord) {
       const monthStr = match[1].toLowerCase();
       if (monthMap[monthStr] !== undefined) {
         foundDate = true;
         const month = monthMap[monthStr];
         const startDay = parseInt(match[2]);
-        const endDay = match[3] ? parseInt(match[3]) : startDay;
+        const endDayRaw = match[3] ? parseInt(match[3]) : null;
+        const endDay = (endDayRaw && endDayRaw >= 1 && endDayRaw <= 31) ? endDayRaw : startDay;
         const dStart = new Date(now.getFullYear(), month, startDay, 0, 0, 0).getTime();
         const dEnd = new Date(now.getFullYear(), month, endDay, 23, 59, 59).getTime();
         if (dStart < earliest) earliest = dStart;

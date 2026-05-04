@@ -110,11 +110,23 @@ function _parseRSS(xmlString) {
     .map((item) => {
       const title = _clean(_text(item, 'title') || _text(item, 'description') || '(no title)');
       const pubDate = _text(item, 'pubDate') || '';
+      const rssCat = _clean(_text(item, 'category') || '');
+      const rssLower = rssCat.toLowerCase();
+      let category;
+      if (rssLower.includes('offer')) {
+        category = _inferCategory(title, pubDate, 'Offer');
+      } else if (rssLower.includes('event')) {
+        category = _inferCategory(title, pubDate, 'Event');
+      } else if (rssCat) {
+        category = rssCat;
+      } else {
+        category = _inferCategory(title, pubDate);
+      }
       return {
         title,
         link:     _text(item, 'link') || _text(item, 'guid') || '#',
         pubDate,
-        category: _clean(_text(item, 'category') || _inferCategory(title, pubDate)),
+        category,
       };
     })
     .filter((it) => it.title && it.link !== '#');
@@ -144,15 +156,17 @@ const monthMap = {
   'nov': 10, 'november': 10, 'dec': 11, 'december': 11
 };
 
-function _inferCategory(text, pubDateStr = '') {
+function _inferCategory(text, pubDateStr = '', forceBaseType = null) {
   const t = text.toLowerCase();
-  let baseCat = 'News';
-  
-  if (/sale|discount|offer|cashback|relocation|items|%/.test(t)) baseCat = 'Offer';
-  else if (/happy hour|hh\b|\bevent\b|task reward/.test(t)) baseCat = 'Event';
-  else if (/v\d+\.\d+|version|changelog/.test(t)) return 'Changelog';
-  else if (/maintenance|maint/.test(t)) return 'Maintenance';
-  else if (/new universe|uni \d+/.test(t)) return 'New Universe';
+  let baseCat = forceBaseType || 'News';
+
+  if (!forceBaseType) {
+    if (/sale|discount|offer|cashback|relocation|items|%/.test(t)) baseCat = 'Offer';
+    else if (/happy hour|hh\b|\bevent\b|task reward/.test(t)) baseCat = 'Event';
+    else if (/v\d+\.\d+|version|changelog/.test(t)) return 'Changelog';
+    else if (/maintenance|maint/.test(t)) return 'Maintenance';
+    else if (/new universe|uni \d+/.test(t)) return 'New Universe';
+  }
 
   if (baseCat === 'Offer' || baseCat === 'Event') {
     const now = new Date();

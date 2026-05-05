@@ -1,14 +1,22 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 
 const { currentLang, setLanguage, t } = useLanguage();
-const { 
-    profiles, activeProfileId, activeProfile, 
-    createProfile, renameProfile, deleteProfile, 
-    switchProfile, exportProfiles, importProfiles 
+const {
+    profiles, activeProfileId, activeProfile, knownServers,
+    createProfile, renameProfile, deleteProfile,
+    switchProfile, exportProfiles, importProfiles,
+    toggleAutoSync, setSyncServer
 } = useProfiles();
+
+const lastSyncFormatted = computed(() => {
+    const ts = activeProfile.value?.lastSync;
+    if (!ts) return null;
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+});
 
 const isLangMenuOpen = ref(false);
 const isProfileMenuOpen = ref(false);
@@ -117,7 +125,12 @@ const triggerImportAll = () => document.getElementById('globalImportInput').clic
                 :title="t('profile_active')"
             >
                 <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                <span class="text-xs font-bold uppercase tracking-wider hidden lg:block max-w-[120px] truncate">{{ activeProfile.name }}</span>
+                <div class="hidden lg:flex flex-col items-start leading-none gap-0.5">
+                    <span class="text-xs font-bold uppercase tracking-wider max-w-[120px] truncate">{{ activeProfile.name }}</span>
+                    <span class="text-[9px] font-medium" :class="activeProfile.autoSync ? 'text-green-500/70' : 'text-gray-600'">
+                        {{ activeProfile.autoSync ? (lastSyncFormatted ? `⟳ ${lastSyncFormatted}` : `⟳ ${t('sync_never')}`) : `🔒 ${t('sync_manual')}` }}
+                    </span>
+                </div>
                 <svg class="w-3 h-3 text-gray-500 transition-transform duration-200" :class="{'rotate-180': isProfileMenuOpen}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
 
@@ -152,6 +165,40 @@ const triggerImportAll = () => document.getElementById('globalImportInput').clic
                             </div>
                         </div>
                     </div>
+                    <!-- Sync section for active profile -->
+                    <div v-if="activeProfile" class="p-2 border-t border-white/5 space-y-2">
+                        <div class="flex items-center justify-between px-1">
+                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">{{ t('sync_label') }}</span>
+                            <button
+                                @click="toggleAutoSync"
+                                class="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition"
+                                :class="activeProfile.autoSync ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20' : 'bg-gray-500/10 text-gray-500 hover:bg-gray-500/20'"
+                                :title="activeProfile.autoSync ? t('sync_toggle_disable') : t('sync_toggle_enable')"
+                            >
+                                <svg v-if="activeProfile.autoSync" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                {{ activeProfile.autoSync ? t('sync_auto') : t('sync_manual') }}
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between px-1 text-[10px] text-gray-600">
+                            <span>{{ t('sync_last') }}</span>
+                            <span :class="lastSyncFormatted ? 'text-gray-400' : 'text-gray-600'">{{ lastSyncFormatted ?? t('sync_never') }}</span>
+                        </div>
+                        <div v-if="knownServers.length > 0" class="px-1">
+                            <select
+                                :value="activeProfile.syncServer ?? ''"
+                                @change="setSyncServer($event.target.value)"
+                                class="w-full text-[10px] bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-gray-400 focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                                :title="t('sync_server_label')"
+                            >
+                                <option value="" disabled class="bg-[#161b22]">{{ t('sync_server_label') }}</option>
+                                <option v-for="srv in knownServers" :key="srv" :value="srv" class="bg-[#161b22]">
+                                    {{ srv.split('.')[0] }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="p-1.5 border-t border-white/5 space-y-1">
                         <button @click="handleCreateProfile" class="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black text-green-400 hover:bg-green-400/10 rounded-lg transition uppercase tracking-widest">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>

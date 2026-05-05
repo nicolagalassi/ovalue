@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.0.0
+// @version      3.1.0
 // @description  Raccoglie i dati dell'impero navigando per le pagine, li memorizza per universo e li sincronizza automaticamente con OValue
 // @author       OValue
 // @license      MIT
@@ -15,19 +15,32 @@
 // @grant        GM_setClipboard
 // @grant        GM_addStyle
 // @run-at       document-idle
+// @downloadURL https://update.greasyfork.org/scripts/574448/OValue%20Exporter.user.js
+// @updateURL https://update.greasyfork.org/scripts/574448/OValue%20Exporter.meta.js
 // ==/UserScript==
 
 (async function () {
     'use strict';
 
     // Bridge mode: quando lo script gira su ovalue.net, trasferisce i dati
-    // da GM_setValue (storage estensione) a localStorage (leggibile dall'app Vue)
+    // da GM_setValue (storage estensione) a localStorage (leggibile dall'app Vue).
+    // Prima di scrivere riallinea planet.lifeform dalla mappa planetLifeforms.
     function syncToOValue() {
         const servers = GM_getValue('ovalue_servers', []);
         const allData = {};
         for (const srv of servers) {
             const d = GM_getValue('ovalue_data_' + srv, null);
-            if (d) allData[srv] = d;
+            if (d) {
+                // Riallinea lifeform per ogni pianeta dalla mappa planetLifeforms
+                if (d.planets && d.planetLifeforms) {
+                    d.planets.forEach(p => {
+                        if (p.id != null && d.planetLifeforms[p.id]) {
+                            p.lifeform = d.planetLifeforms[p.id];
+                        }
+                    });
+                }
+                allData[srv] = d;
+            }
         }
         if (Object.keys(allData).length === 0) return;
         localStorage.setItem('ovalue_exporter_pending', JSON.stringify(allData));
@@ -42,6 +55,7 @@
     // 1. CHIAVI DI STORAGE
     const serverKey = window.location.hostname;
     const storageKey = 'ovalue_data_' + serverKey;
+    const panelStateKey = 'ovalue_panel_state';
 
     // Aggiorna la lista dei server visitati (usata dal bridge su ovalue.net)
     const knownServers = GM_getValue('ovalue_servers', []);
@@ -49,7 +63,6 @@
         knownServers.push(serverKey);
         GM_setValue('ovalue_servers', knownServers);
     }
-    const panelStateKey = 'ovalue_panel_state';
 
     // Recupera lo stato attuale dei dati per QUESTO universo
     let ovalueData = GM_getValue(storageKey, {
@@ -61,17 +74,98 @@
         lfBonuses: { metal: "0%", classBonus: "0%" },
         settings: { plasma: 0 },
         planets: [],
+        planetLifeforms: {},
         globalItems: [],
         universeSpeed: 1
     });
+
+    // Migrazione: chi aveva versioni precedenti potrebbe non avere planetLifeforms
+    if (!ovalueData.planetLifeforms) ovalueData.planetLifeforms = {};
 
     const urlParams = new URLSearchParams(window.location.search);
     const page = urlParams.get('page');
     const component = urlParams.get('component');
 
+    // Mappa CSS class lifeform -> nome leggibile (coerente con OValue app: lowercase)
+    const LIFEFORM_NAMES = {
+        lifeform1: 'Humans',
+        lifeform2: 'Rocktal',
+        lifeform3: 'Mechas',
+        lifeform4: 'Kaelesh'
+    };
+
+    // --- HELPER: meta-tag OGame ---
+
+    function getMetaContent(name) {
+        const el = document.querySelector(`meta[name="${name}"]`);
+        return el ? el.getAttribute('content') : null;
+    }
+    function getCurrentPlanetId() {
+        const v = getMetaContent('ogame-planet-id');
+        return v ? parseInt(v) : null;
+    }
+    function getCurrentPlanetType() {
+        return getMetaContent('ogame-planet-type'); // 'planet' | 'moon'
+    }
+
+    // Legge l'elenco pianeti dal menu laterale (#planetList)
+    function getPlanetListFromSidebar() {
+        const result = [];
+        document.querySelectorAll('#planetList .smallplanet').forEach(el => {
+            const link = el.querySelector('.planetlink');
+            const coordsEl = el.querySelector('.planet-koords');
+            const nameEl = el.querySelector('.planet-name');
+            if (!link || !coordsEl) return;
+
+            let id = null;
+            try {
+                const url = new URL(link.href, window.location.origin);
+                id = parseInt(url.searchParams.get('cp')) || null;
+            } catch (_) {}
+
+            const coordsRaw = coordsEl.textContent.replace(/[^0-9:]/g, '');
+            const m = coordsRaw.match(/^(\d+):(\d+):(\d+)$/);
+            if (!m) return;
+
+            result.push({
+                id,
+                name: (nameEl ? nameEl.textContent : '').trim(),
+                coords: coordsRaw,
+                pos: parseInt(m[3])
+            });
+        });
+        return result;
+    }
+
+    function getMissingPlanets() {
+        if (!ovalueData.empire_collected) return [];
+        const sidebar = getPlanetListFromSidebar();
+        if (sidebar.length === 0) return [];
+        const collectedPositions = new Set(ovalueData.planets.map(p => p.pos));
+        return sidebar.filter(p => !collectedPositions.has(p.pos));
+    }
+
+    function getPlanetsMissingLifeform() {
+        const sidebar = getPlanetListFromSidebar();
+        if (sidebar.length === 0) return [];
+        return sidebar.filter(p => p.id && !ovalueData.planetLifeforms[p.id]);
+    }
+
     // --- 2. FUNZIONI DI AGGIORNAMENTO UI ---
 
-    // Posiziona il pannello a sinistra del menu di navigazione di OGame (nello spazio di sfondo)
+    function empireHref() {
+        return '?page=standalone&component=empire';
+    }
+
+    function lifeformColor(name) {
+        return {
+            'Humans':  '#6aafdf',
+            'Rocktal': '#df8a6a',
+            'Mechas':  '#a08ad0',
+            'Kaelesh': '#8adf6a'
+        }[name] || '#a0bcd4';
+    }
+
     function getPanelLeft() {
         const panelWidth = 250;
         const gap = 4;
@@ -87,7 +181,6 @@
     }
 
     function updatePanelStatus() {
-        // ── OVERVIEW ──────────────────────────────────────────────────────────
         const badge = (id, ok) => {
             let el = document.getElementById(id);
             if (!el) return;
@@ -99,9 +192,11 @@
         badge('ov_badge_lf', ovalueData.lf_collected);
         badge('ov_badge_empire', ovalueData.empire_collected);
 
-        // Velocità universo
         let speedEl = document.getElementById('ov_speed');
         if (speedEl) speedEl.textContent = `${serverKey.split('.')[0].toUpperCase()} · eco ${ovalueData.universeSpeed}x`;
+
+        // Aggiorna href dei link Impero
+        document.querySelectorAll('.ov_empire_link').forEach(a => a.setAttribute('href', empireHref()));
 
         // ── Corpo OVERVIEW ───────────────────────────────────────────────────
         let overviewBody = document.getElementById('ov_body_overview');
@@ -149,12 +244,53 @@
         let empBody = document.getElementById('ov_body_empire');
         if (empBody) {
             if (!ovalueData.empire_collected) {
-                empBody.innerHTML = `<div class="ov_hint">Vai alla pagina <a href="?page=empire">Impero</a> e attendi il caricamento.</div>`;
+                empBody.innerHTML = `<div class="ov_hint">Vai alla pagina <a class="ov_empire_link" href="${empireHref()}">Impero</a> e attendi il caricamento.</div>`;
             } else {
                 let html = `
                     <div class="ov_row"><span class="ov_lbl">Pianeti letti</span><span class="ov_val">${ovalueData.planets.length}</span></div>
                     <div class="ov_row"><span class="ov_lbl">Tecnologia Plasma</span><span class="ov_val">Liv. ${ovalueData.settings.plasma}</span></div>
                 `;
+
+                // Pianeti mancanti
+                const missing = getMissingPlanets();
+                if (missing.length > 0) {
+                    html += `<div class="ov_sub_title">⚠ Pianeti Mancanti (${missing.length})</div>`;
+                    html += `<div class="ov_hint" style="margin-bottom:4px">Visita la <a class="ov_empire_link" href="${empireHref()}">pagina Impero</a> per leggerli.</div>`;
+                    missing.forEach(p => {
+                        const label = p.name ? `${p.name} [${p.coords}]` : `[${p.coords}]`;
+                        html += `<div class="ov_row ov_dim"><span class="ov_lbl">✗ ${label}</span><span>—</span></div>`;
+                    });
+                }
+
+                // Pianeti senza lifeform
+                const lfMissing = getPlanetsMissingLifeform();
+                if (lfMissing.length > 0) {
+                    html += `<div class="ov_sub_title">⚠ Razze Mancanti (${lfMissing.length})</div>`;
+                    html += `<div class="ov_hint" style="margin-bottom:4px">Apri ciascun pianeta per registrare la specie attiva.</div>`;
+                    lfMissing.forEach(p => {
+                        const label = p.name ? `${p.name} [${p.coords}]` : `[${p.coords}]`;
+                        const href = `?page=ingame&component=overview&cp=${p.id}`;
+                        html += `<div class="ov_row ov_dim">
+                            <span class="ov_lbl">✗ <a href="${href}" style="color:#5a9aca">${label}</a></span>
+                            <span>—</span>
+                        </div>`;
+                    });
+                }
+
+                // Razze attive note
+                const knownLfPlanets = ovalueData.planets
+                    .map(p => ({ ...p, lifeform: ovalueData.planetLifeforms[p.id] }))
+                    .filter(p => p.lifeform && p.lifeform !== 'none');
+                if (knownLfPlanets.length > 0) {
+                    html += `<div class="ov_sub_title">Razze Attive (${knownLfPlanets.length})</div>`;
+                    knownLfPlanets.forEach(p => {
+                        const color = lifeformColor(p.lifeform);
+                        html += `<div class="ov_row">
+                            <span class="ov_lbl">P${String(p.pos).padStart(2,'0')} · ${p.name || '—'}</span>
+                            <span style="color:${color};font-weight:bold">${p.lifeform}</span>
+                        </div>`;
+                    });
+                }
 
                 // Item globali
                 const items = ovalueData.globalItems;
@@ -192,10 +328,33 @@
         }
     }
 
+    // Legge la lifeform attiva dal blocco #lifeform del pianeta corrente
+    function captureCurrentPlanetLifeform() {
+        if (getCurrentPlanetType() === 'moon') return;
+        const planetId = getCurrentPlanetId();
+        if (!planetId) return;
+        const lifeformBlock = document.querySelector('#lifeform');
+        if (!lifeformBlock) return;
+
+        const icon = lifeformBlock.querySelector('.lifeform-item-icon');
+        if (!icon) {
+            ovalueData.planetLifeforms[planetId] = 'none';
+            return;
+        }
+
+        let detected = 'none';
+        for (const key of ['lifeform1', 'lifeform2', 'lifeform3', 'lifeform4']) {
+            if (icon.classList.contains(key)) {
+                detected = LIFEFORM_NAMES[key];
+                break;
+            }
+        }
+        ovalueData.planetLifeforms[planetId] = detected;
+    }
+
     function parseOverview() {
         let classDiv = document.querySelector('#characterclass .sprite');
         if (classDiv) {
-            // Le classi CSS sono uguali in tutte le lingue
             if (classDiv.classList.contains('explorer')) ovalueData.playerClass = "Esploratore";
             else if (classDiv.classList.contains('miner')) ovalueData.playerClass = "Collezionista";
             else if (classDiv.classList.contains('warrior')) ovalueData.playerClass = "Generale";
@@ -213,16 +372,13 @@
 
             let timeStr = "Permanente";
             if (isHired) {
-                // 1. Prova il timer countdown (formato D:HH:MM:SS)
                 let timerDiv = a.querySelector('.custom-timer-officer, .timer, [class*="timer"]');
                 if (timerDiv) {
                     let raw = timerDiv.innerText.trim();
-                    // Scarta "∞", "Permanente" e stringhe vuote
                     if (raw && !/^(∞|Permanente|Permanent|-|)$/i.test(raw)) {
                         timeStr = raw;
                     }
                 }
-                // 2. Fallback: leggi dalla tooltip (alcuni versioni OGame mostrano la durata lì)
                 if (timeStr === "Permanente") {
                     let tooltip = a.getAttribute('data-tooltip-title') || a.getAttribute('title') || '';
                     let durMatch = tooltip.match(/(?:Durata rimanente|Remaining duration|Verbleibende|Durée)[\s:]*([^<\n|]+)/i);
@@ -234,6 +390,10 @@
 
         ovalueData.officers = officersList;
         ovalueData.overview_collected = true;
+
+        // Cattura lifeform del pianeta corrente
+        captureCurrentPlanetLifeform();
+
         GM_setValue(storageKey, ovalueData);
         updatePanelStatus();
     }
@@ -246,7 +406,6 @@
             let bonusDiv = el.querySelector('.subCategoryBonus');
             if (titleDiv && bonusDiv) {
                 let title = titleDiv.getAttribute('aria-label') || titleDiv.innerText.trim();
-                // Rimuove la parola "Totale:" o "Total:" per le lingue IT/EN
                 let bonus = bonusDiv.innerText.trim().replace(/(Totale:|Total:)/i, '').trim();
 
                 if (title === "Metallo" || title === "Metal") {
@@ -264,10 +423,7 @@
         updatePanelStatus();
     }
 
-    // Estrae la durata rimanente da tooltip e/o elemento DOM.
-    // Gestisce formati IT/EN e il countdown OGame (D:HH:MM:SS).
     function extractDuration(tooltipTitle, imgEl) {
-        // 1. Cerca nel tooltip: "Durata rimanente: X" / "Remaining duration: X"
         let m = tooltipTitle.match(/(?:Durata rimanente|Remaining duration|Verbleibende Laufzeit|Durée restante)\s*:?\s*([^\n|<]+)/i);
         if (m) {
             let val = m[1].trim();
@@ -275,14 +431,12 @@
             if (/^(∞|Permanent|Permanente)$/i.test(val)) return "Permanente";
         }
 
-        // 2. Cerca un timer countdown nel DOM (D:HH:MM:SS)
         if (imgEl) {
             let timerEl = imgEl.querySelector('[class*="timer"], .duration, .countdown');
             if (timerEl) {
                 let raw = timerEl.innerText.trim();
                 if (raw && !/^(∞|-|Permanent|Permanente)$/i.test(raw)) return raw;
             }
-            // 3. Span nascosto con testo alternativo
             let hiddenSpan = imgEl.querySelector('.hidden');
             if (hiddenSpan) {
                 let raw = hiddenSpan.innerText.trim();
@@ -312,14 +466,19 @@
         });
         ovalueData.settings.plasma = plasma;
 
-        // 2. Pianeti, Livelli, LF, Crawlers
+        // 2. Pianeti — usa :not(.summary) per escludere il riquadro totale
         let planetsData = [];
-        document.querySelectorAll('.planet').forEach((p) => {
+        document.querySelectorAll('.planet:not(.summary)').forEach((p) => {
             let coordsText = p.querySelector('.coords')?.innerText || '';
-            let match = coordsText.trim().match(/\[\d+:\d+:(\d+)\]/);
-            if (!match) return;
+            let coordsMatch = coordsText.trim().match(/\[?(\d+):(\d+):(\d+)\]?/);
+            if (!coordsMatch) return;
 
-            let pos = parseInt(match[1]);
+            // Estrai planet ID dal DOM (attributo id="planet-<id>")
+            const planetIdMatch = (p.id || '').match(/\d+/);
+            const planetId = planetIdMatch ? parseInt(planetIdMatch[0]) : null;
+
+            let pos = parseInt(coordsMatch[3]);
+            let coords = `${coordsMatch[1]}:${coordsMatch[2]}:${coordsMatch[3]}`;
             let name = p.querySelector('.planetname')?.innerText.trim() || '';
 
             let getLevel = (container, cls) => {
@@ -341,22 +500,25 @@
 
             let itemValue = 0;
             let itemCustomValue = 0;
-
             p.querySelectorAll('.item_img').forEach(img => {
                 let titleAttr = img.getAttribute('data-tooltip-title') || '';
-                // Booster produzione metallo (usati nei calcoli)
                 if (/metallo Bronzo|Bronze Metal/i.test(titleAttr)) itemValue = Math.max(itemValue, 10);
                 if (/metallo Argento|Silver Metal/i.test(titleAttr)) itemValue = Math.max(itemValue, 20);
                 if (/metallo Oro|Gold Metal/i.test(titleAttr)) itemValue = Math.max(itemValue, 30);
                 if (/metallo Platino|Platinum Metal/i.test(titleAttr)) itemValue = Math.max(itemValue, 40);
-
                 let ampMatch = titleAttr.match(/(?:Amplificatore di risorse|Resource Amplifier)[^\d]*(\d+)/i);
                 if (ampMatch) itemCustomValue = parseInt(ampMatch[1]);
             });
 
+            // Lifeform dalla cache (popolata visitando i pianeti)
+            const lifeform = (planetId != null) ? (ovalueData.planetLifeforms[planetId] || null) : null;
+
             planetsData.push({
+                id: planetId,
                 name,
+                coords,
                 pos,
+                lifeform,
                 metal: getLevel('supply', '1'),
                 crystal: getLevel('supply', '2'),
                 deuterium: getLevel('supply', '3'),
@@ -369,17 +531,15 @@
             });
         });
 
-        // 3. Item Globali — dalla prima sezione .empireItems trovata (uguale per tutti i pianeti)
+        // 3. Item Globali
         let globalItemsData = [];
         const empireItemsEl = document.querySelector('.planet .empireItems') || document.querySelector('.empireItems');
         if (empireItemsEl) {
             empireItemsEl.querySelectorAll('.item_img').forEach(img => {
                 let titleAttr = img.getAttribute('data-tooltip-title') || '';
                 let name = titleAttr.split('|')[0].trim();
-                // Escludi booster produzione già gestiti come itemValue
                 if (!name || /metallo|Metal|Amplificatore|Amplifier/i.test(name)) return;
                 let timeRemaining = extractDuration(titleAttr, img);
-                // Durata totale dell'item (per la barra di avanzamento nello scadenziario)
                 const hiddenSpan = img.querySelector('span.hidden[data-total-duration]');
                 const totalDuration = hiddenSpan ? parseInt(hiddenSpan.getAttribute('data-total-duration')) * 1000 : null;
                 globalItemsData.push({ name, timeRemaining, totalDuration });
@@ -402,6 +562,23 @@
         }
     }
 
+    // Cattura passiva della lifeform su qualsiasi pagina in-game del pianeta
+    function tryCaptureLifeformPassive() {
+        if (getCurrentPlanetType() === 'moon') return;
+        const planetId = getCurrentPlanetId();
+        if (!planetId) return;
+        const lifeformBlock = document.querySelector('#lifeform');
+        if (!lifeformBlock) return;
+
+        const before = ovalueData.planetLifeforms[planetId];
+        captureCurrentPlanetLifeform();
+        const after = ovalueData.planetLifeforms[planetId];
+
+        if (before !== after) {
+            GM_setValue(storageKey, ovalueData);
+            updatePanelStatus();
+        }
+    }
 
     // --- 4. ESECUZIONE ROUTING ---
 
@@ -411,6 +588,9 @@
         setTimeout(parseLFBonuses, 1000);
     } else if (component === 'empire') {
         tryParseEmpire();
+    } else {
+        // Cattura passiva su tutte le altre pagine in-game
+        setTimeout(tryCaptureLifeformPassive, 800);
     }
 
     if (!ovalueData.universeSpeed || ovalueData.universeSpeed === 1) {
@@ -420,7 +600,6 @@
     // --- 5. INTERFACCIA UTENTE ---
 
     GM_addStyle(`
-        /* Panel container */
         #ov_panel {
             position: fixed;
             top: 100px;
@@ -444,66 +623,20 @@
             align-items: center;
             gap: 6px;
         }
-        #ov_header_title {
-            font-weight: bold;
-            color: #c8dff0;
-            font-size: 12px;
-            flex-grow: 1;
-            letter-spacing: 1px;
-        }
-        #ov_speed {
-            font-size: 9px;
-            color: #4a6a8a;
-            margin-right: 4px;
-        }
-        #ov_close_btn {
-            background: none;
-            border: none;
-            color: #4a6a8a;
-            cursor: pointer;
-            font-size: 14px;
-            line-height: 1;
-            padding: 0 2px;
-        }
+        #ov_header_title { font-weight: bold; color: #c8dff0; font-size: 12px; flex-grow: 1; letter-spacing: 1px; }
+        #ov_speed { font-size: 9px; color: #4a6a8a; margin-right: 4px; }
+        #ov_close_btn { background: none; border: none; color: #4a6a8a; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
         #ov_close_btn:hover { color: #8aa8c8; }
         #ov_content { padding: 8px 10px; }
-
-        /* Sections */
         .ov_section { margin-bottom: 6px; }
-        .ov_sec_header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 4px 0;
-            border-bottom: 1px solid #1a2530;
-            margin-bottom: 4px;
-        }
-        .ov_sec_link {
-            font-size: 10px;
-            font-weight: bold;
-            color: #7aaace;
-            text-decoration: none;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
+        .ov_sec_header { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #1a2530; margin-bottom: 4px; }
+        .ov_sec_link { font-size: 10px; font-weight: bold; color: #7aaace; text-decoration: none; letter-spacing: 0.5px; text-transform: uppercase; }
         .ov_sec_link:hover { color: #a0ccee; text-decoration: underline; }
-
-        /* Status badges */
         .ov_badge { font-size: 8px; font-weight: bold; padding: 2px 5px; border-radius: 3px; white-space: nowrap; }
         .ov_ok_badge  { background: #0f2a05; color: #6fc52a; border: 1px solid #2a5010; }
         .ov_ko_badge  { background: #2a0808; color: #d43636; border: 1px solid #5a1010; }
-
-        /* Body rows */
         .ov_body { padding: 0 0 2px 0; }
-        .ov_row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 2px 0;
-            font-size: 10px;
-            border-bottom: 1px solid #141e28;
-            gap: 4px;
-        }
+        .ov_row { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; font-size: 10px; border-bottom: 1px solid #141e28; gap: 4px; }
         .ov_row:last-child { border-bottom: none; }
         .ov_lbl     { color: #5a7a9a; flex-shrink: 0; }
         .ov_val     { color: #a0bcd4; text-align: right; }
@@ -513,41 +646,21 @@
         .ov_dim     { color: #2e3e4e; font-style: italic; }
         .ov_hint    { font-size: 10px; color: #4a6a8a; padding: 3px 0; line-height: 1.4; }
         .ov_hint a  { color: #5a9aca; text-decoration: underline; }
-        .ov_sub_title {
-            font-size: 9px; font-weight: bold; color: #4a6a8a;
-            margin: 5px 0 2px;
-            text-transform: uppercase; letter-spacing: 1px;
-        }
-        .ov_item_name {
-            max-width: 130px; overflow: hidden;
-            text-overflow: ellipsis; white-space: nowrap;
-        }
-
-        /* Buttons */
+        .ov_sub_title { font-size: 9px; font-weight: bold; color: #4a6a8a; margin: 5px 0 2px; text-transform: uppercase; letter-spacing: 1px; }
+        .ov_item_name { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #ov_export_btn, #ov_reset_btn {
-            display: block;
-            width: 100%;
-            margin-top: 8px;
-            padding: 5px 0;
+            display: block; width: 100%; margin-top: 8px; padding: 5px 0;
             background: linear-gradient(to bottom, #2d4055 0%, #182030 100%);
-            border: 1px solid #0a1018;
-            color: #c8dff0;
-            cursor: pointer;
-            border-radius: 3px;
-            font-size: 11px;
-            font-family: inherit;
-            letter-spacing: 0.5px;
+            border: 1px solid #0a1018; color: #c8dff0; cursor: pointer;
+            border-radius: 3px; font-size: 11px; font-family: inherit; letter-spacing: 0.5px;
         }
         #ov_export_btn:hover { background: linear-gradient(to bottom, #3a5268 0%, #202d3e 100%); }
         #ov_reset_btn { background: linear-gradient(to bottom, #3a1010 0%, #1e0808 100%); margin-top: 4px; }
         #ov_reset_btn:hover { background: linear-gradient(to bottom, #4e1515 0%, #280a0a 100%); }
-
-        /* Menu button in OGame sidebar */
         #ov_menu_btn { cursor: pointer; }
     `);
 
     function injectUI() {
-        // ── Bottone nel menu laterale OGame ────────────────────────────────────
         let menuTable = document.getElementById('menuTable');
         if (menuTable) {
             let li = document.createElement('li');
@@ -574,14 +687,10 @@
             });
         }
 
-        // ── Pannello principale ────────────────────────────────────────────────
         const panel = document.createElement('div');
         panel.id = 'ov_panel';
-
-        // Posizionamento: a sinistra del menu nav di OGame, nello spazio di sfondo
         const leftPx = getPanelLeft();
         panel.style.left = leftPx + 'px';
-
         const isPanelOpen = GM_getValue(panelStateKey, false);
         panel.style.display = isPanelOpen ? 'block' : 'none';
 
@@ -592,8 +701,6 @@
                 <button id="ov_close_btn" title="Chiudi">✕</button>
             </div>
             <div id="ov_content">
-
-                <!-- Sezione: Panoramica -->
                 <div class="ov_section">
                     <div class="ov_sec_header">
                         <a class="ov_sec_link" href="?page=ingame&component=overview">👤 Panoramica</a>
@@ -603,8 +710,6 @@
                         <div class="ov_hint">Vai alla <a href="?page=ingame&component=overview">Panoramica</a> e attendi il caricamento.</div>
                     </div>
                 </div>
-
-                <!-- Sezione: Lifeform -->
                 <div class="ov_section">
                     <div class="ov_sec_header">
                         <a class="ov_sec_link" href="?page=ingame&component=lfbonuses">🧬 LifeForm</a>
@@ -614,18 +719,15 @@
                         <div class="ov_hint">Vai ai <a href="?page=ingame&component=lfbonuses">Bonus LifeForm</a> e attendi il caricamento.</div>
                     </div>
                 </div>
-
-                <!-- Sezione: Impero -->
                 <div class="ov_section">
                     <div class="ov_sec_header">
-                        <a class="ov_sec_link" href="?page=empire">🌍 Impero</a>
+                        <a class="ov_sec_link ov_empire_link" href="${empireHref()}">🌍 Impero</a>
                         <span id="ov_badge_empire" class="ov_badge ov_ko_badge">✗ MANCANTE</span>
                     </div>
                     <div id="ov_body_empire" class="ov_body">
-                        <div class="ov_hint">Vai alla pagina <a href="?page=empire">Impero</a> e attendi il caricamento.</div>
+                        <div class="ov_hint">Vai alla pagina <a class="ov_empire_link" href="${empireHref()}">Impero</a> e attendi il caricamento.</div>
                     </div>
                 </div>
-
                 <button id="ov_export_btn">⬇ Esporta Dati OValue</button>
                 <button id="ov_reset_btn">🗑 Svuota Cache Universo</button>
             </div>
@@ -634,10 +736,8 @@
 
         updatePanelStatus();
 
-        // Riposiziona il pannello se il sidebar si carica dopo
         setTimeout(() => {
-            const updatedLeft = getPanelLeft();
-            panel.style.left = updatedLeft + 'px';
+            panel.style.left = getPanelLeft() + 'px';
         }, 1500);
 
         document.getElementById('ov_close_btn').addEventListener('click', () => {
@@ -646,6 +746,14 @@
         });
 
         document.getElementById('ov_export_btn').addEventListener('click', () => {
+            // Riallinea planet.lifeform dalla mappa planetLifeforms prima dell'export
+            ovalueData.planets.forEach(p => {
+                if (p.id != null && ovalueData.planetLifeforms[p.id]) {
+                    p.lifeform = ovalueData.planetLifeforms[p.id];
+                }
+            });
+            GM_setValue(storageKey, ovalueData);
+
             const jsonString = JSON.stringify(ovalueData, null, 2);
             if (typeof GM_setClipboard !== 'undefined') {
                 GM_setClipboard(jsonString, 'text');

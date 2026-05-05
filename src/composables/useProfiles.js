@@ -231,7 +231,7 @@ export function useProfiles() {
     const importFromExporter = (allData) => {
         if (!allData || typeof allData !== 'object') return false;
 
-        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mechas', 'Kaelesh': 'kaelesh' };
+        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'mecha' };
         const classMap = { 'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer' };
 
         // Aggiorna lista server noti

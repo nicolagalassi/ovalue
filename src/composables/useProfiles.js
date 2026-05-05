@@ -225,89 +225,120 @@ export function useProfiles() {
         saveProfiles();
     };
 
-    // Importa i dati dal formato dell'OValue Exporter nel profilo attivo.
+    // Importa i dati dall'OValue Exporter.
     // allData = { 'serverHostname': exporterData, ... }
+    // Per ogni server trova o crea automaticamente un profilo dedicato.
     const importFromExporter = (allData) => {
-        const profile = activeProfile.value;
-        if (!profile || !allData || typeof allData !== 'object') return false;
+        if (!allData || typeof allData !== 'object') return false;
 
-        // Determina quale server usare per questo profilo
-        let serverKey = profile.syncServer;
-        if (!serverKey || !allData[serverKey]) {
-            serverKey = Object.keys(allData)[0];
-            if (!serverKey) return false;
-            profile.syncServer = serverKey;
-        }
+        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mechas', 'Kaelesh': 'kaelesh' };
+        const classMap = { 'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer' };
 
-        const raw = allData[serverKey];
-        if (!raw) return false;
-
-        // Aggiorna la lista dei server noti e persistila per la UI
+        // Aggiorna lista server noti
         const serverList = Object.keys(allData);
         if (serverList.length > 0) {
             knownServers.value = serverList;
             localStorage.setItem('ovalue_known_servers', JSON.stringify(serverList));
         }
 
-        // Officers e globalItems — aggiornati SEMPRE, anche con autoSync=false
-        if (raw.officers) profile.expirations.officers = { ...raw.officers };
-        if (Array.isArray(raw.globalItems)) profile.expirations.globalItems = [...raw.globalItems];
+        let didImport = false;
 
-        // Se autoSync è disabilitato, non toccare i dati di produzione
-        if (!profile.autoSync) {
-            profile.lastSync = Date.now();
-            saveProfiles();
-            return true;
-        }
+        for (const [serverKey, raw] of Object.entries(allData)) {
+            if (!raw) continue;
 
-        // Mappa classe giocatore
-        const classMap = { 'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer' };
-        if (raw.playerClass && raw.playerClass !== 'none') {
-            profile.production.settings.playerClass = classMap[raw.playerClass] ?? profile.production.settings.playerClass;
-        }
-        if (raw.settings?.plasma != null) profile.production.settings.plasma = Number(raw.settings.plasma);
-        if (raw.universeSpeed != null) profile.production.settings.ecoSpeed = Number(raw.universeSpeed);
-        if (raw.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(raw.lfBonuses.metal) || 0;
-
-        // Mappa officer specifici nelle impostazioni di produzione
-        if (raw.officers) {
-            const geologo = raw.officers['Geologo'];
-            if (geologo) profile.production.settings.geologist = geologo.active === true;
-            const ORDER = ['Comandante', 'Ammiraglio', 'Ingegnere', 'Geologo', 'Tecnico'];
-            const allFive = ORDER.every(n => raw.officers[n]?.active === true);
-            if (ORDER.some(n => raw.officers[n] !== undefined)) {
-                profile.production.settings.staff = allFive;
-            }
-        }
-
-        // Importa pianeti
-        if (Array.isArray(raw.planets) && raw.planets.length > 0) {
-            // Mappa nomi lifeform uppercase (esporter) → lowercase (app)
-            const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mechas', 'Kaelesh': 'kaelesh' };
-            profile.production.planets = raw.planets.map(p => {
-                // Usa planet.lifeform; se non disponibile prova planetLifeforms[p.id]
-                const rawLf = p.lifeform || (raw.planetLifeforms?.[p.id]) || null;
-                const lifeform = (rawLf && lfMap[rawLf]) ? lfMap[rawLf] : (rawLf ?? 'humans');
-                return {
-                    name: p.name ?? '',
-                    pos: p.pos ?? 8,
-                    metal: p.metal ?? 0,
-                    crystal: p.crystal ?? 0,
-                    deuterium: p.deuterium ?? 0,
-                    magma: p.magma ?? 0,
-                    human: p.human ?? 0,
-                    crawlers: p.crawlers ?? 0,
-                    item: p.item ?? 0,
-                    itemCustom: p.itemCustom ?? 0,
-                    lifeform,
-                    overload: p.overload ?? false
+            // Trova o crea automaticamente un profilo per questo server
+            let profile = profiles.value.find(p => p.syncServer === serverKey);
+            if (!profile) {
+                const universeName = serverKey.split('.')[0]; // es. 's165-it'
+                const newP = {
+                    id: 'p' + Date.now() + Math.random().toString(36).slice(2, 5),
+                    name: universeName,
+                    production: createDefaultProduction(),
+                    packExchange: createDefaultPackExchange(),
+                    shoppingList: createDefaultShoppingList(),
+                    expirations: createDefaultExpirations(),
+                    autoSync: true,
+                    lastSync: null,
+                    syncServer: serverKey
                 };
-            });
+                profiles.value.push(newP);
+                profile = newP;
+                // Switcha automaticamente al profilo appena creato
+                activeProfileId.value = profile.id;
+            }
+
+            // Officers/globalItems — aggiornati sempre, anche con autoSync=false
+            if (raw.officers) profile.expirations.officers = { ...raw.officers };
+            if (Array.isArray(raw.globalItems)) profile.expirations.globalItems = [...raw.globalItems];
+
+            if (!profile.autoSync) {
+                profile.lastSync = Date.now();
+                didImport = true;
+                continue;
+            }
+
+            // Importa impostazioni di produzione
+            if (raw.playerClass && raw.playerClass !== 'none') {
+                profile.production.settings.playerClass = classMap[raw.playerClass] ?? profile.production.settings.playerClass;
+            }
+            if (raw.settings?.plasma != null) profile.production.settings.plasma = Number(raw.settings.plasma);
+            if (raw.universeSpeed != null) profile.production.settings.ecoSpeed = Number(raw.universeSpeed);
+            if (raw.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(raw.lfBonuses.metal) || 0;
+
+            // Officer → impostazioni produzione
+            if (raw.officers) {
+                const geologo = raw.officers['Geologo'];
+                if (geologo) profile.production.settings.geologist = geologo.active === true;
+                const ORDER = ['Comandante', 'Ammiraglio', 'Ingegnere', 'Geologo', 'Tecnico'];
+                const allFive = ORDER.every(n => raw.officers[n]?.active === true);
+                if (ORDER.some(n => raw.officers[n] !== undefined)) {
+                    profile.production.settings.staff = allFive;
+                }
+            }
+
+            // Importa pianeti — lfMap[rawLf] ?? 'humans' gestisce anche 'none'/null
+            if (Array.isArray(raw.planets) && raw.planets.length > 0) {
+                profile.production.planets = raw.planets.map(p => {
+                    const rawLf = p.lifeform || (raw.planetLifeforms?.[p.id]) || null;
+                    const lifeform = lfMap[rawLf] ?? 'humans';
+                    return {
+                        name: p.name ?? '',
+                        pos: p.pos ?? 8,
+                        metal: p.metal ?? 0,
+                        crystal: p.crystal ?? 0,
+                        deuterium: p.deuterium ?? 0,
+                        magma: p.magma ?? 0,
+                        human: p.human ?? 0,
+                        crawlers: p.crawlers ?? 0,
+                        item: p.item ?? 0,
+                        itemCustom: p.itemCustom ?? 0,
+                        lifeform,
+                        overload: p.overload ?? false
+                    };
+                });
+            }
+
+            profile.lastSync = Date.now();
+            didImport = true;
         }
 
-        profile.lastSync = Date.now();
+        if (didImport) saveProfiles();
+        return didImport;
+    };
+
+    // Crea una copia del profilo con autoSync disabilitato (per modifiche manuali/stime)
+    const duplicateProfile = (id) => {
+        const source = profiles.value.find(p => p.id === id);
+        if (!source) return;
+        const copy = JSON.parse(JSON.stringify(source));
+        copy.id = 'p' + Date.now();
+        copy.name = source.name + ' (copia)';
+        copy.autoSync = false;
+        copy.syncServer = null;
+        copy.lastSync = null;
+        profiles.value.push(copy);
+        activeProfileId.value = copy.id;
         saveProfiles();
-        return true;
     };
 
     const toggleAutoSync = () => {
@@ -338,6 +369,7 @@ export function useProfiles() {
         exportProfiles,
         importProfiles,
         importFromExporter,
+        duplicateProfile,
         toggleAutoSync,
         setSyncServer
     };

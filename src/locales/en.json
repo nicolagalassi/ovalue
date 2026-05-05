@@ -7,6 +7,7 @@
     "lbl_profiles": "Profiles Management",
     "btn_new_profile": "New Profile",
     "btn_rename": "Rename",
+    "btn_duplicate": "Duplicate for manual estimates",
     "btn_delete": "Delete",
     "profile_active": "Active Profile",
     "profile_manage": "Manage Profiles",

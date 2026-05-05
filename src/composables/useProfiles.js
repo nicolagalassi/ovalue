@@ -249,7 +249,7 @@ export function useProfiles() {
             // Trova o crea automaticamente un profilo per questo server
             let profile = profiles.value.find(p => p.syncServer === serverKey);
             if (!profile) {
-                const universeName = serverKey.split('.')[0]; // es. 's165-it'
+                const universeName = raw.universeName || serverKey.split('.')[0];
                 const newP = {
                     id: 'p' + Date.now() + Math.random().toString(36).slice(2, 5),
                     name: universeName,

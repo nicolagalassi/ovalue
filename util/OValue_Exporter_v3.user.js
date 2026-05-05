@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.1.0
+// @version      3.1.1
 // @description  Raccoglie i dati dell'impero navigando per le pagine, li memorizza per universo e li sincronizza automaticamente con OValue
 // @author       OValue
 // @license      MIT
@@ -76,11 +76,13 @@
         planets: [],
         planetLifeforms: {},
         globalItems: [],
-        universeSpeed: 1
+        universeSpeed: 1,
+        universeName: ''
     });
 
-    // Migrazione: chi aveva versioni precedenti potrebbe non avere planetLifeforms
+    // Migrazione: versioni precedenti potrebbero non avere questi campi
     if (!ovalueData.planetLifeforms) ovalueData.planetLifeforms = {};
+    if (!ovalueData.universeName) ovalueData.universeName = '';
 
     const urlParams = new URLSearchParams(window.location.search);
     const page = urlParams.get('page');
@@ -321,10 +323,11 @@
             let parser = new DOMParser();
             let xmlDoc = parser.parseFromString(text, "text/xml");
             ovalueData.universeSpeed = xmlDoc.getElementsByTagName("speed")[0]?.textContent || 1;
+            ovalueData.universeName = xmlDoc.getElementsByTagName("name")[0]?.textContent || '';
             GM_setValue(storageKey, ovalueData);
             updatePanelStatus();
         } catch (e) {
-            console.error("OValue Exporter: Impossibile recuperare la velocità dell'universo", e);
+            console.error("OValue Exporter: Impossibile recuperare il nome dell'universo", e);
         }
     }
 

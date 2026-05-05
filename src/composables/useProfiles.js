@@ -282,20 +282,27 @@ export function useProfiles() {
 
         // Importa pianeti
         if (Array.isArray(raw.planets) && raw.planets.length > 0) {
-            profile.production.planets = raw.planets.map(p => ({
-                name: p.name ?? '',
-                pos: p.pos ?? 8,
-                metal: p.metal ?? 0,
-                crystal: p.crystal ?? 0,
-                deuterium: p.deuterium ?? 0,
-                magma: p.magma ?? 0,
-                human: p.human ?? 0,
-                crawlers: p.crawlers ?? 0,
-                item: p.item ?? 0,
-                itemCustom: p.itemCustom ?? 0,
-                lifeform: p.lifeform ?? 'humans',
-                overload: p.overload ?? false
-            }));
+            // Mappa nomi lifeform uppercase (esporter) → lowercase (app)
+            const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mechas', 'Kaelesh': 'kaelesh' };
+            profile.production.planets = raw.planets.map(p => {
+                // Usa planet.lifeform; se non disponibile prova planetLifeforms[p.id]
+                const rawLf = p.lifeform || (raw.planetLifeforms?.[p.id]) || null;
+                const lifeform = (rawLf && lfMap[rawLf]) ? lfMap[rawLf] : (rawLf ?? 'humans');
+                return {
+                    name: p.name ?? '',
+                    pos: p.pos ?? 8,
+                    metal: p.metal ?? 0,
+                    crystal: p.crystal ?? 0,
+                    deuterium: p.deuterium ?? 0,
+                    magma: p.magma ?? 0,
+                    human: p.human ?? 0,
+                    crawlers: p.crawlers ?? 0,
+                    item: p.item ?? 0,
+                    itemCustom: p.itemCustom ?? 0,
+                    lifeform,
+                    overload: p.overload ?? false
+                };
+            });
         }
 
         profile.lastSync = Date.now();

@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      2.2.0
-// @description  Raccoglie i dati dell'impero navigando per le pagine, li memorizza per universo e li esporta
+// @version      3.0.0
+// @description  Raccoglie i dati dell'impero navigando per le pagine, li memorizza per universo e li sincronizza automaticamente con OValue
 // @author       OValue
 // @license      MIT
 // @match        https://*.ogame.gameforge.com/game/index.php*
+// @match        https://ovalue.net/*
+// @match        https://www.ovalue.net/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=ogame.gameforge.com
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -18,9 +20,35 @@
 (async function () {
     'use strict';
 
+    // Bridge mode: quando lo script gira su ovalue.net, trasferisce i dati
+    // da GM_setValue (storage estensione) a localStorage (leggibile dall'app Vue)
+    function syncToOValue() {
+        const servers = GM_getValue('ovalue_servers', []);
+        const allData = {};
+        for (const srv of servers) {
+            const d = GM_getValue('ovalue_data_' + srv, null);
+            if (d) allData[srv] = d;
+        }
+        if (Object.keys(allData).length === 0) return;
+        localStorage.setItem('ovalue_exporter_pending', JSON.stringify(allData));
+        window.dispatchEvent(new CustomEvent('ovalue-exporter-sync', { detail: allData }));
+    }
+
+    if (window.location.hostname.includes('ovalue.net')) {
+        syncToOValue();
+        return;
+    }
+
     // 1. CHIAVI DI STORAGE
     const serverKey = window.location.hostname;
     const storageKey = 'ovalue_data_' + serverKey;
+
+    // Aggiorna la lista dei server visitati (usata dal bridge su ovalue.net)
+    const knownServers = GM_getValue('ovalue_servers', []);
+    if (!knownServers.includes(serverKey)) {
+        knownServers.push(serverKey);
+        GM_setValue('ovalue_servers', knownServers);
+    }
     const panelStateKey = 'ovalue_panel_state';
 
     // Recupera lo stato attuale dei dati per QUESTO universo

@@ -543,5 +543,14 @@
     "help_profiles_desc": "OValue ti permette di creare profili separati (es. per universi diversi). Puoi creare, rinominare o eliminare profili direttamente dall'header.\n\nUsa le funzioni di Import/Export Backup per trasferire i tuoi dati e le tue configurazioni su un altro dispositivo o browser.",
 
     "help_btn_close": "Chiudi",
-    "help_btn_open": "Apri"
+    "help_btn_open": "Apri",
+
+    "sync_label": "Sync OGame",
+    "sync_auto": "Auto",
+    "sync_manual": "Manuale",
+    "sync_last": "Ultima sync:",
+    "sync_never": "mai",
+    "sync_toggle_enable": "Abilita sync automatica (i dati di produzione verranno sovrascritti alla prossima sync)",
+    "sync_toggle_disable": "Disabilita sync automatica per modificare i dati di produzione manualmente",
+    "sync_server_label": "Server OGame per questo profilo"
 }

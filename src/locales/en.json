@@ -543,5 +543,14 @@
     "help_profiles_desc": "OValue allows you to create separate profiles (e.g., for different universes). You can create, rename, or delete profiles directly from the header.\n\nUse the Backup Import/Export functions to transfer your data and settings to another device or browser.",
 
     "help_btn_close": "Close",
-    "help_btn_open": "Open"
+    "help_btn_open": "Open",
+
+    "sync_label": "OGame Sync",
+    "sync_auto": "Auto",
+    "sync_manual": "Manual",
+    "sync_last": "Last sync:",
+    "sync_never": "never",
+    "sync_toggle_enable": "Enable auto-sync (production data will be overwritten on next sync)",
+    "sync_toggle_disable": "Disable auto-sync to edit production data manually",
+    "sync_server_label": "OGame server for this profile"
 }

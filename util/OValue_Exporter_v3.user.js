@@ -610,7 +610,7 @@
         setTimeout(tryCaptureLifeformPassive, 800);
     }
 
-    if (!ovalueData.universeSpeed || ovalueData.universeSpeed === 1) {
+    if (!ovalueData.universeSpeed || ovalueData.universeSpeed === 1 || !ovalueData.universeName) {
         fetchUniverseSpeed();
     }
 

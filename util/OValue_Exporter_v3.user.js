@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.1.1
+// @version      3.1.2
 // @description  Raccoglie i dati dell'impero navigando per le pagine, li memorizza per universo e li sincronizza automaticamente con OValue
 // @author       OValue
 // @license      MIT
@@ -470,18 +470,29 @@
         ovalueData.settings.plasma = plasma;
 
         // 2. Pianeti — usa :not(.summary) per escludere il riquadro totale
+        // Costruisci mappa coordinate → ID dal menu laterale come fallback:
+        // la pagina Impero standalone potrebbe non avere id="planet-XXXXX"
+        // sugli elementi .planet, ma il menu laterale ha sempre ?cp=<id>.
+        const sidebarPlanets = getPlanetListFromSidebar();
+        const coordToId = {};
+        sidebarPlanets.forEach(sp => { if (sp.id && sp.coords) coordToId[sp.coords] = sp.id; });
+
         let planetsData = [];
         document.querySelectorAll('.planet:not(.summary)').forEach((p) => {
             let coordsText = p.querySelector('.coords')?.innerText || '';
             let coordsMatch = coordsText.trim().match(/\[?(\d+):(\d+):(\d+)\]?/);
             if (!coordsMatch) return;
 
-            // Estrai planet ID dal DOM (attributo id="planet-<id>")
+            const coords = `${coordsMatch[1]}:${coordsMatch[2]}:${coordsMatch[3]}`;
+
+            // Planet ID: 1) attributo id="planet-XXXXX" sul DOM (pagine in-game normali)
+            //            2) menu laterale abbinato per coordinate (empire standalone)
             const planetIdMatch = (p.id || '').match(/\d+/);
-            const planetId = planetIdMatch ? parseInt(planetIdMatch[0]) : null;
+            const planetId = (planetIdMatch ? parseInt(planetIdMatch[0]) : null)
+                          || coordToId[coords]
+                          || null;
 
             let pos = parseInt(coordsMatch[3]);
-            let coords = `${coordsMatch[1]}:${coordsMatch[2]}:${coordsMatch[3]}`;
             let name = p.querySelector('.planetname')?.innerText.trim() || '';
 
             let getLevel = (container, cls) => {
@@ -513,7 +524,10 @@
                 if (ampMatch) itemCustomValue = parseInt(ampMatch[1]);
             });
 
-            // Lifeform dalla cache (popolata visitando i pianeti)
+            // Lifeform dalla cache (popolata visitando i singoli pianeti).
+            // La pagina Impero standalone potrebbe non avere id="planet-XXXXX"
+            // sul .planet, quindi usiamo le coordinate come chiave alternativa
+            // per collegare il pianeta all'ID letto dal menu laterale.
             const lifeform = (planetId != null) ? (ovalueData.planetLifeforms[planetId] || null) : null;
 
             planetsData.push({

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.1.2
+// @version      3.1.3
 // @description  Raccoglie i dati dell'impero navigando per le pagine, li memorizza per universo e li sincronizza automaticamente con OValue
 // @author       OValue
 // @license      MIT
@@ -197,8 +197,12 @@
         let speedEl = document.getElementById('ov_speed');
         if (speedEl) speedEl.textContent = `${serverKey.split('.')[0].toUpperCase()} · eco ${ovalueData.universeSpeed}x`;
 
-        // Aggiorna href dei link Impero
-        document.querySelectorAll('.ov_empire_link').forEach(a => a.setAttribute('href', empireHref()));
+        // Aggiorna href dei link Impero (nuova scheda)
+        document.querySelectorAll('.ov_empire_link').forEach(a => {
+            a.setAttribute('href', empireHref());
+            a.setAttribute('target', '_blank');
+            a.setAttribute('rel', 'noopener noreferrer');
+        });
 
         // ── Corpo OVERVIEW ───────────────────────────────────────────────────
         let overviewBody = document.getElementById('ov_body_overview');
@@ -570,6 +574,52 @@
         updatePanelStatus();
     }
 
+    // Legge passivamente i livelli di miniere/edifici dal pianeta corrente.
+    // Usa gli stessi selettori dell'Impero, ma senza il contesto `.planet`.
+    // Se non trova nulla lascia i dati invariati (fallisce silenziosamente).
+    function parsePlanetBuildings() {
+        if (getCurrentPlanetType() === 'moon') return;
+        const planetId = getCurrentPlanetId();
+        if (!planetId) return;
+        const planet = ovalueData.planets.find(p => p.id === planetId);
+        if (!planet) return;
+
+        const readLevel = (container, cls) => {
+            const node = document.querySelector('.' + container + ' [class~="' + cls + '"]');
+            if (!node) return null;
+            const a = node.querySelector('a:not(.active)');
+            const src = a || node.querySelector('span');
+            if (src) {
+                const m = src.innerText.replace(/\./g, '').match(/\d+/);
+                if (m) return parseInt(m[0]);
+            }
+            const m = node.innerText.replace(/\./g, '').match(/\d+/);
+            return m ? parseInt(m[0]) : null;
+        };
+
+        const fields = {
+            metal:     readLevel('supply', '1'),
+            crystal:   readLevel('supply', '2'),
+            deuterium: readLevel('supply', '3'),
+            crawlers:  readLevel('ships', '217'),
+            human:     readLevel('lifeform1buildings', '11106'),
+            magma:     readLevel('lifeform2buildings', '12106'),
+        };
+
+        let updated = false;
+        for (const [key, val] of Object.entries(fields)) {
+            if (val !== null && planet[key] !== val) {
+                planet[key] = val;
+                updated = true;
+            }
+        }
+
+        if (updated) {
+            GM_setValue(storageKey, ovalueData);
+            updatePanelStatus();
+        }
+    }
+
     function tryParseEmpire() {
         let coordsNodes = document.querySelectorAll('.planet .coords');
         if (coordsNodes.length > 0) {
@@ -600,14 +650,19 @@
     // --- 4. ESECUZIONE ROUTING ---
 
     if (page === 'ingame' && component === 'overview') {
+        // Overview: legge ufficiali + lifeform, poi prova anche miniere (stessa struttura dell'Impero)
         setTimeout(parseOverview, 1000);
+        setTimeout(parsePlanetBuildings, 1500);
     } else if (page === 'ingame' && component === 'lfbonuses') {
         setTimeout(parseLFBonuses, 1000);
     } else if (component === 'empire') {
         tryParseEmpire();
     } else {
-        // Cattura passiva su tutte le altre pagine in-game
-        setTimeout(tryCaptureLifeformPassive, 800);
+        // Qualsiasi altra pagina in-game: prova lifeform + miniere passivamente
+        setTimeout(() => {
+            tryCaptureLifeformPassive();
+            parsePlanetBuildings();
+        }, 1000);
     }
 
     if (!ovalueData.universeSpeed || ovalueData.universeSpeed === 1 || !ovalueData.universeName) {
@@ -738,11 +793,11 @@
                 </div>
                 <div class="ov_section">
                     <div class="ov_sec_header">
-                        <a class="ov_sec_link ov_empire_link" href="${empireHref()}">🌍 Impero</a>
+                        <a class="ov_sec_link ov_empire_link" href="${empireHref()}" target="_blank" rel="noopener noreferrer">🌍 Impero</a>
                         <span id="ov_badge_empire" class="ov_badge ov_ko_badge">✗ MANCANTE</span>
                     </div>
                     <div id="ov_body_empire" class="ov_body">
-                        <div class="ov_hint">Vai alla pagina <a class="ov_empire_link" href="${empireHref()}">Impero</a> e attendi il caricamento.</div>
+                        <div class="ov_hint">Vai alla pagina <a class="ov_empire_link" href="${empireHref()}" target="_blank" rel="noopener noreferrer">Impero</a> e attendi il caricamento.</div>
                     </div>
                 </div>
                 <button id="ov_export_btn">⬇ Esporta Dati OValue</button>

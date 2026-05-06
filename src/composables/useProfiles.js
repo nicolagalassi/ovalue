@@ -52,6 +52,30 @@ const createDefaultExpirations = () => ({
     globalItems: []
 });
 
+// Converte "Xd Yh Zm" / "Xg Yh Zm" (italiano) in Unix timestamp ms.
+// Restituisce null per valori permanenti/assenti.
+const parseTimeRemainingToExpires = (timeRemaining) => {
+    if (!timeRemaining) return null;
+    const s = String(timeRemaining).trim();
+    if (/^(permanente|permanent|∞|-|)$/i.test(s)) return null;
+    let ms = 0;
+    const dMatch = s.match(/(\d+)\s*[dg]/i);
+    const hMatch = s.match(/(\d+)\s*h/i);
+    const mMatch = s.match(/(\d+)\s*m(?!s)/i);
+    if (dMatch) ms += parseInt(dMatch[1]) * 86400000;
+    if (hMatch) ms += parseInt(hMatch[1]) * 3600000;
+    if (mMatch) ms += parseInt(mMatch[1]) * 60000;
+    if (ms === 0) {
+        const parts = s.match(/(\d+):(\d+)(?::(\d+))?/);
+        if (parts) {
+            ms += parseInt(parts[1]) * 3600000;
+            ms += parseInt(parts[2]) * 60000;
+            if (parts[3]) ms += parseInt(parts[3]) * 1000;
+        }
+    }
+    return ms > 0 ? Date.now() + ms : null;
+};
+
 export function useProfiles() {
     const activeProfile = computed(() => profiles.value.find(p => p.id === activeProfileId.value));
 
@@ -268,8 +292,24 @@ export function useProfiles() {
             }
 
             // Officers/globalItems — aggiornati sempre, anche con autoSync=false
-            if (raw.officers) profile.expirations.officers = { ...raw.officers };
-            if (Array.isArray(raw.globalItems)) profile.expirations.globalItems = [...raw.globalItems];
+            // Converte timeRemaining (stringa OGame) → expires (Unix timestamp ms)
+            if (raw.officers) {
+                const converted = {};
+                for (const [name, off] of Object.entries(raw.officers)) {
+                    converted[name] = {
+                        active: off.active,
+                        expires: off.active ? parseTimeRemainingToExpires(off.timeRemaining) : null
+                    };
+                }
+                profile.expirations.officers = converted;
+            }
+            if (Array.isArray(raw.globalItems)) {
+                profile.expirations.globalItems = raw.globalItems.map(item => ({
+                    name: item.name,
+                    expires: parseTimeRemainingToExpires(item.timeRemaining),
+                    totalDuration: item.totalDuration ?? null
+                }));
+            }
 
             if (!profile.autoSync) {
                 profile.lastSync = Date.now();

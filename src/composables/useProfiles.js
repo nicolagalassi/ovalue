@@ -52,20 +52,38 @@ const createDefaultExpirations = () => ({
     globalItems: []
 });
 
-// Converte "Xd Yh Zm" / "Xg Yh Zm" (italiano) in Unix timestamp ms.
+// Converte le stringhe di durata OGame in Unix timestamp ms.
+// OGame IT usa: s=settimane (se prima di g/o/m) o secondi (se dopo), g=giorni, o=ore, m=minuti.
 // Restituisce null per valori permanenti/assenti.
 const parseTimeRemainingToExpires = (timeRemaining) => {
     if (!timeRemaining) return null;
     const s = String(timeRemaining).trim();
     if (/^(permanente|permanent|∞|-|)$/i.test(s)) return null;
+
     let ms = 0;
-    const dMatch = s.match(/(\d+)\s*[dg]/i);
-    const hMatch = s.match(/(\d+)\s*h/i);
-    const mMatch = s.match(/(\d+)\s*m(?!s)/i);
-    if (dMatch) ms += parseInt(dMatch[1]) * 86400000;
-    if (hMatch) ms += parseInt(hMatch[1]) * 3600000;
-    if (mMatch) ms += parseInt(mMatch[1]) * 60000;
-    if (ms === 0) {
+    const tokens = [...s.matchAll(/(\d+)\s*([a-zA-Z]+)/g)];
+
+    if (tokens.length > 0) {
+        let seenSubWeek = false; // true dopo aver incontrato g/o/m
+        for (const [, numStr, unit] of tokens) {
+            const n = parseInt(numStr);
+            const u = unit.toLowerCase();
+            if (u.startsWith('sett') || u.startsWith('week')) {
+                ms += n * 604800000;                      // settimane / weeks
+            } else if (u === 'g' || u.startsWith('gior') || u.startsWith('day')) {
+                seenSubWeek = true; ms += n * 86400000;   // giorni / days
+            } else if (u === 'o' || u === 'h' || u.startsWith('or') || u.startsWith('hour')) {
+                seenSubWeek = true; ms += n * 3600000;    // ore / hours
+            } else if (u === 'm' || u.startsWith('min')) {
+                seenSubWeek = true; ms += n * 60000;      // minuti / minutes
+            } else if (u.startsWith('sec')) {
+                ms += n * 1000;                           // secondi / seconds (full word)
+            } else if (u === 's') {
+                if (seenSubWeek) ms += n * 1000;          // 's' dopo g/o/m → secondi
+                else             ms += n * 604800000;     // 's' prima di g/o/m → settimane
+            }
+        }
+    } else {
         const parts = s.match(/(\d+):(\d+)(?::(\d+))?/);
         if (parts) {
             ms += parseInt(parts[1]) * 3600000;
@@ -73,6 +91,7 @@ const parseTimeRemainingToExpires = (timeRemaining) => {
             if (parts[3]) ms += parseInt(parts[3]) * 1000;
         }
     }
+
     return ms > 0 ? Date.now() + ms : null;
 };
 

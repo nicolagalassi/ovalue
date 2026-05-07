@@ -8,7 +8,15 @@ const { t } = useLanguage();
 
 <template>
   <div class="flex flex-col items-center justify-between w-full flex-grow h-full relative overflow-hidden bg-[#050505]">
-    
+
+    <!-- Beta banner -->
+    <div class="w-full bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 flex items-center justify-center gap-3 z-10">
+      <svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      <p class="text-xs text-amber-300/90 font-medium text-center">
+        <span class="font-black uppercase tracking-widest text-amber-400 mr-1.5">Beta</span>{{ t('banner_beta') }}
+      </p>
+    </div>
+
     <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[1px] h-full bg-gradient-to-b from-transparent via-white/5 to-transparent z-0"></div>
     
     <div class="flex-shrink-0 text-center relative w-full max-w-4xl z-10 px-4 py-4 md:py-6 flex flex-col justify-center mt-0 mx-auto">

@@ -49,6 +49,14 @@ const routes = [
         }
     },
     {
+        path: '/settings',
+        component: () => import('./views/SettingsView.vue'),
+        meta: {
+            title: 'Impostazioni - OValue',
+            description: 'Gestisci profili, sincronizzazione e preferenze di OValue.'
+        }
+    },
+    {
         path: '/:pathMatch(.*)*',
         name: 'NotFound',
         component: () => import('./views/NotFound.vue'),

@@ -385,6 +385,76 @@ export function useProfiles() {
         return didImport;
     };
 
+    // Importa dati grezzi OGame direttamente nel profilo attivo (import manuale da textarea).
+    // Accetta lo stesso formato JSON prodotto dall'Exporter senza richiedere il wrapper server.
+    const importManual = (rawData) => {
+        const profile = activeProfile.value;
+        if (!profile || !rawData || typeof rawData !== 'object') return false;
+
+        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'mecha' };
+        const classMap = { 'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer' };
+
+        if (rawData.officers) {
+            const converted = {};
+            for (const [name, off] of Object.entries(rawData.officers)) {
+                converted[name] = {
+                    active: off.active,
+                    expires: off.active ? parseTimeRemainingToExpires(off.timeRemaining) : null
+                };
+            }
+            profile.expirations.officers = converted;
+        }
+        if (Array.isArray(rawData.globalItems)) {
+            profile.expirations.globalItems = rawData.globalItems.map(item => ({
+                name: item.name,
+                expires: parseTimeRemainingToExpires(item.timeRemaining),
+                totalDuration: item.totalDuration ?? null
+            }));
+        }
+
+        if (rawData.playerClass && rawData.playerClass !== 'none') {
+            profile.production.settings.playerClass = classMap[rawData.playerClass] ?? profile.production.settings.playerClass;
+        }
+        if (rawData.settings?.plasma != null) profile.production.settings.plasma = Number(rawData.settings.plasma);
+        if (rawData.universeSpeed != null) profile.production.settings.ecoSpeed = Number(rawData.universeSpeed);
+        if (rawData.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(rawData.lfBonuses.metal) || 0;
+
+        if (rawData.officers) {
+            const geologo = rawData.officers['Geologo'];
+            if (geologo) profile.production.settings.geologist = geologo.active === true;
+            const ORDER = ['Comandante', 'Ammiraglio', 'Ingegnere', 'Geologo', 'Tecnico'];
+            const allFive = ORDER.every(n => rawData.officers[n]?.active === true);
+            if (ORDER.some(n => rawData.officers[n] !== undefined)) {
+                profile.production.settings.staff = allFive;
+            }
+        }
+
+        if (Array.isArray(rawData.planets) && rawData.planets.length > 0) {
+            profile.production.planets = rawData.planets.map(p => {
+                const rawLf = p.lifeform || (rawData.planetLifeforms?.[p.id]) || null;
+                const lifeform = lfMap[rawLf] ?? 'humans';
+                return {
+                    name: p.name ?? '',
+                    pos: p.pos ?? 8,
+                    metal: p.metal ?? 0,
+                    crystal: p.crystal ?? 0,
+                    deuterium: p.deuterium ?? 0,
+                    magma: p.magma ?? 0,
+                    human: p.human ?? 0,
+                    crawlers: p.crawlers ?? 0,
+                    item: p.item ?? 0,
+                    itemCustom: p.itemCustom ?? 0,
+                    lifeform,
+                    overload: p.overload ?? false
+                };
+            });
+        }
+
+        profile.lastSync = Date.now();
+        saveProfiles();
+        return true;
+    };
+
     // Crea una copia del profilo con autoSync disabilitato (per modifiche manuali/stime)
     const duplicateProfile = (id) => {
         const source = profiles.value.find(p => p.id === id);
@@ -428,6 +498,7 @@ export function useProfiles() {
         exportProfiles,
         importProfiles,
         importFromExporter,
+        importManual,
         duplicateProfile,
         toggleAutoSync,
         setSyncServer

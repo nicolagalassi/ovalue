@@ -6,7 +6,7 @@ import { useProfiles } from '../composables/useProfiles';
 import PlanetCard from '../components/PlanetCard.vue';
 
 const { t } = useLanguage();
-const { calcMineProduction, getPosMult, calcCrawlerCap, formatNum, parseDurationToTimestamp } = useOgameFormulas();
+const { calcMineProduction, getPosMult, calcCrawlerCap, formatNum } = useOgameFormulas();
 const { activeProfile, saveProfiles } = useProfiles();
 
 const settings = reactive({
@@ -23,8 +23,6 @@ const settings = reactive({
 const planets = ref([]);
 const bulkTarget = ref('metal');
 const bulkValue = ref('');
-const showImportModal = ref(false);
-const importText = ref('');
 const showIntro = ref(false);
 
 // Sync with active profile
@@ -136,134 +134,12 @@ const collBreakdown = computed(() => {
     };
 });
 
-const importFromOGame = () => {
-    importText.value = '';
-    showImportModal.value = true;
-};
-
-const confirmImport = () => {
-    const text = importText.value;
-    if (text) {
-        try {
-            const startIdx = text.indexOf('{');
-            const endIdx = text.lastIndexOf('}');
-            
-            if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) {
-                throw new Error("Codice non trovato nel testo incollato");
-            }
-
-            const jsonStr = text.substring(startIdx, endIdx + 1);
-            const data = JSON.parse(jsonStr);
-            
-            if (data.planets && data.planets.length > 0) {
-                if (data.settings && data.settings.plasma !== undefined) {
-                    settings.plasma = data.settings.plasma;
-                }
-                
-                // Parse new data
-                if (data.universeSpeed) settings.ecoSpeed = parseInt(data.universeSpeed) || 8;
-                if (data.lfBonuses && data.lfBonuses.metal) {
-                    settings.lfBonus = parseFloat(data.lfBonuses.metal.replace(',', '.').replace('%', '')) || 0;
-                }
-                if (data.playerClass) {
-                    const c = data.playerClass.toLowerCase();
-                    if (c.includes('collezionista') || c.includes('collector')) {
-                        settings.playerClass = 'collector';
-                        if (data.lfBonuses && data.lfBonuses.classBonus) {
-                             settings.rocktalEnhancement = parseFloat(data.lfBonuses.classBonus.replace(',', '.').replace('%', '')) || 0;
-                        }
-                    } else {
-                        settings.playerClass = 'other';
-                    }
-                }
-
-                const LIFEFORM_MAP = {
-                    Humans: 'humans', Rocktal: 'rocktal',
-                    Mechas: 'mecha', Kaelesh: 'mecha'
-                };
-                planets.value = data.planets.map(p => ({
-                    ...createPlanet(),
-                    ...p,
-                    lifeform: LIFEFORM_MAP[p.lifeform] ?? (p.lifeform && p.lifeform !== 'none' ? p.lifeform : createPlanet().lifeform)
-                }));
-
-                // Map expirations and Flags
-                if (activeProfile.value && activeProfile.value.expirations) {
-                     const exp = activeProfile.value.expirations;
-                     exp.officers = {};
-                     exp.globalItems = [];
-                     
-                     if (data.officers) {
-                         settings.geologist = data.officers['Geologo']?.active || false;
-                         const activeCount = Object.values(data.officers).filter(o => o.active).length;
-                         settings.staff = activeCount >= 5;
-
-                         for (const [type, info] of Object.entries(data.officers)) {
-                             if (info.active) {
-                                 const parsed = parseDurationToTimestamp(info.timeRemaining);
-                                 exp.officers[type] = {
-                                     active: true,
-                                     expires: parsed.expires,
-                                     totalDuration: parsed.total
-                                 };
-                             }
-                         }
-                     }
-                     
-                     const globalItemsMap = new Map();
-                     const isGlobalItem = (name) => !/(Amplificatore|Metallo|Cristallo|Deuterio|Metal|Crystal|Deuterium|Resource Amplifier)/i.test(name);
-
-                     if (data.globalItems) {
-                         data.globalItems.forEach(item => {
-                             if (isGlobalItem(item.name)) {
-                                 globalItemsMap.set(item.name, item.timeRemaining);
-                             }
-                         });
-                     }
-                     
-                     // Planets active items
-                     planets.value.forEach(p => {
-                         if (p.activeItems) {
-                             p.activeItems.forEach(item => {
-                                 if (isGlobalItem(item.name)) {
-                                     globalItemsMap.set(item.name, item.timeRemaining);
-                                 }
-                             });
-                         }
-                         p.activeItems = []; // Not needed for Expirations anymore
-                     });
-
-                     exp.globalItems = Array.from(globalItemsMap.entries()).map(([name, timeRemaining]) => {
-                         const parsed = parseDurationToTimestamp(timeRemaining);
-                         return {
-                             name,
-                             expires: parsed.expires,
-                             totalDuration: parsed.total
-                         };
-                     });
-                }
-
-                showImportModal.value = false;
-                alert("✅ Importazione completata!");
-            } else {
-                throw new Error("Dati pianeti non validi");
-            }
-        } catch (e) {
-            alert("Errore: " + e.message);
-        }
-    }
-};
 </script>
 
 <template>
   <Teleport to="#header-actions">
-      <button @click="importFromOGame" class="flex items-center gap-2 px-4 h-10 md:h-12 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-200 transition group border border-blue-500/20" :title="t('btn_import_ogame')">
-          <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418"></path></svg>
-          <span class="hidden md:inline font-bold text-[10px] uppercase tracking-wider">{{ t('btn_import_ogame') }}</span>
-      </button>
-      <div class="w-px bg-white/10 h-6 my-auto"></div>
-      <button @click="resetAll" class="flex flex-col items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-200 transition group border border-red-500/20" :title="t('btn_reset')">
-          <svg class="w-5 h-5 group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+      <button @click="resetAll" class="flex items-center justify-center w-9 h-9 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-200 transition group border border-red-500/20" :title="t('btn_reset')">
+          <svg class="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
       </button>
   </Teleport>
 
@@ -456,39 +332,6 @@ const confirmImport = () => {
     </div>
   </div>
 
-  <!-- Import Modal -->
-  <Transition name="fade">
-      <div v-if="showImportModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="showImportModal = false"></div>
-          <div class="card-glass w-full max-w-2xl p-8 relative z-10 border border-white/10 shadow-2xl animate-in zoom-in duration-300">
-              <div class="flex items-center justify-between mb-6">
-                  <div class="flex items-center gap-3">
-                      <div class="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-                          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                      </div>
-                      <h2 class="text-xl font-black text-white uppercase tracking-tighter">{{ t('btn_import_ogame') }}</h2>
-                  </div>
-                  <button @click="showImportModal = false" class="text-gray-500 hover:text-white transition">
-                      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                  </button>
-              </div>
-              
-              <div class="mb-6">
-                  <p class="text-sm text-gray-400 mb-4 font-medium italic">Incolla qui sotto il codice JSON generato dallo script su OGame per aggiornare istantaneamente tutti i pianeti.</p>
-                  <textarea v-model="importText" class="input-glass w-full h-48 p-4 font-mono text-xs resize-none" placeholder='{"settings":...}'></textarea>
-              </div>
-              
-              <div class="flex justify-end gap-3">
-                  <button @click="showImportModal = false" class="px-6 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition">
-                      Annulla
-                  </button>
-                  <button @click="confirmImport" class="px-8 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider transition shadow-[0_0_15px_rgba(37,99,235,0.4)]">
-                      IMPORTA ORA
-                  </button>
-              </div>
-          </div>
-      </div>
-  </Transition>
 </template>
 
 <style scoped>

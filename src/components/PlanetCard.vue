@@ -93,8 +93,8 @@ const breakdown = computed(() => {
             multiplier *= (1 + crawlerBonusPercentage / 100); 
             if (p.overload) multiplier *= 1.5;
         }
-        const cP = actCraw * multiplier;
-        bonuses.push({n: `Crawler (${actCraw})`, v: cP}); 
+        const cP = Math.min(actCraw * multiplier, 50);
+        bonuses.push({n: `Crawler (${actCraw})`, v: cP});
         totPerc += cP;
     }
 
@@ -256,6 +256,15 @@ const breakdown = computed(() => {
 
     <div class="bg-black/40 rounded-b-xl p-4 border-t border-white/5 backdrop-blur-md">
         <div class="space-y-1 mb-3">
+            <div class="flex justify-between text-[10px]">
+                <span class="text-gray-500">{{ t('lbl_nat_prod') }}</span>
+                <span class="text-gray-400 font-mono">{{ formatNum(breakdown.natProd) }}</span>
+            </div>
+            <div class="flex justify-between text-[10px]">
+                <span class="text-gray-500">{{ t('lbl_mine_base') }}</span>
+                <span class="text-gray-400 font-mono">{{ formatNum(breakdown.mineBase) }}</span>
+            </div>
+            <div v-if="breakdown.bonuses.length > 0" class="h-px bg-white/5 my-1"></div>
             <div v-for="(b, i) in breakdown.bonuses" :key="i" class="flex justify-between text-[10px]">
                 <span class="text-gray-400">{{ b.n }}</span>
                 <span class="text-ogame-success font-mono">+{{ formatNum(breakdown.mineBase * (b.v / 100)) }}</span>

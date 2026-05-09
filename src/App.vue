@@ -8,7 +8,7 @@ import MaintenanceView from './views/MaintenanceView.vue';
 // ── MANUTENZIONE ─────────────────────────────────────────────────────────────
 // Imposta su true per mostrare la pagina di manutenzione a tutti gli utenti.
 // Cambia in false per ripristinare il sito normale.
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { t } = useLanguage();

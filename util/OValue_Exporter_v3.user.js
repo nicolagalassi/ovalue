@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.3.4
+// @version      3.3.5
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -455,10 +455,12 @@
             const html = pipeIdx >= 0 ? tooltip.slice(pipeIdx + 1) : '';
 
             // Durata rimanente: IT / EN / DE / FR
-            // EN DOM reale: "Time remaining: 7w 3d 8h 46m 30s"  (ordine invertito!)
-            // IT DOM reale: "Durata rimanente: 7s 3g 8o 46m 30s"
+            // EN DOM: "Time remaining: 7w 3d 8h 46m 30s"
+            // IT DOM: "Durata rimanente: 7s 3g 8o 46m 30s"
+            // DE DOM: "Restlaufzeit: 10w 6t 17h 16m 58s"
+            // FR DOM: "Temps restant : 10s 6j 17h 18m 1s"
             const durMatch = html.match(
-                /(?:Time\s+remaining|Durata\s+rimanente|Remaining\s+time|Verbleibende\s+Zeit|Dur[eé]e\s+restante)\s*:\s*([^<]+)/i
+                /(?:Time\s+remaining|Durata\s+rimanente|Remaining\s+time|Verbleibende\s+Zeit|Restlaufzeit|Dur[eé]e\s+restante|Temps\s+restant)\s*:\s*([^<]+)/i
             );
             const timeRemaining = durMatch?.[1]?.trim()
                 ?? (/permanente?|permanent/i.test(tooltip) ? L.permanent : L.permanent);

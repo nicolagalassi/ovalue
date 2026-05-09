@@ -324,5 +324,20 @@
     "exp_status_permanent": "Permanent",
     "maintenance_status": "Wartung in progress",
     "maintenance_title": "Wir sind bald zurück.",
-    "maintenance_message": "Wir arbeiten an Verbesserungen für OValue.\nDer Dienst wird in Kürze wiederhergestellt."
+    "maintenance_message": "Wir arbeiten an Verbesserungen für OValue.\nDer Dienst wird in Kürze wiederhergestellt.",
+    "settings_section_contact": "Meldungen & Support",
+    "contact_type_label": "Art der Anfrage",
+    "contact_type_bug": "Bug / Fehler",
+    "contact_type_feature": "Vorschlag",
+    "contact_type_question": "Frage",
+    "contact_type_other": "Sonstiges",
+    "contact_message_label": "Beschreibung",
+    "contact_message_placeholder": "Beschreibe das Problem oder die Anfrage so detailliert wie möglich...",
+    "contact_email_label": "Deine E-Mail (optional)",
+    "contact_email_placeholder": "Um eine Antwort zu erhalten",
+    "contact_send": "Meldung senden",
+    "contact_sending": "Wird gesendet...",
+    "contact_success": "✓ Nachricht gesendet, danke!",
+    "contact_error": "Fehler beim Senden. Bitte erneut versuchen.",
+    "contact_hint": "Du kannst auch direkt auf GitHub eine Meldung öffnen."
 }

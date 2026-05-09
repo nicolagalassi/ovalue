@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.3.3
+// @version      3.3.4
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -468,6 +468,8 @@
                 ? parseInt(hiddenSpan.getAttribute('data-total-duration')) * 1000
                 : null;
 
+            // Salta item permanenti — nessuna scadenza da tracciare
+            if (/permanente?|permanent/i.test(timeRemaining)) return;
             globalItems.push({ name, timeRemaining, totalDuration });
         });
         d.globalItems = globalItems;

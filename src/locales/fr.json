@@ -324,5 +324,20 @@
     "exp_status_permanent": "Permanent",
     "maintenance_status": "Maintenance en cours",
     "maintenance_title": "Nous revenons bientôt.",
-    "maintenance_message": "Nous travaillons à améliorer OValue.\nLe service sera rétabli prochainement."
+    "maintenance_message": "Nous travaillons à améliorer OValue.\nLe service sera rétabli prochainement.",
+    "settings_section_contact": "Signalements & Support",
+    "contact_type_label": "Type de demande",
+    "contact_type_bug": "Bug / Erreur",
+    "contact_type_feature": "Suggestion",
+    "contact_type_question": "Question",
+    "contact_type_other": "Autre",
+    "contact_message_label": "Description",
+    "contact_message_placeholder": "Décrivez le problème ou la demande avec autant de détails que possible...",
+    "contact_email_label": "Votre email (optionnel)",
+    "contact_email_placeholder": "Pour recevoir une réponse",
+    "contact_send": "Envoyer le signalement",
+    "contact_sending": "Envoi en cours...",
+    "contact_success": "✓ Message envoyé, merci !",
+    "contact_error": "Erreur lors de l'envoi. Réessayez.",
+    "contact_hint": "Vous pouvez aussi ouvrir un signalement directement sur GitHub."
 }

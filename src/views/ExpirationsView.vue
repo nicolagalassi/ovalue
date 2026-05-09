@@ -44,11 +44,13 @@ const allItems = computed(() => {
         const translated = t(locKey);
         return translated !== locKey ? translated : key; // fallback al nome grezzo
     };
+    // Solo item con scadenza reale — i permanenti (expires: null) vengono esclusi
     const officers = Object.entries(activeProfile.value.expirations.officers || {})
-        .map(([name, o]) => ({ name: translateOfficer(name), expires: o.expires ?? null, type: 'officer' }));
+        .filter(([, o]) => o.expires !== null)
+        .map(([name, o]) => ({ name: translateOfficer(name), expires: o.expires, type: 'officer' }));
     const items = (activeProfile.value.expirations.globalItems || [])
-        .filter(i => isNotResource(i.name))
-        .map(i => ({ name: i.name, expires: i.expires ?? null, type: 'item' }));
+        .filter(i => isNotResource(i.name) && i.expires !== null)
+        .map(i => ({ name: i.name, expires: i.expires, type: 'item' }));
     const priority = { critical: 0, warning: 1, expired: 2, ok: 3, permanent: 4 };
     return [...officers, ...items].sort((a, b) => {
         const pa = priority[getStatus(a.expires)];
@@ -60,11 +62,10 @@ const allItems = computed(() => {
 });
 
 const counts = computed(() => ({
-    critical:  allItems.value.filter(i => getStatus(i.expires) === 'critical').length,
-    warning:   allItems.value.filter(i => getStatus(i.expires) === 'warning').length,
-    ok:        allItems.value.filter(i => getStatus(i.expires) === 'ok').length,
-    expired:   allItems.value.filter(i => getStatus(i.expires) === 'expired').length,
-    permanent: allItems.value.filter(i => getStatus(i.expires) === 'permanent').length,
+    critical: allItems.value.filter(i => getStatus(i.expires) === 'critical').length,
+    warning:  allItems.value.filter(i => getStatus(i.expires) === 'warning').length,
+    ok:       allItems.value.filter(i => getStatus(i.expires) === 'ok').length,
+    expired:  allItems.value.filter(i => getStatus(i.expires) === 'expired').length,
 }));
 
 const statusLabel = computed(() => ({
@@ -115,13 +116,7 @@ const statusLabel = computed(() => ({
         <span class="text-gray-600">{{ counts.expired }}</span>
         <span class="text-gray-700">scaduti</span>
       </div>
-      <div v-if="counts.permanent > 0"
-           class="stat-chip border-white/5">
-        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400/30 flex-shrink-0"></span>
-        <span class="text-gray-600">{{ counts.permanent }}</span>
-        <span class="text-gray-700">permanenti</span>
-      </div>
-      <div v-if="allItems.length === 0"
+<div v-if="allItems.length === 0"
            class="stat-chip border-white/5">
         <span class="text-gray-600 font-mono">Nessun dato — sincronizza l'Exporter</span>
       </div>

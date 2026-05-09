@@ -11,6 +11,42 @@ const {
     toggleAutoSync, setSyncServer, duplicateProfile, importManual
 } = useProfiles();
 
+// ── CONTACT FORM ─────────────────────────────────────────────────────────────
+// Chiave API Web3Forms — registrati su https://web3forms.com con la tua email
+// e sostituisci questa stringa con la chiave che ti inviano.
+const WEB3FORMS_KEY = '63093af6-9658-4006-b5f2-75578e816f1f';
+
+const contactType    = ref('bug');
+const contactMessage = ref('');
+const contactEmail   = ref('');
+const contactStatus  = ref('idle'); // idle | sending | success | error
+
+async function sendContact() {
+    if (!contactMessage.value.trim()) return;
+    contactStatus.value = 'sending';
+    try {
+        const res = await fetch('https://api.web3forms.com/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+                access_key: WEB3FORMS_KEY,
+                subject: `[OValue] ${t('contact_type_' + contactType.value)} — ${contactType.value}`,
+                from_name: 'OValue App',
+                replyto: contactEmail.value || undefined,
+                message: `Tipo: ${t('contact_type_' + contactType.value)}\n\n${contactMessage.value}`,
+                email: contactEmail.value || 'noreply@ovalue.net',
+                botcheck: ''
+            })
+        });
+        const data = await res.json();
+        contactStatus.value = data.success ? 'success' : 'error';
+        if (data.success) { contactMessage.value = ''; contactEmail.value = ''; }
+    } catch {
+        contactStatus.value = 'error';
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const lastSyncFormatted = computed(() => {
     const ts = activeProfile.value?.lastSync;
     if (!ts) return null;
@@ -276,6 +312,88 @@ const confirmImportOGame = () => {
         >
           <span class="text-xl leading-none">🇬🇧</span> English
         </button>
+      </div>
+    </section>
+
+    <!-- ── SEGNALAZIONI ───────────────────────────────────────────────────── -->
+    <section>
+      <div class="flex items-center gap-3 mb-4">
+        <span class="w-[2px] h-4 bg-rose-400/60 rounded-full flex-shrink-0"></span>
+        <span class="text-[10px] font-black text-rose-400/80 uppercase tracking-[0.2em] font-mono">{{ t('settings_section_contact') }}</span>
+        <div class="flex-grow h-px bg-white/5"></div>
+      </div>
+
+      <div class="bg-[#0d1525]/60 border border-slate-700/25 rounded-xl p-5 space-y-4">
+
+        <!-- Tipo richiesta + email reply -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
+              {{ t('contact_type_label') }}
+            </label>
+            <select v-model="contactType" class="input-glass w-full px-3 py-2 text-sm">
+              <option value="bug">{{ t('contact_type_bug') }}</option>
+              <option value="feature">{{ t('contact_type_feature') }}</option>
+              <option value="question">{{ t('contact_type_question') }}</option>
+              <option value="other">{{ t('contact_type_other') }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
+              {{ t('contact_email_label') }}
+            </label>
+            <input type="email" v-model="contactEmail"
+                   :placeholder="t('contact_email_placeholder')"
+                   class="input-glass w-full px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <!-- Messaggio -->
+        <div>
+          <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
+            {{ t('contact_message_label') }}
+          </label>
+          <textarea v-model="contactMessage"
+                    :placeholder="t('contact_message_placeholder')"
+                    rows="4"
+                    class="input-glass w-full px-3 py-2 text-sm resize-none leading-relaxed"
+                    :disabled="contactStatus === 'sending' || contactStatus === 'success'">
+          </textarea>
+        </div>
+
+        <!-- Footer: feedback + bottone -->
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+          <!-- Feedback invio -->
+          <div class="text-sm font-medium min-h-[1.25rem]">
+            <span v-if="contactStatus === 'success'" class="text-emerald-400">{{ t('contact_success') }}</span>
+            <span v-else-if="contactStatus === 'error'" class="text-rose-400">{{ t('contact_error') }}</span>
+            <a v-else
+               href="https://github.com/nicolagalassi/ovalue/issues" target="_blank" rel="noopener noreferrer"
+               class="text-slate-600 hover:text-slate-400 text-[11px] transition-colors">
+              {{ t('contact_hint') }}
+            </a>
+          </div>
+
+          <!-- Bottone -->
+          <button @click="sendContact"
+                  :disabled="!contactMessage.trim() || contactStatus === 'sending' || contactStatus === 'success'"
+                  class="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all flex-shrink-0"
+                  :class="contactStatus === 'success'
+                    ? 'bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 cursor-default'
+                    : 'bg-rose-600/80 hover:bg-rose-500 text-white disabled:opacity-40 disabled:cursor-not-allowed border border-transparent'">
+            <svg v-if="contactStatus === 'sending'" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <svg v-else-if="contactStatus === 'success'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+            </svg>
+            {{ contactStatus === 'sending' ? t('contact_sending') : contactStatus === 'success' ? t('contact_success') : t('contact_send') }}
+          </button>
+        </div>
+
       </div>
     </section>
 

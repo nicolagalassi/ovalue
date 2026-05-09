@@ -194,10 +194,10 @@ const collBreakdown = computed(() => {
                 <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_eco_speed') }}</label>
                 <input type="number" v-model.number="settings.ecoSpeed" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
             </div>
-            <div :class="settings.playerClass === 'collector' ? 'col-span-2' : ''">
+            <div class="col-span-2">
                 <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_player_class') }}</label>
                 <div class="flex gap-2">
-                    <select v-model="settings.playerClass" class="input-glass flex-grow px-3 py-2 text-sm">
+                    <select v-model="settings.playerClass" class="input-glass flex-grow px-3 py-2 text-sm h-10">
                         <option value="collector">{{ t('opt_collector') }}</option>
                         <option value="other">{{ t('opt_general') }}</option>
                     </select>

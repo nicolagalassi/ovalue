@@ -285,12 +285,12 @@ export function useProfiles() {
         const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'mecha' };
         const classMap = {
             // vecchio formato IT (esportatore ≤3.2.x)
-            'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer',
+            'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
             // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
-            'collector': 'collector', 'general': 'general', 'explorer': 'explorer',
-            'Collector': 'collector', 'General': 'general', 'Explorer': 'explorer',
-            'Sammler': 'collector', 'Allgemein': 'general', 'Entdecker': 'explorer',
-            'Collecteur': 'collector', 'Général': 'general', 'Explorateur': 'explorer'
+            'collector': 'collector', 'general': 'other', 'explorer': 'other',
+            'Collector': 'collector', 'General': 'other', 'Explorer': 'other',
+            'Sammler': 'collector', 'Allgemein': 'other', 'Entdecker': 'other',
+            'Collecteur': 'collector', 'Général': 'other', 'Explorateur': 'other'
         };
 
         // Aggiorna lista server noti
@@ -358,7 +358,7 @@ export function useProfiles() {
             }
             if (raw.settings?.plasma != null) profile.production.settings.plasma = Number(raw.settings.plasma);
             if (raw.universeSpeed != null) profile.production.settings.ecoSpeed = Number(raw.universeSpeed);
-            if (raw.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(raw.lfBonuses.metal) || 0;
+            if (raw.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(String(raw.lfBonuses.metal).replace(',', '.')) || 0;
 
             // Officer → impostazioni produzione
             // Compatibile con vecchio formato IT (≤3.2.x) e nuovo formato CSS-class (≥3.3.0)
@@ -415,12 +415,12 @@ export function useProfiles() {
         const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'mecha' };
         const classMap = {
             // vecchio formato IT (esportatore ≤3.2.x)
-            'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer',
+            'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
             // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
-            'collector': 'collector', 'general': 'general', 'explorer': 'explorer',
-            'Collector': 'collector', 'General': 'general', 'Explorer': 'explorer',
-            'Sammler': 'collector', 'Allgemein': 'general', 'Entdecker': 'explorer',
-            'Collecteur': 'collector', 'Général': 'general', 'Explorateur': 'explorer'
+            'collector': 'collector', 'general': 'other', 'explorer': 'other',
+            'Collector': 'collector', 'General': 'other', 'Explorer': 'other',
+            'Sammler': 'collector', 'Allgemein': 'other', 'Entdecker': 'other',
+            'Collecteur': 'collector', 'Général': 'other', 'Explorateur': 'other'
         };
 
         if (rawData.officers) {
@@ -446,7 +446,7 @@ export function useProfiles() {
         }
         if (rawData.settings?.plasma != null) profile.production.settings.plasma = Number(rawData.settings.plasma);
         if (rawData.universeSpeed != null) profile.production.settings.ecoSpeed = Number(rawData.universeSpeed);
-        if (rawData.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(rawData.lfBonuses.metal) || 0;
+        if (rawData.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(String(rawData.lfBonuses.metal).replace(',', '.')) || 0;
 
         if (rawData.officers) {
             const geologo = rawData.officers['Geologo'];

@@ -94,34 +94,32 @@ const confirmImportOGame = () => {
   <div class="max-w-2xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-16 space-y-10">
 
     <!-- Page Header -->
-    <div>
-      <h1 class="text-2xl md:text-3xl font-black text-white tracking-tighter uppercase italic">{{ t('settings_title') }}</h1>
-      <p class="text-xs text-gray-500 mt-1">{{ t('settings_subtitle') }}</p>
+    <div class="text-center">
+      <h1 class="text-4xl md:text-5xl font-black text-slate-100 tracking-tighter uppercase italic">{{ t('settings_title') }}</h1>
+      <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-slate-500 to-slate-400 mx-auto rounded-full opacity-60"></div>
     </div>
 
     <!-- ── PROFILI ──────────────────────────────────────────────────────── -->
     <section>
       <div class="flex items-center gap-3 mb-4">
-        <span class="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-          {{ t('settings_section_profiles') }}
-        </span>
+        <span class="w-[2px] h-4 bg-sky-400/60 rounded-full flex-shrink-0"></span>
+        <span class="text-[10px] font-black text-sky-400/80 uppercase tracking-[0.2em] font-mono">{{ t('settings_section_profiles') }}</span>
         <div class="flex-grow h-px bg-white/5"></div>
-        <span class="text-[10px] text-gray-600 font-mono">{{ profiles.length }}</span>
+        <span class="text-[9px] text-gray-600 font-mono">{{ profiles.length }}</span>
       </div>
 
-      <div class="bg-[#0b0e14]/80 border border-white/5 rounded-xl overflow-hidden divide-y divide-white/5 mb-3">
+      <div class="bg-[#0d1525]/60 border border-slate-700/25 rounded-xl overflow-hidden divide-y divide-slate-700/20 mb-3">
         <div
           v-for="p in profiles" :key="p.id"
           class="flex items-center gap-3 px-4 py-3 transition-colors duration-200 group"
-          :class="activeProfileId === p.id ? 'bg-blue-500/[0.06]' : 'hover:bg-white/[0.025]'"
+          :class="activeProfileId === p.id ? 'bg-sky-500/[0.05]' : 'hover:bg-white/[0.02]'"
         >
           <div class="w-2 h-2 rounded-full flex-shrink-0 transition-all"
-               :class="activeProfileId === p.id ? 'bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]' : 'bg-gray-700'">
+               :class="activeProfileId === p.id ? 'bg-sky-400' : 'bg-slate-700'">
           </div>
 
           <button @click="switchProfile(p.id)" class="flex-grow text-left min-w-0">
-            <div class="text-sm font-bold truncate" :class="activeProfileId === p.id ? 'text-blue-300' : 'text-white/80 hover:text-white'">
+            <div class="text-sm font-bold truncate" :class="activeProfileId === p.id ? 'text-sky-300' : 'text-slate-200 hover:text-white'">
               {{ p.name }}
             </div>
             <div class="text-[10px] text-gray-600 truncate">
@@ -129,12 +127,12 @@ const confirmImportOGame = () => {
             </div>
           </button>
 
-          <span v-if="activeProfileId === p.id" class="text-[9px] font-black uppercase tracking-widest text-blue-400 bg-blue-400/10 border border-blue-400/20 px-1.5 py-0.5 rounded flex-shrink-0">
+          <span v-if="activeProfileId === p.id" class="text-[9px] font-black uppercase tracking-widest text-sky-400 bg-sky-400/10 border border-sky-400/20 px-1.5 py-0.5 rounded flex-shrink-0">
             {{ t('settings_active') }}
           </span>
 
           <span class="text-[9px] font-black uppercase tracking-widest flex-shrink-0 px-1.5 py-0.5 rounded border"
-                :class="p.autoSync ? 'text-green-400 bg-green-400/10 border-green-400/20' : 'text-gray-600 bg-white/5 border-white/10'">
+                :class="p.autoSync ? 'text-green-400 bg-green-400/10 border-green-400/20' : 'text-slate-600 bg-white/[0.03] border-slate-700/30'">
             {{ p.autoSync ? t('sync_auto') : t('sync_manual') }}
           </span>
 
@@ -142,7 +140,7 @@ const confirmImportOGame = () => {
             <button @click="openRename(p.id, p.name)" class="p-1.5 text-gray-500 hover:text-yellow-400 transition rounded" :title="t('btn_rename')">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             </button>
-            <button @click="duplicateProfile(p.id)" class="p-1.5 text-gray-500 hover:text-cyan-400 transition rounded" :title="t('btn_duplicate')">
+            <button @click="duplicateProfile(p.id)" class="p-1.5 text-gray-500 hover:text-sky-400 transition rounded" :title="t('btn_duplicate')">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
             </button>
             <button v-if="profiles.length > 1" @click="handleDelete(p.id)" class="p-1.5 text-gray-500 hover:text-red-400 transition rounded" :title="t('btn_delete')">
@@ -159,7 +157,7 @@ const confirmImportOGame = () => {
           {{ t('btn_new_profile') }}
         </button>
         <button @click="exportProfiles"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition text-xs font-black uppercase tracking-widest">
+          class="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/[0.08] border border-sky-500/20 text-sky-400 hover:bg-sky-500/[0.15] transition text-xs font-black uppercase tracking-widest">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           {{ t('profile_export_all') }}
         </button>
@@ -205,7 +203,7 @@ const confirmImportOGame = () => {
             <select
               :value="activeProfile.syncServer ?? ''"
               @change="setSyncServer($event.target.value)"
-              class="w-full text-sm bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-gray-300 focus:outline-none focus:border-blue-500/50 cursor-pointer"
+              class="w-full text-sm bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-gray-300 focus:outline-none focus:border-sky-500/40 cursor-pointer"
             >
               <option value="" class="bg-[#161b22] text-gray-500">{{ t('settings_server_none') }}</option>
               <option v-for="srv in knownServers" :key="srv" :value="srv" class="bg-[#161b22]">
@@ -229,7 +227,7 @@ const confirmImportOGame = () => {
     <!-- ── IMPORTA DA OGAME ────────────────────────────────────────────── -->
     <section v-if="activeProfile">
       <div class="flex items-center gap-3 mb-4">
-        <span class="text-[10px] font-black text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+        <span class="text-[10px] font-black text-sky-400/80 uppercase tracking-widest flex items-center gap-2">
           <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418"/></svg>
           {{ t('settings_section_import') }}
         </span>
@@ -290,7 +288,7 @@ const confirmImportOGame = () => {
       <div class="card-glass w-full max-w-md p-8 relative z-10 border border-white/10 shadow-2xl">
         <div class="flex items-center justify-between mb-6">
           <div class="flex items-center gap-3">
-            <div class="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+            <div class="p-2 rounded-lg bg-sky-500/[0.08] text-sky-400">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
             </div>
             <h2 class="text-lg font-black text-white uppercase tracking-tighter">{{ modalTitle }}</h2>

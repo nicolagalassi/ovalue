@@ -64,23 +64,31 @@ const parseTimeRemainingToExpires = (timeRemaining) => {
     const tokens = [...s.matchAll(/(\d+)\s*([a-zA-Z]+)/g)];
 
     if (tokens.length > 0) {
-        let seenSubWeek = false; // true dopo aver incontrato g/o/m
+        let seenSubWeek = false; // true dopo aver incontrato g/d/o/h/m
         for (const [, numStr, unit] of tokens) {
             const n = parseInt(numStr);
             const u = unit.toLowerCase();
-            if (u.startsWith('sett') || u.startsWith('week')) {
-                ms += n * 604800000;                      // settimane / weeks
-            } else if (u === 'g' || u.startsWith('gior') || u.startsWith('day')) {
-                seenSubWeek = true; ms += n * 86400000;   // giorni / days
-            } else if (u === 'o' || u === 'h' || u.startsWith('or') || u.startsWith('hour')) {
-                seenSubWeek = true; ms += n * 3600000;    // ore / hours
+            if (u === 'w' || u.startsWith('week') || u.startsWith('sett')) {
+                // EN: w/week(s)  IT: sett(imane)
+                ms += n * 604800000;
+            } else if (u === 'd' || u === 'g' || u === 't' ||
+                       u.startsWith('day') || u.startsWith('gior') ||
+                       u === 'j' || u.startsWith('jour') || u.startsWith('tag')) {
+                // EN: d/day(s)  IT: g/gior(ni)  FR: j/jour(s)  DE: t/Tag(e)
+                seenSubWeek = true; ms += n * 86400000;
+            } else if (u === 'o' || u === 'h' || u.startsWith('or') || u.startsWith('hour') ||
+                       u.startsWith('std')) {
+                // IT: o/or(e)  EN/FR/DE: h/hour(s)/Std.
+                seenSubWeek = true; ms += n * 3600000;
             } else if (u === 'm' || u.startsWith('min')) {
-                seenSubWeek = true; ms += n * 60000;      // minuti / minutes
-            } else if (u.startsWith('sec')) {
-                ms += n * 1000;                           // secondi / seconds (full word)
+                seenSubWeek = true; ms += n * 60000;
+            } else if (u.startsWith('sec') || u.startsWith('sek')) {
+                // EN: sec  DE: Sek.
+                ms += n * 1000;
             } else if (u === 's') {
-                if (seenSubWeek) ms += n * 1000;          // 's' dopo g/o/m → secondi
-                else             ms += n * 604800000;     // 's' prima di g/o/m → settimane
+                // 's' ambiguo: dopo g/d/o/h/m → secondi; altrimenti → settimane (IT)
+                if (seenSubWeek) ms += n * 1000;
+                else             ms += n * 604800000;
             }
         }
     } else {
@@ -275,7 +283,15 @@ export function useProfiles() {
         if (!allData || typeof allData !== 'object') return false;
 
         const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'mecha' };
-        const classMap = { 'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer' };
+        const classMap = {
+            // vecchio formato IT (esportatore ≤3.2.x)
+            'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer',
+            // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
+            'collector': 'collector', 'general': 'general', 'explorer': 'explorer',
+            'Collector': 'collector', 'General': 'general', 'Explorer': 'explorer',
+            'Sammler': 'collector', 'Allgemein': 'general', 'Entdecker': 'explorer',
+            'Collecteur': 'collector', 'Général': 'general', 'Explorateur': 'explorer'
+        };
 
         // Aggiorna lista server noti
         const serverList = Object.keys(allData);
@@ -345,10 +361,15 @@ export function useProfiles() {
             if (raw.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(raw.lfBonuses.metal) || 0;
 
             // Officer → impostazioni produzione
+            // Compatibile con vecchio formato IT (≤3.2.x) e nuovo formato CSS-class (≥3.3.0)
             if (raw.officers) {
-                const geologo = raw.officers['Geologo'];
+                const geologo = raw.officers['geologist'] || raw.officers['Geologo'];
                 if (geologo) profile.production.settings.geologist = geologo.active === true;
-                const ORDER = ['Comandante', 'Ammiraglio', 'Ingegnere', 'Geologo', 'Tecnico'];
+                // Vecchio: ['Comandante','Ammiraglio','Ingegnere','Geologo','Tecnico']
+                const OLD = ['Comandante', 'Ammiraglio', 'Ingegnere', 'Geologo', 'Tecnico'];
+                const NEW = ['commander', 'admiral', 'engineer', 'geologist', 'technocrat'];
+                const useNew = NEW.some(n => raw.officers[n] !== undefined);
+                const ORDER  = useNew ? NEW : OLD;
                 const allFive = ORDER.every(n => raw.officers[n]?.active === true);
                 if (ORDER.some(n => raw.officers[n] !== undefined)) {
                     profile.production.settings.staff = allFive;
@@ -392,7 +413,15 @@ export function useProfiles() {
         if (!profile || !rawData || typeof rawData !== 'object') return false;
 
         const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'mecha' };
-        const classMap = { 'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer' };
+        const classMap = {
+            // vecchio formato IT (esportatore ≤3.2.x)
+            'Collezionista': 'collector', 'Generale': 'general', 'Esploratore': 'explorer',
+            // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
+            'collector': 'collector', 'general': 'general', 'explorer': 'explorer',
+            'Collector': 'collector', 'General': 'general', 'Explorer': 'explorer',
+            'Sammler': 'collector', 'Allgemein': 'general', 'Entdecker': 'explorer',
+            'Collecteur': 'collector', 'Général': 'general', 'Explorateur': 'explorer'
+        };
 
         if (rawData.officers) {
             const converted = {};

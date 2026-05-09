@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 
@@ -8,268 +8,267 @@ const { activeProfile } = useProfiles();
 
 const now = ref(Date.now());
 let timer;
-
-onMounted(() => {
-    timer = setInterval(() => { now.value = Date.now(); }, 60000);
-});
+onMounted(() => { timer = setInterval(() => { now.value = Date.now(); }, 30000); });
 onUnmounted(() => clearInterval(timer));
 
-const formatTimeRemaining = (timestamp) => {
-    if (!timestamp) return t('exp_permanent') || 'Permanente';
-    const diff = timestamp - now.value;
+const getStatus = (ts) => {
+    if (!ts) return 'permanent';
+    const diff = ts - now.value;
+    if (diff <= 0) return 'expired';
+    if (diff <= 86400000) return 'critical';
+    if (diff <= 864000000) return 'warning';
+    return 'ok';
+};
+
+const formatTime = (ts) => {
+    if (!ts) return t('exp_permanent') || 'Permanente';
+    const diff = ts - now.value;
     if (diff <= 0) return t('exp_expired') || 'Scaduto';
-    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
-    const m = Math.floor((diff / 1000 / 60) % 60);
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff / 3600000) % 24);
+    const m = Math.floor((diff / 60000) % 60);
     if (d > 0) return `${d}g ${h}h`;
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m`;
 };
 
-const getStatus = (timestamp) => {
-    if (!timestamp) return 'permanent';
-    const diff = timestamp - now.value;
-    if (diff <= 0) return 'expired';
-    if (diff <= 1000 * 60 * 60 * 24) return 'critical';
-    if (diff <= 1000 * 60 * 60 * 24 * 10) return 'warning';
-    return 'ok';
-};
+const isNotResource = (name) =>
+    !/(Amplificatore|Metallo|Cristallo|Deuterio|Metal|Crystal|Deuterium|Resource Amplifier)/i.test(name);
 
-const dotClass = (ts) => ({
-    permanent: 'bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]',
-    expired:   'bg-red-500/50',
-    critical:  'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.9)] animate-pulse',
-    warning:   'bg-orange-400 shadow-[0_0_6px_rgba(251,146,60,0.7)]',
-    ok:        'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]',
-}[getStatus(ts)]);
-
-const badgeClass = (ts) => ({
-    permanent: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
-    expired:   'text-red-400/60 bg-red-400/5 border-red-400/15',
-    critical:  'text-red-400 bg-red-400/10 border-red-400/30',
-    warning:   'text-orange-400 bg-orange-400/10 border-orange-400/25',
-    ok:        'text-green-400 bg-green-400/10 border-green-400/20',
-}[getStatus(ts)]);
-
-const barClass = (ts) => ({
-    permanent: 'bg-cyan-500',
-    expired:   'bg-red-500/40',
-    critical:  'bg-red-500',
-    warning:   'bg-orange-400',
-    ok:        'bg-green-500',
-}[getStatus(ts)]);
-
-const rowClass = (ts) => {
-    const s = getStatus(ts);
-    if (s === 'critical') return 'bg-red-500/[0.03] hover:bg-red-500/[0.06]';
-    if (s === 'expired')  return 'opacity-50 hover:opacity-70';
-    return 'hover:bg-white/[0.025]';
-};
-
-const getPercentage = (expires, totalDuration) => {
-    if (!expires || !totalDuration) return 100;
-    const diff = expires - now.value;
-    if (diff <= 0) return 0;
-    return Math.min(100, Math.max(0, (diff / totalDuration) * 100));
-};
-
-// Riconosce slot fleet/expedition e restituisce il bonus slot
-const getSlotBonus = (name) => {
-    if (!name) return null;
-    const isFleet = /slot.*(flott|fleet)|fleet.*slot/i.test(name);
-    const isExp   = /slot.*(sped|expedit)|expedit.*slot/i.test(name);
-    if (!isFleet && !isExp) return null;
-
-    const tier = /oro|gold/i.test(name)     ? 'gold'
-               : /argent|silver/i.test(name) ? 'silver'
-               : /bronz|bronze/i.test(name)  ? 'bronze'
-               : null;
-    if (!tier) return null;
-
-    if (isFleet) return { label: `+${{ gold:6, silver:4, bronze:2 }[tier]}`, sub: 'flotta' };
-    if (isExp)   return { label: `+${{ gold:3, silver:2, bronze:1 }[tier]}`, sub: 'sped.' };
-    return null;
-};
-
-const sortByUrgency = (items) => [...items].sort((a, b) => {
-    const sA = getStatus(a.expires);
-    const sB = getStatus(b.expires);
+const allItems = computed(() => {
+    if (!activeProfile.value?.expirations) return [];
+    // Traduce il nome dell'ufficiale: supporta vecchio formato IT ('Geologo') e
+    // nuovo formato CSS-class neutro ('geologist') usato dall'esportatore ≥3.3.0
+    const translateOfficer = (key) => {
+        const locKey = 'officer_' + key;
+        const translated = t(locKey);
+        return translated !== locKey ? translated : key; // fallback al nome grezzo
+    };
+    const officers = Object.entries(activeProfile.value.expirations.officers || {})
+        .map(([name, o]) => ({ name: translateOfficer(name), expires: o.expires ?? null, type: 'officer' }));
+    const items = (activeProfile.value.expirations.globalItems || [])
+        .filter(i => isNotResource(i.name))
+        .map(i => ({ name: i.name, expires: i.expires ?? null, type: 'item' }));
     const priority = { critical: 0, warning: 1, expired: 2, ok: 3, permanent: 4 };
-    if (priority[sA] !== priority[sB]) return priority[sA] - priority[sB];
-    if (a.expires && b.expires) return a.expires - b.expires;
-    return 0;
-});
-
-const officers = computed(() => {
-    if (!activeProfile.value?.expirations) return [];
-    const off = activeProfile.value.expirations.officers || {};
-    const list = Object.keys(off).map(name => ({ name, ...off[name] })).filter(o => o.expires !== null);
-    return sortByUrgency(list);
-});
-
-const globalItems = computed(() => {
-    if (!activeProfile.value?.expirations) return [];
-    const items = activeProfile.value.expirations.globalItems || [];
-    const filtered = items.filter(i => {
-        if (i.expires === null) return false;
-        return !/(Amplificatore|Metallo|Cristallo|Deuterio|Metal|Crystal|Deuterium|Resource Amplifier)/i.test(i.name);
+    return [...officers, ...items].sort((a, b) => {
+        const pa = priority[getStatus(a.expires)];
+        const pb = priority[getStatus(b.expires)];
+        if (pa !== pb) return pa - pb;
+        if (a.expires && b.expires) return a.expires - b.expires;
+        return 0;
     });
-    return sortByUrgency(filtered);
 });
 
-const allItems = computed(() => [...officers.value, ...globalItems.value]);
+const counts = computed(() => ({
+    critical:  allItems.value.filter(i => getStatus(i.expires) === 'critical').length,
+    warning:   allItems.value.filter(i => getStatus(i.expires) === 'warning').length,
+    ok:        allItems.value.filter(i => getStatus(i.expires) === 'ok').length,
+    expired:   allItems.value.filter(i => getStatus(i.expires) === 'expired').length,
+    permanent: allItems.value.filter(i => getStatus(i.expires) === 'permanent').length,
+}));
 
-const criticalCount = computed(() => allItems.value.filter(i => getStatus(i.expires) === 'critical').length);
-const warningCount  = computed(() => allItems.value.filter(i => getStatus(i.expires) === 'warning').length);
+const statusLabel = computed(() => ({
+    critical:  (t('exp_status_critical')  || 'CRITICO').toUpperCase(),
+    warning:   (t('exp_status_warning')   || 'IN SCADENZA').toUpperCase(),
+    ok:        (t('exp_status_ok')        || 'ATTIVO').toUpperCase(),
+    expired:   (t('exp_status_expired')   || 'SCADUTO').toUpperCase(),
+    permanent: (t('exp_status_permanent') || 'PERMANENTE').toUpperCase(),
+}));
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-16">
+  <div class="max-w-4xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-16">
 
     <!-- Page Header -->
-    <div class="mb-8 flex items-start justify-between gap-4">
-      <div>
-        <h1 class="text-2xl md:text-3xl font-black text-white tracking-tighter uppercase italic">
-          {{ t('card_expirations_title') }}
-        </h1>
-        <p class="text-xs text-gray-500 mt-1">{{ t('card_expirations_desc') }}</p>
-      </div>
-
-      <!-- Status summary badges -->
-      <div class="flex items-center gap-2 flex-shrink-0 mt-1">
-        <span v-if="criticalCount > 0" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-red-500/10 border border-red-500/30 text-red-400">
-          <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-          {{ criticalCount }}
-        </span>
-        <span v-if="warningCount > 0" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-orange-500/10 border border-orange-500/25 text-orange-400">
-          <span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span>
-          {{ warningCount }}
-        </span>
+    <div class="mb-8 text-center relative">
+      <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic drop-shadow-[0_0_15px_rgba(255,255,255,0.15)]">
+        {{ t('card_expirations_title') }}
+      </h1>
+      <div class="mt-2 h-[3px] w-24 rounded-full mx-auto opacity-70"
+           :class="counts.critical > 0 ? 'bg-gradient-to-r from-red-500 to-rose-400' : 'bg-gradient-to-r from-rose-600 to-rose-500'">
       </div>
     </div>
 
-    <!-- No profile -->
-    <div v-if="!activeProfile" class="card-glass p-8 text-center text-gray-500 text-sm">
-      Nessun profilo selezionato.
+    <!-- Status summary chips -->
+    <div class="flex flex-wrap items-center justify-center gap-2 mb-8">
+      <div v-if="counts.critical > 0"
+           class="stat-chip border-red-500/30 bg-red-500/8">
+        <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.9)] flex-shrink-0"></span>
+        <span class="text-red-400">{{ counts.critical }}</span>
+        <span class="text-red-600">critici</span>
+      </div>
+      <div v-if="counts.warning > 0"
+           class="stat-chip border-orange-500/25 bg-orange-500/6">
+        <span class="w-1.5 h-1.5 rounded-full bg-orange-400 shadow-[0_0_5px_rgba(251,146,60,0.6)] flex-shrink-0"></span>
+        <span class="text-orange-400">{{ counts.warning }}</span>
+        <span class="text-orange-700">in scadenza</span>
+      </div>
+      <div v-if="counts.ok > 0"
+           class="stat-chip border-green-500/20 bg-green-500/5">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></span>
+        <span class="text-green-400">{{ counts.ok }}</span>
+        <span class="text-green-800">attivi</span>
+      </div>
+      <div v-if="counts.expired > 0"
+           class="stat-chip border-white/8">
+        <span class="w-1.5 h-1.5 rounded-full bg-red-500/40 flex-shrink-0"></span>
+        <span class="text-gray-600">{{ counts.expired }}</span>
+        <span class="text-gray-700">scaduti</span>
+      </div>
+      <div v-if="counts.permanent > 0"
+           class="stat-chip border-white/5">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400/30 flex-shrink-0"></span>
+        <span class="text-gray-600">{{ counts.permanent }}</span>
+        <span class="text-gray-700">permanenti</span>
+      </div>
+      <div v-if="allItems.length === 0"
+           class="stat-chip border-white/5">
+        <span class="text-gray-600 font-mono">Nessun dato — sincronizza l'Exporter</span>
+      </div>
     </div>
 
-    <div v-else class="space-y-8">
+    <!-- Items grid -->
+    <div v-if="allItems.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div
+        v-for="(item, i) in allItems" :key="i"
+        class="item-card group relative rounded-lg overflow-hidden"
+        :class="{
+          'border-red-500/20 bg-red-500/[0.03]':    getStatus(item.expires) === 'critical',
+          'border-orange-500/15 bg-orange-500/[0.02]': getStatus(item.expires) === 'warning',
+          'border-white/[0.04] bg-white/[0.01]':    getStatus(item.expires) === 'ok',
+          'border-white/[0.03]':                    getStatus(item.expires) === 'permanent' || getStatus(item.expires) === 'expired',
+        }"
+      >
+        <!-- Corner brackets — color matches status -->
+        <div class="corner-tl absolute top-0 left-0 w-3 h-3 border-t border-l transition-all duration-300 group-hover:w-4 group-hover:h-4"
+             :class="{
+               'border-red-500/50 group-hover:border-red-400/80':    getStatus(item.expires) === 'critical',
+               'border-orange-500/40 group-hover:border-orange-400/70': getStatus(item.expires) === 'warning',
+               'border-green-500/30 group-hover:border-green-400/60': getStatus(item.expires) === 'ok',
+               'border-white/10':                                    getStatus(item.expires) === 'permanent' || getStatus(item.expires) === 'expired',
+             }"></div>
+        <div class="corner-br absolute bottom-0 right-0 w-3 h-3 border-b border-r transition-all duration-300 group-hover:w-4 group-hover:h-4"
+             :class="{
+               'border-red-500/30':    getStatus(item.expires) === 'critical',
+               'border-orange-500/25': getStatus(item.expires) === 'warning',
+               'border-green-500/20':  getStatus(item.expires) === 'ok',
+               'border-white/5':       getStatus(item.expires) === 'permanent' || getStatus(item.expires) === 'expired',
+             }"></div>
 
-      <!-- Officers -->
-      <section v-if="officers.length > 0 || true">
-        <div class="flex items-center gap-3 mb-3">
-          <span class="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-            Ufficiali
-          </span>
-          <div class="flex-grow h-px bg-white/5"></div>
-          <span class="text-[10px] text-gray-600 font-mono">{{ officers.length }}</span>
-        </div>
+        <!-- Left accent bar -->
+        <div class="absolute left-0 top-0 bottom-0 w-[2px] rounded-l-lg"
+             :class="{
+               'bg-gradient-to-b from-red-500/20 via-red-500/70 to-red-500/20':       getStatus(item.expires) === 'critical',
+               'bg-gradient-to-b from-orange-500/20 via-orange-400/50 to-orange-500/20': getStatus(item.expires) === 'warning',
+               'bg-gradient-to-b from-green-500/10 via-green-500/40 to-green-500/10':  getStatus(item.expires) === 'ok',
+               'bg-white/5':                                                           getStatus(item.expires) === 'permanent' || getStatus(item.expires) === 'expired',
+             }"></div>
 
-        <div v-if="officers.length === 0" class="px-4 py-5 rounded-xl border border-dashed border-white/8 text-center text-xs text-gray-600 italic">
-          Nessun ufficiale nell'ultimo export.
-        </div>
+        <div class="pl-4 pr-4 py-3.5 flex items-center gap-3">
+          <!-- Status dot -->
+          <div class="w-2 h-2 rounded-full flex-shrink-0"
+               :class="{
+                 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.9)] animate-pulse': getStatus(item.expires) === 'critical',
+                 'bg-orange-400 shadow-[0_0_5px_rgba(251,146,60,0.6)]':           getStatus(item.expires) === 'warning',
+                 'bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]':             getStatus(item.expires) === 'ok',
+                 'bg-cyan-400/40':                                                getStatus(item.expires) === 'permanent',
+                 'bg-red-500/30':                                                 getStatus(item.expires) === 'expired',
+               }"></div>
 
-        <div v-else class="bg-[#0b0e14]/80 border border-white/5 rounded-xl overflow-hidden divide-y divide-white/5">
-          <div
-            v-for="(off, i) in officers"
-            :key="i"
-            class="flex items-center gap-3 px-4 py-3 transition-colors duration-200"
-            :class="rowClass(off.expires)"
-          >
-            <!-- Status dot -->
-            <div class="w-2 h-2 rounded-full flex-shrink-0" :class="dotClass(off.expires)"></div>
-
-            <!-- Name + slot bonus (se ufficiale con slot - raro, ma copriamo) -->
-            <span class="flex-grow text-sm font-medium text-white/90 truncate">{{ off.name }}</span>
-            <template v-if="getSlotBonus(off.name)">
-                <span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 flex-shrink-0">
-                    {{ getSlotBonus(off.name).label }} {{ getSlotBonus(off.name).sub }}
-                </span>
-            </template>
-
-            <!-- Progress bar (desktop only) -->
-            <div v-if="off.expires && getStatus(off.expires) !== 'expired'" class="hidden sm:block w-24 h-[3px] bg-black/60 rounded-full overflow-hidden flex-shrink-0">
-              <div class="h-full rounded-full transition-all duration-1000 ease-linear"
-                   :class="barClass(off.expires)"
-                   :style="{ width: getPercentage(off.expires, off.totalDuration) + '%' }">
-              </div>
+          <!-- Name + type -->
+          <div class="flex-grow min-w-0">
+            <div class="text-[12px] font-bold text-white/80 truncate leading-tight">{{ item.name }}</div>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span class="text-[8px] font-black uppercase tracking-widest font-mono"
+                    :class="{
+                      'text-red-500/70':    getStatus(item.expires) === 'critical',
+                      'text-orange-500/60': getStatus(item.expires) === 'warning',
+                      'text-green-500/50':  getStatus(item.expires) === 'ok',
+                      'text-cyan-500/40':   getStatus(item.expires) === 'permanent',
+                      'text-gray-600':      getStatus(item.expires) === 'expired',
+                    }">
+                {{ statusLabel[getStatus(item.expires)] }}
+              </span>
+              <span class="text-[8px] text-gray-700 font-mono">·</span>
+              <span class="text-[8px] text-gray-700 font-mono uppercase tracking-wider">{{ item.type === 'officer' ? 'ufficiale' : 'item' }}</span>
             </div>
+          </div>
 
-            <!-- Time badge -->
-            <span class="text-[10px] font-black uppercase tracking-wider font-mono flex-shrink-0 px-2 py-0.5 rounded border"
-                  :class="badgeClass(off.expires)">
-              {{ formatTimeRemaining(off.expires) }}
+          <!-- Time remaining -->
+          <div class="flex-shrink-0 text-right">
+            <span class="text-[13px] font-black font-mono leading-none"
+                  :class="{
+                    'text-red-400':    getStatus(item.expires) === 'critical',
+                    'text-orange-400': getStatus(item.expires) === 'warning',
+                    'text-green-400':  getStatus(item.expires) === 'ok',
+                    'text-gray-600':   getStatus(item.expires) === 'permanent',
+                    'text-red-500/40': getStatus(item.expires) === 'expired',
+                  }">
+              {{ formatTime(item.expires) }}
             </span>
           </div>
         </div>
-      </section>
-
-      <!-- Global Items -->
-      <section>
-        <div class="flex items-center gap-3 mb-3">
-          <span class="text-[10px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-2">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-            Item Globali
-          </span>
-          <div class="flex-grow h-px bg-white/5"></div>
-          <span class="text-[10px] text-gray-600 font-mono">{{ globalItems.length }}</span>
-        </div>
-
-        <div v-if="globalItems.length === 0" class="px-4 py-5 rounded-xl border border-dashed border-white/8 text-center text-xs text-gray-600 italic">
-          Nessun item globale nell'ultimo export.
-        </div>
-
-        <div v-else class="bg-[#0b0e14]/80 border border-white/5 rounded-xl overflow-hidden divide-y divide-white/5">
-          <div
-            v-for="(item, i) in globalItems"
-            :key="i"
-            class="flex items-center gap-3 px-4 py-3 transition-colors duration-200"
-            :class="rowClass(item.expires)"
-          >
-            <div class="w-2 h-2 rounded-full flex-shrink-0" :class="dotClass(item.expires)"></div>
-
-            <span class="flex-grow text-sm font-medium text-white/90 truncate">{{ item.name }}</span>
-            <template v-if="getSlotBonus(item.name)">
-                <span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 flex-shrink-0">
-                    {{ getSlotBonus(item.name).label }} {{ getSlotBonus(item.name).sub }}
-                </span>
-            </template>
-
-            <div v-if="item.expires && getStatus(item.expires) !== 'expired'" class="hidden sm:block w-24 h-[3px] bg-black/60 rounded-full overflow-hidden flex-shrink-0">
-              <div class="h-full rounded-full transition-all duration-1000 ease-linear"
-                   :class="barClass(item.expires)"
-                   :style="{ width: getPercentage(item.expires, item.totalDuration) + '%' }">
-              </div>
-            </div>
-
-            <span class="text-[10px] font-black uppercase tracking-wider font-mono flex-shrink-0 px-2 py-0.5 rounded border"
-                  :class="badgeClass(item.expires)">
-              {{ formatTimeRemaining(item.expires) }}
-            </span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Legend -->
-      <div class="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2 border-t border-white/5">
-        <span class="flex items-center gap-1.5 text-[10px] text-gray-600">
-          <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> &lt; 1 giorno
-        </span>
-        <span class="flex items-center gap-1.5 text-[10px] text-gray-600">
-          <span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span> &lt; 10 giorni
-        </span>
-        <span class="flex items-center gap-1.5 text-[10px] text-gray-600">
-          <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Attivo
-        </span>
-        <span class="flex items-center gap-1.5 text-[10px] text-gray-600">
-          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> Permanente
-        </span>
-        <span class="flex items-center gap-1.5 text-[10px] text-gray-600">
-          <span class="w-1.5 h-1.5 rounded-full bg-red-500/50"></span> Scaduto
-        </span>
       </div>
-
     </div>
+
+    <!-- Empty state -->
+    <div v-else class="flex flex-col items-center justify-center py-24 gap-6">
+      <div class="empty-hud relative w-24 h-24 flex items-center justify-center">
+        <div class="absolute inset-0 border border-white/5 rounded-lg"></div>
+        <div class="absolute top-0 left-0 w-4 h-4 border-t border-l border-rose-500/30"></div>
+        <div class="absolute bottom-0 right-0 w-4 h-4 border-b border-r border-rose-500/30"></div>
+        <svg class="w-10 h-10 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div class="text-center">
+        <p class="text-[11px] font-black text-gray-600 uppercase tracking-[0.2em] font-mono">Nessun dato disponibile</p>
+        <p class="text-[10px] text-gray-700 mt-1 font-mono">Sincronizza l'OValue Exporter per vedere gli ufficiali e gli item attivi.</p>
+      </div>
+    </div>
+
   </div>
 </template>
+
+<style scoped>
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border-width: 1px;
+  border-style: solid;
+  font-size: 9px;
+  font-family: monospace;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.item-card {
+  border-width: 1px;
+  border-style: solid;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+@keyframes itemIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.item-card {
+  animation: itemIn 0.3s ease-out both;
+}
+
+.item-card:nth-child(1)  { animation-delay: 0.05s; }
+.item-card:nth-child(2)  { animation-delay: 0.08s; }
+.item-card:nth-child(3)  { animation-delay: 0.11s; }
+.item-card:nth-child(4)  { animation-delay: 0.14s; }
+.item-card:nth-child(5)  { animation-delay: 0.17s; }
+.item-card:nth-child(6)  { animation-delay: 0.20s; }
+.item-card:nth-child(7)  { animation-delay: 0.23s; }
+.item-card:nth-child(8)  { animation-delay: 0.26s; }
+.item-card:nth-child(9)  { animation-delay: 0.29s; }
+.item-card:nth-child(n+10) { animation-delay: 0.32s; }
+</style>

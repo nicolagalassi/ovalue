@@ -3,33 +3,45 @@
 @tailwind utilities;
 
 body {
-    background-color: #050505;
-    background-image: 
-        radial-gradient(at 50% 0%, #1a2c4e 0px, transparent 50%),
-        radial-gradient(at 100% 0%, #2e1a4e 0px, transparent 50%);
+    background-color: #070c18;
+    background-image:
+        radial-gradient(ellipse at 25% 0%,   rgba(15, 40, 90, 0.70)  0px, transparent 55%),
+        radial-gradient(ellipse at 90% 8%,   rgba(35, 18, 80, 0.45)  0px, transparent 45%),
+        radial-gradient(ellipse at 5%  88%,  rgba(8,  22, 58, 0.45)  0px, transparent 48%),
+        radial-gradient(ellipse at 98% 82%,  rgba(22,  8, 60, 0.35)  0px, transparent 42%);
     background-attachment: fixed;
     color: #e2e8f0;
     min-height: 100vh;
 }
 
-/* Aggiungiamo una texture griglia sopra il gradiente */
+/* Star field — two offset sparse dot layers */
 body::before {
     content: "";
     position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    inset: 0;
+    background-image:
+        radial-gradient(circle, rgba(255,255,255,0.032) 1px, transparent 1px),
+        radial-gradient(circle, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 88px 88px, 53px 53px;
+    background-position: 0 0, 28px 42px;
     pointer-events: none;
-    z-index: -1;
+    z-index: 0;
 }
 
-/* Input Styles - Modern Glass Look */
+#app {
+    position: relative;
+    z-index: 1;
+}
+
+/* Input Styles */
 .input-glass {
-    @apply bg-black/40 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:border-ogame-accent focus:ring-1 focus:ring-ogame-accent/50 focus:bg-black/60 transition-all duration-300 shadow-inner backdrop-blur-sm;
+    @apply bg-[#0a1020]/70 border border-slate-700/40 rounded-lg text-slate-100 placeholder-slate-600 focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 focus:bg-[#0d1525]/80 transition-all duration-200 shadow-inner;
 }
 
-/* Card Styles - Glassmorphism */
+/* Card Styles */
 .card-glass {
-    @apply bg-[#11141d]/70 backdrop-blur-xl border border-white/5 shadow-glass rounded-2xl;
+    @apply bg-[#0d1525]/80 backdrop-blur-xl border border-slate-700/25 shadow-[0_4px_24px_rgba(0,0,0,0.4)] rounded-xl;
+    position: relative;
 }
 
 /* Rimuovi frecce input number */
@@ -48,6 +60,60 @@ select {
 }
 
 select option {
-    background-color: #11141d; /* Colore scuro per contrastare il bianco di default */
+    background-color: #0d1525;
     color: #e2e8f0;
+}
+
+/* ── HUD Section Label ─────────────────────────────────────────────────────
+   Intestazione di sezione coerente con lo stile HUD su tutte le pagine.
+   Uso: <div class="hud-section-label">Titolo</div>
+*/
+.hud-section-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1rem;
+}
+
+.hud-section-label::before {
+    content: '';
+    width: 2px;
+    height: 1em;
+    background: currentColor;
+    opacity: 0.6;
+    border-radius: 1px;
+}
+
+/* card-glass already defined above */
+
+/* ── Page section divider ─────────────────────────────────────────────────
+   Separatore orizzontale con label centrale stile HUD.
+*/
+.hud-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 1.5rem 0;
+}
+
+.hud-divider::before,
+.hud-divider::after {
+    content: '';
+    flex-grow: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.05));
+}
+
+.hud-divider::after {
+    background: linear-gradient(to left, transparent, rgba(255,255,255,0.05));
+}
+
+.hud-divider span {
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    font-family: monospace;
+    color: rgba(255,255,255,0.15);
+    white-space: nowrap;
 }

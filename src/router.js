@@ -45,7 +45,7 @@ const routes = [
         component: () => import('./views/ExpirationsView.vue'),
         meta: {
             title: 'Scadenziario - OValue',
-            description: 'Gestisci e monitora le scadenze di ufficiali e item.'
+            description: 'Monitora la scadenza di ufficiali e item del tuo impero OGame.'
         }
     },
     {

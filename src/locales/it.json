@@ -582,5 +582,8 @@
     "exp_status_warning": "In scadenza",
     "exp_status_ok": "Attivo",
     "exp_status_expired": "Scaduto",
-    "exp_status_permanent": "Permanente"
+    "exp_status_permanent": "Permanente",
+    "maintenance_status": "Manutenzione in corso",
+    "maintenance_title": "Torneremo presto.",
+    "maintenance_message": "Stiamo lavorando per migliorare OValue.\nIl servizio sarà ripristinato a breve."
 }

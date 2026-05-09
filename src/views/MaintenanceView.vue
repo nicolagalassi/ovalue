@@ -1,3 +1,12 @@
+<script setup>
+import { computed } from 'vue';
+import { useLanguage } from '../composables/useLanguage';
+const { t } = useLanguage();
+
+// Il messaggio contiene \n — lo splittiamo per renderlo con <br>
+const messageLines = computed(() => t('maintenance_message').split('\n'));
+</script>
+
 <template>
   <div class="maintenance-root">
     <!-- Star field -->
@@ -10,18 +19,17 @@
       <!-- Status indicator -->
       <div class="status-pill">
         <span class="pulse-dot"></span>
-        <span>Manutenzione in corso</span>
+        <span>{{ t('maintenance_status') }}</span>
       </div>
 
       <!-- Title -->
-      <h1 class="title">
-        Torneremo presto.
-      </h1>
+      <h1 class="title">{{ t('maintenance_title') }}</h1>
 
       <!-- Message -->
       <p class="message">
-        Stiamo lavorando per migliorare OValue.<br>
-        Il servizio sarà ripristinato a breve.
+        <template v-for="(line, i) in messageLines" :key="i">
+          {{ line }}<br v-if="i < messageLines.length - 1" />
+        </template>
       </p>
 
       <!-- Divider -->
@@ -31,11 +39,8 @@
         <div class="line"></div>
       </div>
 
-      <!-- Quote -->
-      <p class="quote">
-        "Il diavolo fa le pentole ma non i coperchi…<br>
-        <span>quindi ci ho pensato io.</span>"
-      </p>
+      <!-- Quote localizzata -->
+      <p class="quote">{{ t('footer_quote') }}</p>
 
       <!-- Links -->
       <div class="links">
@@ -45,7 +50,7 @@
         </a>
         <span class="sep">·</span>
         <a href="https://ko-fi.com/galax95" target="_blank" rel="noopener noreferrer" class="link kofi">
-          ☕ Supportaci
+          ☕ {{ t('support_banner_link') }}
         </a>
       </div>
     </div>

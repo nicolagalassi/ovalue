@@ -321,5 +321,8 @@
     "exp_status_warning": "Läuft ab",
     "exp_status_ok": "Aktiv",
     "exp_status_expired": "Abgelaufen",
-    "exp_status_permanent": "Permanent"
+    "exp_status_permanent": "Permanent",
+    "maintenance_status": "Wartung in progress",
+    "maintenance_title": "Wir sind bald zurück.",
+    "maintenance_message": "Wir arbeiten an Verbesserungen für OValue.\nDer Dienst wird in Kürze wiederhergestellt."
 }

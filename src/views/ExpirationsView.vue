@@ -93,32 +93,32 @@ const statusLabel = computed(() => ({
     <!-- Status summary chips -->
     <div class="flex flex-wrap items-center justify-center gap-2 mb-8">
       <div v-if="counts.critical > 0"
-           class="stat-chip border-red-500/30 bg-red-500/8">
+           class="stat-chip border-red-500/30 bg-red-500/[0.08]">
         <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.9)] flex-shrink-0"></span>
         <span class="text-red-400">{{ counts.critical }}</span>
-        <span class="text-red-600">critici</span>
+        <span class="text-red-600">{{ t('exp_chip_critical') }}</span>
       </div>
       <div v-if="counts.warning > 0"
-           class="stat-chip border-orange-500/25 bg-orange-500/6">
+           class="stat-chip border-orange-500/25 bg-orange-500/[0.06]">
         <span class="w-1.5 h-1.5 rounded-full bg-orange-400 shadow-[0_0_5px_rgba(251,146,60,0.6)] flex-shrink-0"></span>
         <span class="text-orange-400">{{ counts.warning }}</span>
-        <span class="text-orange-700">in scadenza</span>
+        <span class="text-orange-700">{{ t('exp_chip_warning') }}</span>
       </div>
       <div v-if="counts.ok > 0"
-           class="stat-chip border-green-500/20 bg-green-500/5">
+           class="stat-chip border-green-500/20 bg-green-500/[0.05]">
         <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></span>
         <span class="text-green-400">{{ counts.ok }}</span>
-        <span class="text-green-800">attivi</span>
+        <span class="text-green-800">{{ t('exp_chip_ok') }}</span>
       </div>
       <div v-if="counts.expired > 0"
-           class="stat-chip border-white/8">
+           class="stat-chip border-white/[0.08]">
         <span class="w-1.5 h-1.5 rounded-full bg-red-500/40 flex-shrink-0"></span>
         <span class="text-gray-600">{{ counts.expired }}</span>
-        <span class="text-gray-700">scaduti</span>
+        <span class="text-gray-700">{{ t('exp_chip_expired') }}</span>
       </div>
-<div v-if="allItems.length === 0"
-           class="stat-chip border-white/5">
-        <span class="text-gray-600 font-mono">Nessun dato — sincronizza l'Exporter</span>
+      <div v-if="allItems.length === 0"
+           class="stat-chip border-white/[0.05]">
+        <span class="text-gray-600 font-mono">{{ t('exp_no_data_chip') }}</span>
       </div>
     </div>
 
@@ -185,7 +185,7 @@ const statusLabel = computed(() => ({
                 {{ statusLabel[getStatus(item.expires)] }}
               </span>
               <span class="text-[8px] text-gray-700 font-mono">·</span>
-              <span class="text-[8px] text-gray-700 font-mono uppercase tracking-wider">{{ item.type === 'officer' ? 'ufficiale' : 'item' }}</span>
+              <span class="text-[8px] text-gray-700 font-mono uppercase tracking-wider">{{ item.type === 'officer' ? t('exp_type_officer') : t('exp_type_item') }}</span>
             </div>
           </div>
 
@@ -217,8 +217,8 @@ const statusLabel = computed(() => ({
         </svg>
       </div>
       <div class="text-center">
-        <p class="text-[11px] font-black text-gray-600 uppercase tracking-[0.2em] font-mono">Nessun dato disponibile</p>
-        <p class="text-[10px] text-gray-700 mt-1 font-mono">Sincronizza l'OValue Exporter per vedere gli ufficiali e gli item attivi.</p>
+        <p class="text-[11px] font-black text-gray-600 uppercase tracking-[0.2em] font-mono">{{ t('exp_empty_title') }}</p>
+        <p class="text-[10px] text-gray-700 mt-1 font-mono">{{ t('exp_empty_hint') }}</p>
       </div>
     </div>
 

@@ -339,5 +339,14 @@
     "contact_sending": "Envoi en cours...",
     "contact_success": "✓ Message envoyé, merci !",
     "contact_error": "Erreur lors de l'envoi. Réessayez.",
-    "contact_hint": "Vous pouvez aussi ouvrir un signalement directement sur GitHub."
+    "contact_hint": "Vous pouvez aussi ouvrir un signalement directement sur GitHub.",
+    "exp_chip_critical": "critiques",
+    "exp_chip_warning": "expire bientôt",
+    "exp_chip_ok": "actifs",
+    "exp_chip_expired": "expirés",
+    "exp_no_data_chip": "Aucune donnée — synchroniser l'Exporter",
+    "exp_type_officer": "officier",
+    "exp_type_item": "item",
+    "exp_empty_title": "Aucune donnée disponible",
+    "exp_empty_hint": "Synchronisez l'OValue Exporter pour voir vos officiers et items actifs."
 }

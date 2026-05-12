@@ -600,5 +600,14 @@
     "contact_sending": "Sending...",
     "contact_success": "✓ Message sent, thank you!",
     "contact_error": "Error sending. Please try again.",
-    "contact_hint": "You can also open a report directly on GitHub."
+    "contact_hint": "You can also open a report directly on GitHub.",
+    "exp_chip_critical": "critical",
+    "exp_chip_warning": "expiring",
+    "exp_chip_ok": "active",
+    "exp_chip_expired": "expired",
+    "exp_no_data_chip": "No data — sync the Exporter",
+    "exp_type_officer": "officer",
+    "exp_type_item": "item",
+    "exp_empty_title": "No data available",
+    "exp_empty_hint": "Sync the OValue Exporter to see your active officers and items."
 }

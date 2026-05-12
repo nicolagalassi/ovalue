@@ -602,5 +602,14 @@
     "contact_sending": "Invio in corso...",
     "contact_success": "✓ Messaggio inviato, grazie!",
     "contact_error": "Errore durante l'invio. Riprova.",
-    "contact_hint": "Puoi anche aprire una segnalazione direttamente su GitHub."
+    "contact_hint": "Puoi anche aprire una segnalazione direttamente su GitHub.",
+    "exp_chip_critical": "critici",
+    "exp_chip_warning": "in scadenza",
+    "exp_chip_ok": "attivi",
+    "exp_chip_expired": "scaduti",
+    "exp_no_data_chip": "Nessun dato — sincronizza l'Exporter",
+    "exp_type_officer": "ufficiale",
+    "exp_type_item": "item",
+    "exp_empty_title": "Nessun dato disponibile",
+    "exp_empty_hint": "Sincronizza l'OValue Exporter per vedere gli ufficiali e gli item attivi."
 }

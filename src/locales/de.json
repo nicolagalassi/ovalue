@@ -339,5 +339,14 @@
     "contact_sending": "Wird gesendet...",
     "contact_success": "✓ Nachricht gesendet, danke!",
     "contact_error": "Fehler beim Senden. Bitte erneut versuchen.",
-    "contact_hint": "Du kannst auch direkt auf GitHub eine Meldung öffnen."
+    "contact_hint": "Du kannst auch direkt auf GitHub eine Meldung öffnen.",
+    "exp_chip_critical": "kritisch",
+    "exp_chip_warning": "läuft ab",
+    "exp_chip_ok": "aktiv",
+    "exp_chip_expired": "abgelaufen",
+    "exp_no_data_chip": "Keine Daten — Exporter synchronisieren",
+    "exp_type_officer": "Offizier",
+    "exp_type_item": "Item",
+    "exp_empty_title": "Keine Daten verfügbar",
+    "exp_empty_hint": "Synchronisiere den OValue Exporter, um aktive Offiziere und Items zu sehen."
 }

@@ -127,13 +127,18 @@ const confirmImportOGame = () => {
 </script>
 
 <template>
-  <div class="max-w-2xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-16 space-y-10">
+  <div class="max-w-5xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-16">
 
     <!-- Page Header -->
-    <div class="text-center">
+    <div class="text-center mb-10">
       <h1 class="text-4xl md:text-5xl font-black text-slate-100 tracking-tighter uppercase italic">{{ t('settings_title') }}</h1>
       <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-slate-500 to-slate-400 mx-auto rounded-full opacity-60"></div>
     </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+
+    <!-- ═══ COLONNA SINISTRA ═══ -->
+    <div class="space-y-10">
 
     <!-- ── PROFILI ──────────────────────────────────────────────────────── -->
     <section>
@@ -300,19 +305,47 @@ const confirmImportOGame = () => {
       </div>
 
       <div class="grid grid-cols-2 gap-3">
-        <button @click="setLanguage('it')"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl border transition font-bold text-sm"
-          :class="currentLang === 'it' ? 'bg-cyan-500/10 border-cyan-500/40 text-cyan-300' : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:border-white/10'"
+        <button v-for="[code, flag, label, partial] in [['it','🇮🇹','Italiano',false],['en','🇬🇧','English',false],['de','🇩🇪','Deutsch',true],['fr','🇫🇷','Français',true]]"
+          :key="code" @click="setLanguage(code)"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl border transition font-bold text-sm relative"
+          :class="currentLang === code ? 'bg-cyan-500/10 border-cyan-500/40 text-cyan-300' : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:border-white/10'"
         >
-          <span class="text-xl leading-none">🇮🇹</span> Italiano
-        </button>
-        <button @click="setLanguage('en')"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl border transition font-bold text-sm"
-          :class="currentLang === 'en' ? 'bg-cyan-500/10 border-cyan-500/40 text-cyan-300' : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:border-white/10'"
-        >
-          <span class="text-xl leading-none">🇬🇧</span> English
+          <span class="text-xl leading-none">{{ flag }}</span>
+          <span>{{ label }}</span>
+          <span v-if="partial" class="ml-auto text-[9px] font-black uppercase tracking-wide opacity-40">beta</span>
         </button>
       </div>
+    </section>
+
+    </div><!-- fine colonna sinistra -->
+
+    <!-- ═══ COLONNA DESTRA ═══ -->
+    <div class="space-y-10">
+
+    <!-- ── SUPPORTACI ─────────────────────────────────────────────────────── -->
+    <section>
+      <div class="flex items-center gap-3 mb-4">
+        <span class="w-[2px] h-4 bg-amber-400/60 rounded-full flex-shrink-0"></span>
+        <span class="text-[10px] font-black text-amber-400/80 uppercase tracking-[0.2em] font-mono">Support</span>
+        <div class="flex-grow h-px bg-white/5"></div>
+      </div>
+      <a href="https://ko-fi.com/galax95" target="_blank" rel="noopener noreferrer"
+         class="flex items-center gap-4 p-4 rounded-xl bg-amber-500/[0.05] border border-amber-500/15 hover:border-amber-500/30 hover:bg-amber-500/[0.09] transition-all group">
+        <div class="w-10 h-10 flex-shrink-0 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:text-amber-300 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18 8h1a4 4 0 010 8h-1"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
+            <line x1="6" y1="1" x2="6" y2="4" stroke-linecap="round"/>
+            <line x1="10" y1="1" x2="10" y2="4" stroke-linecap="round"/>
+            <line x1="14" y1="1" x2="14" y2="4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-bold text-amber-300/90 group-hover:text-amber-200 transition-colors">{{ t('support_banner_link') }}</div>
+          <div class="text-[11px] text-slate-500 mt-0.5">{{ t('support_banner_text') }}</div>
+        </div>
+        <svg class="w-4 h-4 text-amber-500/30 group-hover:text-amber-400/60 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </a>
     </section>
 
     <!-- ── SEGNALAZIONI ───────────────────────────────────────────────────── -->
@@ -397,6 +430,8 @@ const confirmImportOGame = () => {
       </div>
     </section>
 
+    </div><!-- fine colonna destra -->
+    </div><!-- fine grid -->
   </div>
 
   <!-- Modal profilo -->

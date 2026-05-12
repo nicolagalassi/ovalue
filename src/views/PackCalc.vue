@@ -39,7 +39,10 @@ watch(activeProfile, (newP) => {
         Object.assign(settings, JSON.parse(JSON.stringify(newP.packExchange.settings)));
         Object.assign(stock, JSON.parse(JSON.stringify(newP.packExchange.stock)));
         queue.value = JSON.parse(JSON.stringify(newP.packExchange.queue));
-        
+        let m = 0, c = 0, d = 0;
+        queue.value.forEach(item => { m += item.m; c += item.c; d += item.d; });
+        inputs.metal = m; inputs.crystal = c; inputs.deuterium = d;
+
         // Auto-load pack value if enabled
         if (isAutoLoaded.value && newP.production?.daily) {
             settings.packValue = newP.production.daily;

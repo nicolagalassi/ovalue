@@ -162,7 +162,7 @@ const criticalCount = computed(() => {
           <span class="text-[10px] font-medium uppercase tracking-widest text-slate-600">{{ t('lbl_external_links') }}</span>
           <div class="h-px flex-grow bg-gradient-to-l from-transparent to-slate-700/30"></div>
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
           <!-- OStats -->
           <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer"
@@ -197,6 +197,23 @@ const criticalCount = computed(() => {
               <svg class="w-3.5 h-3.5 text-slate-700 group-hover:text-violet-400 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
             </div>
           </a>
+
+          <!-- Segnala un problema -->
+          <router-link to="/settings"
+             class="ext-card group relative rounded-xl overflow-hidden block bg-[#0d1525]">
+            <div class="corner-tl absolute top-0 left-0 w-4 h-4 border-t border-l border-slate-600/30 transition-all duration-300 group-hover:w-5 group-hover:h-5 group-hover:border-rose-500/40"></div>
+            <div class="corner-br absolute bottom-0 right-0 w-4 h-4 border-b border-r border-slate-600/30 transition-all duration-300 group-hover:w-5 group-hover:h-5 group-hover:border-rose-500/40"></div>
+            <div class="border border-slate-700/25 hover:border-rose-500/25 rounded-xl transition-all duration-250 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
+              <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-rose-950/40 border border-rose-700/20 group-hover:border-rose-600/40 transition-colors">
+                <svg class="w-5 h-5 text-rose-500/70 group-hover:text-rose-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              </div>
+              <div class="min-w-0 flex-grow">
+                <h4 class="text-sm font-semibold text-slate-300 group-hover:text-rose-300 transition-colors tracking-tight">{{ t('home_report_title') }}</h4>
+                <p class="text-[11px] text-slate-600 leading-snug mt-0.5">{{ t('home_report_desc') }}</p>
+              </div>
+              <svg class="w-3.5 h-3.5 text-slate-700 group-hover:text-rose-400 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </div>
+          </router-link>
 
         </div>
       </div>

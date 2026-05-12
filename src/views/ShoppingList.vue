@@ -308,11 +308,18 @@ const getTierSuffix = (itemKey, tier) => {
 };
 
 const getTierColorClass = (tier) => {
-    if (tier === 'platinum') return 'glow-purple text-purple-200';
-    if (tier === 'gold')     return 'glow-yellow text-yellow-200';
-    if (tier === 'silver')   return 'glow-slate text-slate-200';
-    if (tier === 'bronze')   return 'glow-orange text-orange-200';
-    return 'text-cyan-200';
+    if (tier === 'platinum') return 'border-violet-500/30 bg-violet-500/[0.07] text-violet-200 hover:bg-violet-500/[0.14] hover:border-violet-400/50';
+    if (tier === 'gold')     return 'border-amber-500/30 bg-amber-500/[0.07] text-amber-200 hover:bg-amber-500/[0.14] hover:border-amber-400/50';
+    if (tier === 'silver')   return 'border-slate-500/30 bg-slate-500/[0.07] text-slate-200 hover:bg-slate-500/[0.14] hover:border-slate-400/50';
+    if (tier === 'bronze')   return 'border-orange-500/30 bg-orange-500/[0.07] text-orange-200 hover:bg-orange-500/[0.14] hover:border-orange-400/50';
+    return 'border-slate-700/30 bg-black/30 text-slate-200 hover:bg-white/[0.06] hover:border-slate-600/50';
+};
+const getTierBadgeClass = (tier) => {
+    if (tier === 'platinum') return 'bg-violet-400/15 text-violet-300 border-violet-400/25';
+    if (tier === 'gold')     return 'bg-amber-400/15 text-amber-300 border-amber-400/25';
+    if (tier === 'silver')   return 'bg-slate-400/15 text-slate-300 border-slate-400/25';
+    if (tier === 'bronze')   return 'bg-orange-400/15 text-orange-300 border-orange-400/25';
+    return 'bg-cyan-400/15 text-cyan-300 border-cyan-400/25';
 };
 // Swipe delete logic
 const swipeState = reactive({ idx: null, startX: 0, currentXP: 0 });
@@ -445,82 +452,81 @@ const getSwipeStyle = (idx) => {
               <div class="product-grid grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-2 md:gap-4">
                 <article
                   v-for="entry in block.items" :key="entry.key"
-                  class="product-card"
-                  :class="{ 
+                  class="product-card relative flex flex-col overflow-hidden rounded-xl bg-[#0d1525] border border-slate-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
+                  :class="{
                     'card-highlight': isItemHighlighted(entry.key, entry.val.costs),
                     'just-added': lastAddedId === entry.key
                   }"
                 >
-                  <!-- Card Top: Name -->
-                  <div class="card-header p-2 md:p-3 pb-0">
-                    <h4 class="text-[11px] font-bold leading-tight text-gray-200 min-h-[2.5rem] line-clamp-2">
-                      {{ t(entry.key) }}
-                    </h4>
-                  </div>
-
-                  <!-- Card Mid: Image -->
-                  <div class="card-image-wrap px-2 md:px-3 py-2">
-                    <div class="img-container relative h-20 md:h-36 bg-white/[0.03] rounded-xl overflow-hidden border border-white/5 shadow-inner flex items-center justify-center group">
-                      <img
-                        :src="shopItemImageSrc(entry.key)"
-                        :alt="t(entry.key)"
-                        class="product-img h-[85%] w-[85%] object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-500"
-                        loading="lazy"
-                      />
-                      <div v-if="isItemHighlighted(entry.key, entry.val.costs) && getBestDiscountPctForCard(entry.key, entry.val.costs) > 0"
-                           class="discount-overlay absolute top-1.5 right-1.5 bg-green-500 text-black text-[9px] font-black px-2 py-0.5 rounded-md shadow-lg">
-                        -{{ getBestDiscountPctForCard(entry.key, entry.val.costs) }}%
-                      </div>
+                  <!-- Image -->
+                  <div class="relative flex items-center justify-center h-[80px] md:h-[108px] bg-black/30 border-b border-slate-700/15 overflow-hidden group">
+                    <img
+                      :src="shopItemImageSrc(entry.key)"
+                      :alt="t(entry.key)"
+                      class="h-[80%] w-[80%] object-contain drop-shadow-lg transition-transform duration-500 group-hover:scale-110"
+                      loading="lazy"
+                    />
+                    <div v-if="isItemHighlighted(entry.key, entry.val.costs) && getBestDiscountPctForCard(entry.key, entry.val.costs) > 0"
+                         class="absolute top-1.5 right-1.5 bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded-md leading-none shadow-sm">
+                      –{{ getBestDiscountPctForCard(entry.key, entry.val.costs) }}%
                     </div>
                   </div>
 
-                  <!-- Card Bottom: Controls -->
-                  <div class="card-footer p-2 md:p-3 pt-0 space-y-2">
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="qty-control flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded border border-white/10">
-                        <span class="text-[7px] font-bold text-gray-600">QTÀ</span>
-                        <input type="number" v-model.number="itemQuantities[entry.key]" min="1" class="qty-input" />
-                      </div>
+                  <!-- Name -->
+                  <div class="px-3 pt-3 pb-1.5">
+                    <h4 class="text-xs font-black uppercase tracking-wider text-slate-300 leading-snug line-clamp-2 min-h-[2.5em]">{{ t(entry.key) }}</h4>
+                  </div>
+
+                  <!-- Quantity -->
+                  <div class="px-3 pb-2">
+                    <div class="inline-flex items-center gap-1.5 bg-black/40 rounded-lg border border-slate-700/20 px-2 py-1">
+                      <span class="text-[9px] font-bold text-slate-600 uppercase">Qtà</span>
+                      <input type="number" v-model.number="itemQuantities[entry.key]" min="1" class="qty-input" />
                     </div>
+                  </div>
 
-                    <div class="tier-stack space-y-1">
-                      <div v-for="[tierName, durations] in TIER_DISPLAY_ORDER.filter(t => entry.val.costs && entry.val.costs[t]).map(t => [t, entry.val.costs[t]])" :key="tierName">
-                        
-                        <div v-if="Object.keys(durations).length > 1" class="segmented-control flex p-0.5 mb-1.5 bg-black/50 rounded-lg border border-white/5">
-                          <button
-                            v-for="(_, dur) in durations" :key="dur"
-                            @click="selectedDurations[`${entry.key}_${tierName}`] = dur"
-                            class="seg-btn"
-                            :class="{ 'seg-active': selectedDurations[`${entry.key}_${tierName}`] === dur }"
-                          >
-                            {{ dur === 'base' ? 'STD' : dur }}
-                          </button>
-                        </div>
+                  <!-- Tier rows -->
+                  <div class="px-3 pb-3 space-y-1.5 mt-auto">
+                    <div v-for="[tierName, durations] in TIER_DISPLAY_ORDER.filter(tk => entry.val.costs && entry.val.costs[tk]).map(tk => [tk, entry.val.costs[tk]])" :key="tierName">
 
+                      <!-- Duration selector -->
+                      <div v-if="Object.keys(durations).length > 1" class="flex p-0.5 mb-1.5 bg-black/50 rounded-lg border border-slate-700/15">
                         <button
-                          @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])"
-                          class="add-btn flex items-center justify-between"
-                          :class="[getTierColorClass(tierName), { 'btn-discounted': isItemHighlighted(entry.key, entry.val.costs) }]"
-                        >
-                          <span class="tier-label text-[9px] font-black uppercase leading-none truncate max-w-[55%] flex items-center gap-1.5 focus-visible:outline-none">
-                            <template v-if="tierName !== 'none'">
-                              <span>{{ getTierDisplayName(entry.key, tierName) }}</span>
-                              <span v-if="getTierSuffix(entry.key, tierName)" class="inline-flex items-center justify-center px-1.5 py-[2px] ml-0.5 rounded-sm text-[10px] font-black bg-cyan-400 text-black whitespace-nowrap shadow-[0_0_8px_rgba(34,211,238,0.4)] tracking-wide">{{ getTierSuffix(entry.key, tierName) }}</span>
-                            </template>
-                            <svg v-else class="w-3.5 h-3.5 m-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 5v14m7-7H5"></path></svg>
-                          </span>
-                          <span class="price-block flex flex-col items-end leading-none">
-                            <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]"
-                                  class="text-[8px] line-through opacity-40 font-mono mb-0.5">
-                              {{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}
-                            </span>
-                            <span class="mo-text font-black text-xs">
-                              {{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}
-                              <span class="text-[7px] opacity-60 ml-0.5 font-bold">MO</span>
-                            </span>
-                          </span>
-                        </button>
+                          v-for="(_, dur) in durations" :key="dur"
+                          @click="selectedDurations[`${entry.key}_${tierName}`] = dur"
+                          class="flex-1 text-[11px] font-black uppercase py-1.5 rounded-md transition-all"
+                          :class="selectedDurations[`${entry.key}_${tierName}`] === dur ? 'bg-white/[0.08] text-slate-200' : 'text-slate-600'"
+                        >{{ dur === 'base' ? 'STD' : dur }}</button>
                       </div>
+
+                      <!-- Add-to-cart button -->
+                      <button
+                        @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])"
+                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all duration-150"
+                        :class="[getTierColorClass(tierName), isItemDiscounted(entry.key, tierName, activeDiscountEvent) ? 'btn-discounted' : '']"
+                      >
+                        <div class="flex items-center gap-1.5 min-w-0 flex-1 pr-1">
+                          <template v-if="tierName !== 'none'">
+                            <span class="text-[11px] font-black uppercase tracking-wide truncate">{{ getTierDisplayName(entry.key, tierName) }}</span>
+                            <span v-if="getTierSuffix(entry.key, tierName)"
+                                  class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-black border flex-shrink-0"
+                                  :class="getTierBadgeClass(tierName)">
+                              {{ getTierSuffix(entry.key, tierName) }}
+                            </span>
+                          </template>
+                          <svg v-else class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 5v14m7-7H5"/></svg>
+                        </div>
+                        <div class="flex flex-col items-end leading-none flex-shrink-0">
+                          <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]"
+                                class="text-[10px] line-through opacity-35 font-mono mb-0.5">
+                            {{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}
+                          </span>
+                          <span class="text-sm font-black font-mono leading-none">
+                            {{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}<span class="text-[9px] opacity-50 font-bold ml-0.5">MO</span>
+                          </span>
+                        </div>
+                      </button>
+
                     </div>
                   </div>
                 </article>
@@ -544,26 +550,29 @@ const getSwipeStyle = (idx) => {
           <button @click="clearCart" class="text-[10px] font-bold text-red-500/40 hover:text-red-400 transition-colors uppercase tracking-tighter" v-if="shopCart.length > 0">Reset</button>
         </div>
         
-        <div class="cart-scroll-area space-y-3">
-          <div v-for="(item, idx) in [...shopCart].reverse()" :key="idx" class="cart-row-v4 group flex items-center justify-between gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:border-cyan-500/20 transition-all">
+        <div class="cart-scroll-area space-y-2">
+          <div v-for="(item, idx) in [...shopCart].reverse()" :key="idx"
+               class="group flex items-start justify-between gap-3 p-3 rounded-xl bg-[#0a101e] border border-slate-700/30 hover:border-slate-600/50 transition-all">
             <div class="flex-1 min-w-0">
-              <div class="text-[10px] font-black text-gray-200 truncate">{{ item.mult }}× {{ t(item.tKey) }}</div>
-              <div class="flex items-center gap-2 mt-1">
-                <span class="text-[8px] font-bold text-gray-500 uppercase flex items-center gap-1.5">
-                  {{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : '' }}
-                  <span v-if="item.tier !== 'none' && getTierSuffix(item.tKey, item.tier)" class="text-[9px] font-black text-cyan-400 tracking-wider">{{ getTierSuffix(item.tKey, item.tier) }}</span>
+              <div class="text-xs font-bold text-slate-100 truncate leading-snug">{{ item.mult }}× {{ t(item.tKey) }}</div>
+              <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                <span v-if="item.tier !== 'none'" class="text-[10px] font-black uppercase px-1.5 py-px rounded border"
+                      :class="getTierBadgeClass(item.tier)">
+                  {{ getTierDisplayName(item.tKey, item.tier) }}
+                  <span v-if="getTierSuffix(item.tKey, item.tier)" class="ml-0.5 opacity-80">{{ getTierSuffix(item.tKey, item.tier) }}</span>
                 </span>
-                <span v-if="item.duration !== 'base'" class="text-[8px] font-black text-cyan-500/60">{{ item.duration }}</span>
-              </div>
-              <!-- Applied Event -->
-              <div v-if="item.event && item.event !== 'none'" class="flex items-center gap-1 mt-1.5">
-                <span class="text-[9px] text-green-500">{{ getEventInfo(item.event)?.icon }}</span>
-                <span class="text-[8px] font-black text-green-500/80 uppercase tracking-tighter">{{ t(getEventInfo(item.event)?.label) }}</span>
+                <span v-if="item.duration !== 'base'"
+                      class="text-[10px] font-black text-cyan-300 uppercase px-1.5 py-px bg-cyan-500/10 border border-cyan-500/20 rounded">{{ item.duration }}</span>
+                <span v-if="item.event && item.event !== 'none'"
+                      class="text-[10px] font-black text-emerald-300 uppercase px-1.5 py-px bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center gap-1">
+                  {{ getEventInfo(item.event)?.icon }} {{ t(getEventInfo(item.event)?.label) }}
+                </span>
               </div>
             </div>
-            <div class="flex flex-col items-end">
-              <span class="text-[11px] font-mono font-black text-cyan-400">{{ formatNum(item.cost) }}</span>
-              <button @click="removeShopCart(shopCart.length - 1 - idx)" class="text-[8px] text-red-500/60 opacity-0 group-hover:opacity-100 uppercase font-black tracking-tighter">Rimuovi</button>
+            <div class="flex flex-col items-end gap-1 flex-shrink-0">
+              <span class="text-sm font-mono font-black text-cyan-300">{{ formatNum(item.cost) }}</span>
+              <button @click="removeShopCart(shopCart.length - 1 - idx)"
+                      class="text-[9px] text-red-500/50 hover:text-red-400 opacity-0 group-hover:opacity-100 uppercase font-black transition-all">✕</button>
             </div>
           </div>
           <div v-if="shopCart.length === 0" class="flex flex-col items-center justify-center py-12 opacity-20 filter grayscale">
@@ -613,30 +622,32 @@ const getSwipeStyle = (idx) => {
               </div>
 
               <!-- Item container -->
-              <div class="relative bg-[#06080d] flex items-center justify-between gap-4 p-4 md:p-5 border border-white/5 hover:border-cyan-500/40 w-full"
+              <div class="relative bg-[#0d1525] flex items-center justify-between gap-4 p-4 md:p-5 border border-slate-700/30 hover:border-cyan-500/30 w-full transition-colors"
                    @touchstart="tsStart($event, idx)"
                    @touchmove="tsMove($event, idx)"
                    @touchend="tsEnd(idx)"
                    :style="getSwipeStyle(idx)">
-                <div v-if="item.event && item.event !== 'none'" class="absolute top-0 left-0 w-1 h-full bg-green-500/40"></div>
+                <div v-if="item.event && item.event !== 'none'" class="absolute top-0 left-0 w-1 h-full bg-emerald-500/50 rounded-l"></div>
                 <div class="flex-1 min-w-[50%]">
-                  <div class="text-sm font-black text-gray-100 uppercase tracking-tight italic line-clamp-1 pr-2">{{ item.mult }}× {{ t(item.tKey) }}</div>
-                  <div class="flex gap-2 mt-2">
-                    <span class="text-[9px] font-black text-gray-400 uppercase px-1.5 py-0.5 bg-black/50 rounded border border-white/5 flex items-center gap-1.5">
-                      {{ item.tier !== 'none' ? getTierDisplayName(item.tKey, item.tier) : 'Base' }}
-                      <span v-if="item.tier !== 'none' && getTierSuffix(item.tKey, item.tier)" class="text-[10px] text-cyan-400 tracking-wider">{{ getTierSuffix(item.tKey, item.tier) }}</span>
+                  <div class="text-sm font-bold text-slate-100 line-clamp-1 pr-2 leading-snug">{{ item.mult }}× {{ t(item.tKey) }}</div>
+                  <div class="flex flex-wrap gap-1.5 mt-2">
+                    <span v-if="item.tier !== 'none'"
+                          class="text-[10px] font-black uppercase px-2 py-0.5 rounded border flex items-center gap-1"
+                          :class="getTierBadgeClass(item.tier)">
+                      {{ getTierDisplayName(item.tKey, item.tier) }}
+                      <span v-if="getTierSuffix(item.tKey, item.tier)" class="opacity-80">{{ getTierSuffix(item.tKey, item.tier) }}</span>
                     </span>
-                    <span v-if="item.duration !== 'base'" class="text-[9px] font-black text-cyan-400 uppercase px-1.5 py-0.5 bg-cyan-400/10 rounded">{{ item.duration }}</span>
-                    <!-- Applied Event Tag -->
-                    <span v-if="item.event && item.event !== 'none'" class="text-[9px] font-black text-green-400 uppercase px-1.5 py-0.5 bg-green-400/10 rounded flex items-center gap-1">
-                      <span>{{ getEventInfo(item.event)?.icon }}</span>
-                      <span>{{ t(getEventInfo(item.event)?.label) }}</span>
+                    <span v-if="item.duration !== 'base'"
+                          class="text-[10px] font-black text-cyan-300 uppercase px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded">{{ item.duration }}</span>
+                    <span v-if="item.event && item.event !== 'none'"
+                          class="text-[10px] font-black text-emerald-300 uppercase px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center gap-1">
+                      {{ getEventInfo(item.event)?.icon }} {{ t(getEventInfo(item.event)?.label) }}
                     </span>
                   </div>
                 </div>
-                <div class="flex flex-col items-end gap-0.5 flex-shrink-0">
-                  <span class="text-base md:text-lg font-black text-cyan-400 font-mono tracking-tighter">{{ formatNum(item.cost) }}</span>
-                  <span class="text-[9px] text-gray-600 font-bold uppercase">{{ formatNum(item.unitCost) }} / ud</span>
+                <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span class="text-base md:text-lg font-black text-cyan-300 font-mono tracking-tighter">{{ formatNum(item.cost) }}</span>
+                  <span class="text-[10px] text-slate-500 font-mono">{{ formatNum(item.unitCost) }} / ud</span>
                 </div>
               </div>
             </div>
@@ -733,26 +744,14 @@ const getSwipeStyle = (idx) => {
 }
 
 /* ─── PRODUCT CARDS ─── */
-.product-card {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  transition: all 0.25s ease;
-  position: relative;
-}
-.product-card:hover {
-  border-color: rgba(255, 255, 255, 0.10);
-  transform: translateY(-3px);
-  background: rgba(0, 0, 0, 0.35);
-}
 .card-highlight {
-  border-color: rgba(34, 197, 94, 0.25);
-  background: rgba(34, 197, 94, 0.025);
+  border-color: rgba(34, 197, 94, 0.25) !important;
+  background-color: rgba(34, 197, 94, 0.025);
 }
 .just-added { animation: flashAdd 0.8s ease-out; }
 @keyframes flashAdd {
-  0%   { border-color: rgba(6, 182, 212, 0.6); box-shadow: 0 0 12px rgba(6,182,212,0.3); }
-  100% { border-color: rgba(255, 255, 255, 0.05); box-shadow: none; }
+  0%   { border-color: rgba(6, 182, 212, 0.55); box-shadow: 0 0 10px rgba(6,182,212,0.25); }
+  100% { border-color: rgba(51, 65, 85, 0.2); box-shadow: none; }
 }
 
 /* ─── SIDEBAR ELEMENTS ─── */
@@ -815,34 +814,10 @@ const getSwipeStyle = (idx) => {
   text-align: center;
   outline: none;
 }
-.seg-btn {
-  flex: 1;
-  font-family: monospace;
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 6px 4px;
-  border-radius: 4px;
-  color: #52525b;
-  transition: all 0.15s;
+.btn-discounted {
+  border-color: rgba(34, 197, 94, 0.35) !important;
+  background-color: rgba(34, 197, 94, 0.06) !important;
 }
-.seg-active { background: rgba(255,255,255,0.08); color: #e2e8f0; }
-
-.add-btn {
-  width: 100%;
-  border-radius: 6px;
-  padding: 7px 10px;
-  transition: all 0.15s;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(0, 0, 0, 0.35);
-  font-family: monospace;
-}
-.add-btn:hover {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.10);
-}
-.btn-discounted { border-color: rgba(34, 197, 94, 0.3); }
 
 /* ─── CHECKOUT BTN ─── */
 .checkout-btn {

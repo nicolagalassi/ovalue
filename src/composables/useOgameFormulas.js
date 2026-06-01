@@ -1,3 +1,5 @@
+import { OGAME_DB } from '../data/ogame_db';
+
 export function useOgameFormulas() {
     
     // Formatter numeri (es. 1.000.000)
@@ -35,6 +37,75 @@ export function useOgameFormulas() {
         return max;
     };
 
+    // ─── Calcolo produzione oraria metallo per un singolo pianeta ─────────────
+    // Unica fonte di verità usata da MetalCalc, PlanetCard e useStrategy.
+    // Restituisce tutti i valori numerici necessari al display e al calcolo.
+    //
+    // options:
+    //   lifeform       — override della lifeform (per il planner); default: planet.lifeform
+    //   useMaxCrawlers — usa il cap come crawler effettivi (planner); default: false
+    //
+    // Nota: "bonusProd" è il contributo del totPerc sul mineBase; il totale orario
+    // è natProd + mineBase + bonusProd. La somma di .total su tutti i pianeti
+    // è esattamente uguale all'hourly del footer MetalCalc.
+    const calcPlanetMetalProduction = (planet, settings, lfResearchPct, options = {}) => {
+        const { lifeform: lfOverride = null, useMaxCrawlers = false } = options;
+
+        const ecoSpeed   = settings.ecoSpeed || 1;
+        const isCollector = settings.playerClass === 'collector';
+        const collFactor  = 1
+            + ((settings.rocktalEnhancement || 0) / 100)
+            + ((lfResearchPct?.collectorBonus  || 0) / 100);
+
+        const met      = parseInt(planet.metal) || 0;
+        const posMult  = getPosMult(planet.pos);
+        const natProd  = Math.floor(30 * ecoSpeed * posMult);
+        const mineBase = calcMineProduction(met, ecoSpeed, posMult);
+
+        let totPerc = (settings.plasma || 0) * 1;
+        if (settings.geologist)           totPerc += 10;
+        if (settings.staff)               totPerc += 2;
+        if (isCollector)                  totPerc += 25 * collFactor;
+        if (settings.allyClass === 'trader') totPerc += 5;
+        totPerc += (parseInt(planet.item) || 0) + (parseInt(planet.itemCustom) || 0);
+
+        const lf = lfOverride || planet.lifeform || 'humans';
+        if (lf === 'rocktal') totPerc += (parseInt(planet.magma) || 0) * 2;
+        else if (lf === 'humans') totPerc += (parseInt(planet.human) || 0) * 1.5;
+
+        totPerc += lfResearchPct?.metal || 0;
+        // Fallback manuale per-pianeta: si applica solo se questo pianeta non ha
+        // ricerche LF con livello > 0 (stessa logica di MetalCalc e PlanetCard).
+        const planetHasLfResearch = Object.values(planet.lfResearch || {}).some(v => v > 0);
+        if (!planetHasLfResearch) totPerc += settings.lfBonus || 0;
+
+        const maxCraw  = calcCrawlerCap(met, planet.crystal, planet.deuterium,
+                                        isCollector, settings.geologist, settings.rocktalEnhancement);
+        const rawCraw  = parseInt(planet.crawlers) || 0;
+        const actCraw  = useMaxCrawlers ? maxCraw : Math.min(rawCraw, maxCraw);
+        if (actCraw > 0) {
+            let mult = 0.02;
+            if (isCollector) {
+                mult *= (1 + (50 * collFactor) / 100);
+                if (planet.overload) mult *= 1.5;
+            }
+            totPerc += Math.min(actCraw * mult, 50);
+        }
+
+        const bonusProd = Math.floor(mineBase * (totPerc / 100));
+        return {
+            natProd,
+            mineBase,
+            totPerc,
+            bonusProd,
+            total: natProd + mineBase + bonusProd,
+            maxCraw,
+            actCraw,
+            collFactor,
+            isCrawCapReached: rawCraw > maxCraw
+        };
+    };
+
     // FORMULA LIFEFORMS (Corrected as per user feedback)
     const calcBuildCostLF = (itemData, techLevel, costRdc) => {
         if (techLevel < 1 || !itemData) return [0, 0, 0];
@@ -67,6 +138,74 @@ export function useOgameFormulas() {
             totalCost[0] += cost[0]; totalCost[1] += cost[1]; totalCost[2] += cost[2];
         }
         return totalCost;
+    };
+
+    // Calcola il bonus produzione totale dalle ricerche LF per un set di pianeti.
+    // Le ricerche LF aumentano la produzione di tutti i pianeti (bonus globale).
+    // Ogni pianeta contribuisce col proprio livello di ricerca * bonus per livello.
+    // Bonus per livello: [metal, crystal, deut, metalCap, crystalCap, deutCap, collectorBonus]
+    //   bonus[0-2]: frazione per livello (es. 0.0006 = 0.06% per livello)
+    //   bonus[3-5]: cap (0 = nessun cap)
+    //   bonus[6]:   frazione collectorBonus per livello (aggiunge a rocktalEnhancement)
+    // Edifici LF che amplificano le ricerche:
+    //   1011 (Metropolis)  → +0.5%/livello     [metal/crystal/deut]
+    //   3007 (HPT)         → +0.3%/livello     [crystal]
+    //   3011 (Chip Mass)   → +0.4%/livello     [metal]
+    //   4007 (Cloning Lab) → +0.25%/livello    [Kaelesh solo]
+    // Calcola il bonus GLOBALE delle ricerche LF da tutti i pianeti dell'account.
+    // Le ricerche LF sono account-wide: ogni pianeta contribuisce al pool globale.
+    // Il totale si applica ugualmente a tutti i pianeti (non è per-pianeta).
+    // Cross-species: un pianeta Mecha può avere ricerche Umani/Rocktal/Kaelesh attive.
+    // Building mult per-specie: ogni edificio amplifica solo le ricerche della sua specie.
+    const calcLFResearchBonus = (planets) => {
+        if (!Array.isArray(planets) || planets.length === 0)
+            return { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
+
+        const bonusPerc = { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
+
+        planets.forEach(p => {
+            const lfData   = p.lfResearch || {};
+            const lfLevel  = parseInt(p.lifeformLevel) || 0;
+
+            const bld      = p.lfBuildings || {};
+            const metroLvl = parseInt(bld['1011']) || 0;  // Metropolis (Humans)
+            const hptLvl   = parseInt(bld['3007']) || 0;  // Trasformatore alta potenza (Mecha)
+            const cmpLvl   = parseInt(bld['3011']) || 0;  // Produzione massa chip (Mecha)
+            const cloneLvl = parseInt(bld['4007']) || 0;  // Laboratorio Clonazione (Kaelesh)
+
+            // Formula OGame ADDITIVA: tutti i bonus si sommano (non si moltiplicano tra loro).
+            // Gli edifici del pianeta amplificano TUTTE le ricerche sul pianeta (cross-species).
+            // Rates verificati: Metropolis 0.5%/lvl, HPT 0.3%/lvl, CMP 0.4%/lvl, Clone 0.25%/lvl
+            const mult = 1 + lfLevel*0.001 + metroLvl*0.005 + hptLvl*0.003 + cmpLvl*0.004 + cloneLvl*0.0025;
+
+            const lfActive = p.lfActive || {};
+
+            for (const species of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
+                const catData = OGAME_DB[`lf_${species}_res`];
+                if (!catData) continue;
+
+                for (const [idStr, itemData] of Object.entries(catData.items || {})) {
+                    const level = parseInt(lfData[idStr]) || 0;
+                    if (level <= 0) continue;
+                    if (lfActive[idStr] !== true) continue;
+
+                    const bonus = itemData.bonus;
+                    if (!bonus) continue;
+
+                    bonusPerc.metal          += Math.min(level * (bonus[0] || 0) * mult, bonus[3] || Infinity);
+                    bonusPerc.crystal        += Math.min(level * (bonus[1] || 0) * mult, bonus[4] || Infinity);
+                    bonusPerc.deuterium      += Math.min(level * (bonus[2] || 0) * mult, bonus[5] || Infinity);
+                    bonusPerc.collectorBonus += level * (bonus[6] || 0) * mult;
+                }
+            }
+        });
+
+        return {
+            metal:          bonusPerc.metal * 100,
+            crystal:        bonusPerc.crystal * 100,
+            deuterium:      bonusPerc.deuterium * 100,
+            collectorBonus: bonusPerc.collectorBonus * 100
+        };
     };
 
     // Parsea stringhe di durata OGame in timestamp di scadenza.
@@ -143,8 +282,10 @@ export function useOgameFormulas() {
         calcMineProduction,
         getPosMult,
         calcCrawlerCap,
+        calcPlanetMetalProduction,
         calcBuildCostLF,
         getBuildCostLF,
+        calcLFResearchBonus,
         parseDurationToTimestamp
     };
 }

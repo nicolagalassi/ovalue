@@ -6,7 +6,7 @@ import { useProfiles } from '../composables/useProfiles';
 import PlanetCard from '../components/PlanetCard.vue';
 
 const { t } = useLanguage();
-const { calcMineProduction, getPosMult, calcCrawlerCap, formatNum } = useOgameFormulas();
+const { calcPlanetMetalProduction, calcLFResearchBonus, formatNum } = useOgameFormulas();
 const { activeProfile, saveProfiles } = useProfiles();
 
 const settings = reactive({
@@ -24,6 +24,7 @@ const planets = ref([]);
 const bulkTarget = ref('metal');
 const bulkValue = ref('');
 const showIntro = ref(false);
+const showAllLfResearch = ref(false);
 
 // Sync with active profile
 watch(activeProfile, (newP) => {
@@ -55,7 +56,11 @@ const createPlanet = () => ({
     item: 0, itemCustom: 0,
     magma: 0, human: 0,
     lifeform: 'humans',
-    crawlers: 0, overload: false
+    crawlers: 0, overload: false,
+    lifeformLevel: 0,
+    lfResearch: {},
+    lfBuildings: {},
+    lfActive: {}
 });
 
 const addPlanet = () => { planets.value.push(createPlanet()); };
@@ -78,59 +83,25 @@ const applyBulk = () => {
     });
 };
 
+// Bonus LF globale (somma di tutti i pianeti, applicato ugualmente a ciascuno)
+const lfResearchPct = computed(() => calcLFResearchBonus(planets.value));
+
+// True se almeno un pianeta ha dati di ricerca LF importati (anche non ancora attivati)
+const hasLfResearchData = computed(() =>
+    planets.value.some(p => Object.values(p.lfResearch || {}).some(v => v > 0))
+);
+
 const totals = computed(() => {
+    const lfrPct = lfResearchPct.value;
     let hourly = 0;
-    const collFactor = 1 + (settings.rocktalEnhancement / 100);
-    
     planets.value.forEach(p => {
-        const met = parseInt(p.metal) || 0;
-        const posMult = getPosMult(p.pos);
-        const natProd = Math.floor(30 * settings.ecoSpeed * posMult);
-        const mineBase = calcMineProduction(met, settings.ecoSpeed, posMult);
-        
-        let totPerc = 0;
-        totPerc += settings.plasma * 1;
-        if (settings.geologist) totPerc += 10;
-        if (settings.staff) totPerc += 2;
-        
-        if (settings.playerClass === 'collector') {
-            totPerc += 25 * collFactor;
-        }
-        
-        if (settings.allyClass === 'trader') totPerc += 5;
-        
-        totPerc += (parseInt(p.item)||0) + (parseInt(p.itemCustom)||0);
-        
-        if (p.lifeform === 'rocktal') {
-            totPerc += (parseInt(p.magma)||0) * 2;
-        } else if (p.lifeform === 'humans') {
-            totPerc += (parseInt(p.human)||0) * 1.5;
-        }
-        
-        totPerc += settings.lfBonus;
-
-        const isCollector = settings.playerClass === 'collector';
-        const maxCraw = calcCrawlerCap(met, p.crystal, p.deuterium, isCollector, settings.geologist, settings.rocktalEnhancement);
-        
-        const actCraw = Math.min((parseInt(p.crawlers)||0), maxCraw);
-        if (actCraw > 0) {
-            let mult = 0.02;
-            if (settings.playerClass === 'collector') {
-                const crawlerBonusPercentage = 50 * collFactor;
-                mult *= (1 + crawlerBonusPercentage / 100);
-                if (p.overload) mult *= 1.5;
-            }
-            totPerc += Math.min(actCraw * mult, 50);
-        }
-
-        const bonusProd = Math.floor(mineBase * (totPerc / 100));
-        hourly += (natProd + mineBase + bonusProd);
+        hourly += calcPlanetMetalProduction(p, settings, lfrPct).total;
     });
     return { hourly, daily: Math.floor(hourly * 24) };
 });
 
 const collBreakdown = computed(() => {
-    const f = 1 + (settings.rocktalEnhancement / 100);
+    const f = 1 + ((settings.rocktalEnhancement + (lfResearchPct.value.collectorBonus || 0)) / 100);
     return {
         mine: (25 * f).toFixed(2),
         crawler: (50 * f).toFixed(2),
@@ -212,8 +183,20 @@ const collBreakdown = computed(() => {
                 <input type="number" v-model.number="settings.plasma" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
             </div>
             <div>
-                <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_lf_bonus') }} %</label>
-                <input type="number" v-model.number="settings.lfBonus" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
+                <label class="block text-[10px] uppercase tracking-wider font-semibold mb-1.5"
+                    :class="hasLfResearchData ? 'text-ogame-success/70' : 'text-slate-500'">
+                    {{ t('lbl_lf_bonus') }} %
+                    <span v-if="hasLfResearchData" class="normal-case tracking-normal text-[9px] text-ogame-success/50 ml-1">{{ t('lbl_auto') }}</span>
+                </label>
+                <!-- Computed: mostra il totale calcolato dalle ricerche reali -->
+                <div v-if="hasLfResearchData"
+                    class="input-glass w-full px-3 py-2 text-center font-mono text-ogame-success cursor-default select-none"
+                    :title="t('lbl_lf_bonus_computed')">
+                    +{{ lfResearchPct.metal.toFixed(2) }}
+                </div>
+                <!-- Manuale: nessun dato LF importato -->
+                <input v-else type="number" v-model.number="settings.lfBonus"
+                    @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
             </div>
         </div>
 
@@ -306,12 +289,15 @@ const collBreakdown = computed(() => {
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        <PlanetCard 
-            v-for="(planet, index) in planets" 
+        <PlanetCard
+            v-for="(planet, index) in planets"
             :key="index"
             :planet="planet"
             :index="index"
             :global="settings"
+            :lf-research-pct="lfResearchPct"
+            :show-lf-research="showAllLfResearch"
+            @toggle-lf-research="showAllLfResearch = !showAllLfResearch"
             @clone="clonePlanet(index)"
             @remove="removePlanet(index)"
         />

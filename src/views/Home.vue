@@ -75,7 +75,7 @@ const criticalCount = computed(() => {
 
       <!-- ── TOOL CARDS ──────────────────────────────────────────────────── -->
       <div class="px-4 md:px-6 pb-4 md:pb-6 flex-grow flex items-center">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 w-full max-w-4xl mx-auto">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-6xl mx-auto">
 
           <!-- Production Core -->
           <router-link to="/metal" class="tool-card card-1 group relative rounded-2xl overflow-hidden block bg-[#0d1525] hover:bg-[#0f1a30] transition-colors duration-300">
@@ -147,6 +147,28 @@ const criticalCount = computed(() => {
                 </div>
               </div>
               <span class="text-xs font-semibold text-slate-600 group-hover:text-violet-400 uppercase tracking-widest transition-colors flex items-center gap-1">
+                {{ t('btn_open') }} <span class="text-base leading-none group-hover:translate-x-0.5 transition-transform inline-block">›</span>
+              </span>
+            </div>
+          </router-link>
+
+          <!-- Production Planner -->
+          <router-link to="/strategy" class="tool-card card-4 group relative rounded-2xl overflow-hidden block bg-[#0d1525] hover:bg-[#0a140e] transition-colors duration-300">
+            <div class="corner-tl absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
+            <div class="corner-tr absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
+            <div class="corner-bl absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
+            <div class="corner-br absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
+            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+            <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
+              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-emerald-950/60 border border-emerald-500/25 flex items-center justify-center group-hover:border-emerald-400/50 group-hover:bg-emerald-950/80 group-hover:shadow-[0_0_30px_rgba(16,185,129,0.12)] transition-all duration-400">
+                <svg class="w-10 h-10 md:w-12 md:h-12 text-emerald-400/70 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+              </div>
+              <div class="flex-grow">
+                <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-emerald-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_strategy_title') }}</h2>
+                <p class="text-sm text-slate-500 leading-snug px-2">{{ t('card_strategy_desc') }}</p>
+              </div>
+              <span class="text-xs font-semibold text-slate-600 group-hover:text-emerald-400 uppercase tracking-widest transition-colors flex items-center gap-1">
                 {{ t('btn_open') }} <span class="text-base leading-none group-hover:translate-x-0.5 transition-transform inline-block">›</span>
               </span>
             </div>
@@ -294,6 +316,7 @@ const criticalCount = computed(() => {
 .card-1 { animation: cardIn 0.5s ease-out 0.2s both; }
 .card-2 { animation: cardIn 0.5s ease-out 0.3s both; }
 .card-3 { animation: cardIn 0.5s ease-out 0.4s both; }
+.card-4 { animation: cardIn 0.5s ease-out 0.5s both; }
 .tool-card { cursor: pointer; }
 .tool-card:focus-visible { outline: 1px solid rgba(96,165,250,0.4); outline-offset: 2px; }
 </style>

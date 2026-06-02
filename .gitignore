@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Cartella locale non versionata (script di ricerca, log conversazioni, tool terze parti)
+local/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

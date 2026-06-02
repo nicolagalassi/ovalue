@@ -174,6 +174,11 @@ const buildCandidates = (state, options) => {
     // 4) Ricerche LF con bonus metallo — un candidato per ogni (ricerca, pianeta).
     // Trattare ogni pianeta separatamente evita il salto di livelli (es. da 0 a max+1)
     // che gonfiava artificialmente il delta.
+    //
+    // INVARIANTE: si genera un candidato solo se la ricerca è già attiva OPPURE
+    // è completamente nuova (livello 0). Se ha livelli ma è inattiva viene saltata:
+    // il suo contributo alla produzione è 0 ma il costo sarebbe reale, rendendo il
+    // delta calcolato pari al beneficio di TUTTI i livelli accumulati — ROI falso.
     if (options.includeLfResearch) {
         const capRes = caps?.lfResearch ?? Infinity;
         for (const species of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
@@ -184,7 +189,12 @@ const buildCandidates = (state, options) => {
                 if (!bonus || (bonus[0] || 0) <= 0) continue;
                 planets.forEach((p, planetIdx) => {
                     const currentLevel = parseInt((p.lfResearch || {})[idStr]) || 0;
+                    const isActive     = (p.lfActive || {})[idStr] === true;
+
+                    // Ricerca con livelli ma inattiva → skip per evitare delta gonfiato
+                    if (currentLevel > 0 && !isActive) return;
                     if (currentLevel >= capRes) return;
+
                     const cost = lfResearchCost(species, idStr, currentLevel, currentLevel + 1, pack.lfRsrLabLevel);
                     candidates.push({
                         type: 'lf_research',

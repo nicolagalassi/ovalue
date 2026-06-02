@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.4.0
+// @version      3.5.0
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -229,7 +229,9 @@
     // ── COSTANTI ─────────────────────────────────────────────────────────────
     const SERVER_KEY  = window.location.hostname;
     const STORAGE_KEY = 'ovalue_data_' + SERVER_KEY;
-    const PANEL_KEY   = 'ovalue_panel_state';
+    const PANEL_KEY     = 'ovalue_panel_state';
+    const PANEL_POS_KEY = 'ovalue_panel_pos';
+    const PANEL_COL_KEY = 'ovalue_panel_collapsed';
 
     const LIFEFORM_CLASS = {
         lifeform1: 'Humans',
@@ -857,29 +859,40 @@
 
     // ── INJECT UI ─────────────────────────────────────────────────────────────
     GM_addStyle(`
-        #ov_panel { position:fixed; top:100px; left:190px; width:260px; background:#0e1520;
-            border:1px solid #243040; border-radius:4px; z-index:9999; color:#8496a7;
-            display:none; box-shadow:0 4px 24px rgba(0,0,0,.7);
-            font-family:Verdana,Arial,sans-serif; font-size:11px; }
+        #ov_panel { position:fixed; left:0; top:0; width:232px;
+            background:#0e1520; border-right:1px solid #243040; z-index:9999; color:#8496a7;
+            display:none; box-shadow:4px 0 16px rgba(0,0,0,.6);
+            font-family:Verdana,Arial,sans-serif; font-size:11px; user-select:none;
+            flex-direction:column; }
+        #ov_panel.ov_open { display:flex; }
         #ov_hdr { background:linear-gradient(to bottom,#1e2d3e,#131d28); border-bottom:1px solid #0a1018;
-            padding:7px 10px; display:flex; align-items:center; gap:6px; }
+            padding:7px 10px; display:flex; align-items:center; gap:6px;
+            cursor:move; flex-shrink:0; }
         #ov_hdr_title { font-weight:bold; color:#c8dff0; font-size:12px; flex-grow:1; letter-spacing:1px; }
-        #ov_speed { font-size:9px; color:#4a6a8a; margin-right:4px; white-space:nowrap;
-            overflow:hidden; text-overflow:ellipsis; max-width:130px; }
+        #ov_speed { font-size:9px; color:#4a6a8a; white-space:nowrap;
+            overflow:hidden; text-overflow:ellipsis; max-width:100px; }
         #ov_close { background:none; border:none; color:#4a6a8a; cursor:pointer;
-            font-size:14px; line-height:1; padding:0 2px; }
+            font-size:14px; line-height:1; padding:0 2px; flex-shrink:0; }
         #ov_close:hover { color:#8aa8c8; }
-        #ov_content { padding:8px 10px; }
+        #ov_content { flex:1; overflow-y:auto; padding:8px 10px;
+            scrollbar-width:thin; scrollbar-color:#1e2e3e #0a1018; }
+        #ov_content::-webkit-scrollbar { width:4px; }
+        #ov_content::-webkit-scrollbar-track { background:#0a1018; }
+        #ov_content::-webkit-scrollbar-thumb { background:#1e3040; border-radius:2px; }
+        #ov_footer { padding:8px 10px; border-top:1px solid #1a2530; flex-shrink:0; }
         .ov_sec { margin-bottom:6px; }
-        .ov_sec_hdr { display:flex; align-items:center; justify-content:space-between;
-            padding:4px 0; border-bottom:1px solid #1a2530; margin-bottom:4px; }
+        .ov_sec_hdr { display:flex; align-items:center; gap:4px;
+            padding:4px 0; border-bottom:1px solid #1a2530; margin-bottom:4px; cursor:pointer; }
+        .ov_sec_hdr:hover .ov_sec_lnk { color:#a0ccee; }
+        .ov_sec_toggle { font-size:8px; color:#3a5a7a; flex-shrink:0; transition:transform .15s; line-height:1; }
         .ov_sec_lnk { font-size:10px; font-weight:bold; color:#7aaace; text-decoration:none;
-            letter-spacing:.5px; text-transform:uppercase; }
-        .ov_sec_lnk:hover { color:#a0ccee; text-decoration:underline; }
+            letter-spacing:.5px; text-transform:uppercase; flex-grow:1; }
+        .ov_sec_lnk:hover { color:#a0ccee; }
         .ov_badge { font-size:8px; font-weight:bold; padding:2px 5px; border-radius:3px; white-space:nowrap; }
         .ov_ok  { background:#0f2a05; color:#6fc52a; border:1px solid #2a5010; }
         .ov_ko  { background:#2a0808; color:#d43636; border:1px solid #5a1010; }
-        .ov_body { padding:0 0 2px; }
+        .ov_body { padding:0 0 2px; overflow:hidden; }
+        .ov_body.collapsed { display:none; }
         .ov_row { display:flex; justify-content:space-between; align-items:center;
             padding:2px 0; font-size:10px; border-bottom:1px solid #141e28; gap:4px; }
         .ov_row:last-child { border-bottom:none; }
@@ -893,13 +906,13 @@
         .ov_hint a { color:#5a9aca; text-decoration:underline; }
         .ov_sub  { font-size:9px; font-weight:bold; color:#4a6a8a; margin:5px 0 2px;
             text-transform:uppercase; letter-spacing:1px; }
-        .ov_item_name { max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        #ov_export, #ov_reset { display:block; width:100%; margin-top:8px; padding:5px 0;
+        .ov_item_name { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        #ov_export, #ov_reset { display:block; width:100%; padding:6px 0;
             background:linear-gradient(to bottom,#2d4055,#182030); border:1px solid #0a1018;
             color:#c8dff0; cursor:pointer; border-radius:3px; font-size:11px;
-            font-family:inherit; letter-spacing:.5px; }
+            font-family:inherit; letter-spacing:.5px; text-align:center; }
         #ov_export:hover { background:linear-gradient(to bottom,#3a5268,#202d3e); }
-        #ov_reset { background:linear-gradient(to bottom,#3a1010,#1e0808); margin-top:4px; }
+        #ov_reset { background:linear-gradient(to bottom,#3a1010,#1e0808); margin-top:5px; }
         #ov_reset:hover { background:linear-gradient(to bottom,#4e1515,#280a0a); }
     `);
 
@@ -923,15 +936,30 @@
             document.getElementById('ov_menu_btn').addEventListener('click', e => {
                 e.preventDefault();
                 const panel = document.getElementById('ov_panel');
-                const open  = panel.style.display === 'none';
-                panel.style.display = open ? 'block' : 'none';
+                const open  = !panel.classList.contains('ov_open');
+                panel.classList.toggle('ov_open', open);
                 GM_setValue(PANEL_KEY, open);
             });
         }
 
         const panel = document.createElement('div');
         panel.id = 'ov_panel';
-        panel.style.display = GM_getValue(PANEL_KEY, false) ? 'block' : 'none';
+        if (GM_getValue(PANEL_KEY, false)) panel.classList.add('ov_open');
+        // Stato collasso sezioni (persistito)
+        const collapsed = GM_getValue(PANEL_COL_KEY, {});
+        const mkSec = (id, lnkHref, lnkLabel, badgeId, bodyId, bodyHtml, lnkExtra = '') => {
+            const isCollapsed = !!collapsed[id];
+            return `
+            <div class="ov_sec" data-sec="${id}">
+                <div class="ov_sec_hdr">
+                    <span class="ov_sec_toggle" style="transform:rotate(${isCollapsed ? '-90' : '0'}deg)">▼</span>
+                    <a class="ov_sec_lnk${lnkExtra ? ' ' + lnkExtra : ''}" href="${lnkHref}"${lnkExtra ? ' target="_blank" rel="noopener noreferrer"' : ''}>${lnkLabel}</a>
+                    <span id="${badgeId}" class="ov_badge ov_ko">${L.badgeMissing}</span>
+                </div>
+                <div id="${bodyId}" class="ov_body${isCollapsed ? ' collapsed' : ''}">${bodyHtml}</div>
+            </div>`;
+        };
+
         panel.innerHTML = `
             <div id="ov_hdr">
                 <span id="ov_hdr_title">⬡ OVALUE</span>
@@ -939,62 +967,93 @@
                 <button id="ov_close" title="${L.close}">${L.close}</button>
             </div>
             <div id="ov_content">
-                <div class="ov_sec">
-                    <div class="ov_sec_hdr">
-                        <a class="ov_sec_lnk" href="?page=ingame&component=overview">${L.overview}</a>
-                        <span id="ov_bdg_ov" class="ov_badge ov_ko">${L.badgeMissing}</span>
-                    </div>
-                    <div id="ov_body_ov" class="ov_body">
-                        <div class="ov_hint">${L.hintOverview}</div>
-                    </div>
-                </div>
-                <div class="ov_sec">
-                    <div class="ov_sec_hdr">
-                        <a class="ov_sec_lnk" href="?page=ingame&component=lfbonuses">${L.lifeform}</a>
-                        <span id="ov_bdg_lf" class="ov_badge ov_ko">${L.badgeMissing}</span>
-                    </div>
-                    <div id="ov_body_lf" class="ov_body">
-                        <div class="ov_hint">${L.hintLf}</div>
-                    </div>
-                </div>
-                <div class="ov_sec">
-                    <div class="ov_sec_hdr">
-                        <a class="ov_sec_lnk" href="?page=ingame&component=lfresearch">${L.lfResearch}</a>
-                        <span id="ov_bdg_lfr" class="ov_badge ov_ko">${L.badgeMissing}</span>
-                    </div>
-                    <div id="ov_body_lfr" class="ov_body">
-                        <div class="ov_hint">${L.hintLfResearch}</div>
-                    </div>
-                </div>
-                <div class="ov_sec">
-                    <div class="ov_sec_hdr">
-                        <a class="ov_sec_lnk ov_empire_link" href="${empireUrl()}" target="_blank" rel="noopener noreferrer">${L.empire}</a>
-                        <span id="ov_bdg_emp" class="ov_badge ov_ko">${L.badgeMissing}</span>
-                    </div>
-                    <div id="ov_body_emp" class="ov_body">
-                        <div class="ov_hint">${L.hintEmpire(empireUrl())}</div>
-                    </div>
-                </div>
+                ${mkSec('ov', '?page=ingame&component=overview', L.overview, 'ov_bdg_ov', 'ov_body_ov', `<div class="ov_hint">${L.hintOverview}</div>`)}
+                ${mkSec('lf', '?page=ingame&component=lfbonuses', L.lifeform, 'ov_bdg_lf', 'ov_body_lf', `<div class="ov_hint">${L.hintLf}</div>`)}
+                ${mkSec('lfr', '?page=ingame&component=lfresearch', L.lfResearch, 'ov_bdg_lfr', 'ov_body_lfr', `<div class="ov_hint">${L.hintLfResearch}</div>`)}
+                ${mkSec('emp', empireUrl(), L.empire, 'ov_bdg_emp', 'ov_body_emp', `<div class="ov_hint">${L.hintEmpire(empireUrl())}</div>`, 'ov_empire_link')}
+            </div>
+            <div id="ov_footer">
                 <button id="ov_export">${L.export}</button>
                 <button id="ov_reset">${L.reset}</button>
             </div>
         `;
         document.body.appendChild(panel);
 
-        function positionPanel() {
-            for (const sel of ['#sideBar', '#navi', '.navi_outer', '#left-col', '#menuTable']) {
+        // Rileva l'altezza del footer OGame per non sovrapporre i pulsanti
+        function ogameFooterHeight() {
+            for (const sel of ['#footer', 'footer', '.footer', '#ogame_footer', '#legal']) {
                 const el = document.querySelector(sel);
-                if (el && el.getBoundingClientRect().width > 0) {
-                    panel.style.left = Math.max(4, Math.round(el.getBoundingClientRect().left) - 264) + 'px';
-                    break;
+                if (el) {
+                    const h = Math.ceil(el.getBoundingClientRect().height);
+                    if (h > 0) return h;
                 }
             }
+            return 22; // fallback tipico OGame
         }
-        positionPanel();
-        setTimeout(positionPanel, 1500);
+
+        function applyPanelHeight(top) {
+            const fh  = ogameFooterHeight();
+            const avail = window.innerHeight - (top || 0) - fh;
+            panel.style.height = Math.max(200, avail) + 'px';
+        }
+
+        // Posizione: il pannello è docked a sinistra (left:0, top:0) per default.
+        // Se l'utente lo ha trascinato, ripristina la posizione salvata.
+        const savedPos = GM_getValue(PANEL_POS_KEY, null);
+        if (savedPos && savedPos.left != null) {
+            panel.style.left = savedPos.left + 'px';
+            panel.style.top  = savedPos.top  + 'px';
+        }
+        applyPanelHeight(parseInt(panel.style.top) || 0);
+        // Ricalcola se il footer OGame viene aggiunto dopo il caricamento
+        setTimeout(() => applyPanelHeight(parseInt(panel.style.top) || 0), 1500);
+
+        // ── Drag & drop sull'header ──────────────────────────────────────────
+        let dragging = false, ox = 0, oy = 0;
+        const hdr = document.getElementById('ov_hdr');
+        hdr.addEventListener('mousedown', e => {
+            if (e.target.id === 'ov_close') return;
+            dragging = true;
+            const r = panel.getBoundingClientRect();
+            ox = e.clientX - r.left;
+            oy = e.clientY - r.top;
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', e => {
+            if (!dragging) return;
+            const nx = Math.max(0, Math.min(window.innerWidth  - panel.offsetWidth, e.clientX - ox));
+            const ny = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - oy));
+            panel.style.left = nx + 'px';
+            panel.style.top  = ny + 'px';
+            applyPanelHeight(ny);
+        });
+        document.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false;
+            GM_setValue(PANEL_POS_KEY, {
+                left: parseInt(panel.style.left) || 0,
+                top:  parseInt(panel.style.top)  || 0
+            });
+        });
+
+        // ── Sezioni collassabili ─────────────────────────────────────────────
+        panel.querySelectorAll('.ov_sec').forEach(sec => {
+            const secId  = sec.dataset.sec;
+            const hdrEl  = sec.querySelector('.ov_sec_hdr');
+            const body   = sec.querySelector('.ov_body');
+            const toggle = sec.querySelector('.ov_sec_toggle');
+            hdrEl.addEventListener('click', e => {
+                if (e.target.tagName === 'A') return; // link cliccabile normalmente
+                const isNowCollapsed = body.classList.toggle('collapsed');
+                toggle.style.transform = isNowCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+                const state = GM_getValue(PANEL_COL_KEY, {});
+                state[secId] = isNowCollapsed;
+                GM_setValue(PANEL_COL_KEY, state);
+            });
+        });
 
         document.getElementById('ov_close').addEventListener('click', () => {
-            panel.style.display = 'none';
+            panel.classList.remove('ov_open');
             GM_setValue(PANEL_KEY, false);
         });
 

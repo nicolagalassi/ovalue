@@ -131,7 +131,7 @@ export const OGAME_DB = {
             2115: { cost: [240000, 120000, 120000, 0], factors: [1.3, 1.3, 1.3, 0], name: 'Trasmettitore energetico Diamante', bonus: [0, 0, 0] },
             2116: { cost: [250000, 250000, 250000, 0], factors: [1.4, 1.4, 1.4, 0], name: 'Miglioramento Scudo ossidiana', bonus: [0, 0, 0] },
             2117: { cost: [500000, 300000, 200000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Scudi runici', bonus: [0, 0, 0] },
-            2118: { cost: [300000, 180000, 120000, 0], factors: [1.7, 1.7, 1.7, 0], name: 'Potenziamento Collezionista Rocktal', bonus: [0, 0, 0, 0, 0, 0, 0.02] }
+            2118: { cost: [300000, 180000, 120000, 0], factors: [1.7, 1.7, 1.7, 0], name: 'Potenziamento Collezionista Rocktal', bonus: [0, 0, 0, 0, 0, 0, 0.002] }
         }
     },
     lf_mecha: {

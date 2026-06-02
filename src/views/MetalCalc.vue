@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useProfiles } from '../composables/useProfiles';
+import { OGAME_DB } from '../data/ogame_db';
 import PlanetCard from '../components/PlanetCard.vue';
 
 const { t } = useLanguage();
@@ -73,15 +74,58 @@ const resetAll = () => {
 };
 
 const applyBulk = () => {
-    const val = bulkTarget.value === 'lifeform' ? bulkValue.value : parseInt(bulkValue.value);
-    if (bulkTarget.value !== 'lifeform' && isNaN(val)) return;
+    const target = bulkTarget.value;
+    const ids = lfRelevantResearchIds.value;
+
+    if (target === 'lf_research_active') {
+        const active = bulkValue.value !== '0' && bulkValue.value !== 0;
+        planets.value.forEach(p => {
+            if (!p.lfActive)   p.lfActive   = {};
+            if (!p.lfResearch) p.lfResearch  = {};
+            ids.forEach(id => { p.lfActive[id] = active; });
+        });
+        return;
+    }
+
+    if (target === 'lf_research_level') {
+        const lvl = parseInt(bulkValue.value);
+        if (isNaN(lvl) || lvl < 0) return;
+        planets.value.forEach(p => {
+            if (!p.lfResearch) p.lfResearch = {};
+            if (!p.lfActive)   p.lfActive   = {};
+            ids.forEach(id => {
+                p.lfResearch[id] = lvl;
+                // Attiva automaticamente se il livello è > 0, disattiva se 0
+                if (lvl > 0) p.lfActive[id] = true;
+                else delete p.lfActive[id];
+            });
+        });
+        return;
+    }
+
+    const val = target === 'lifeform' ? bulkValue.value : parseInt(bulkValue.value);
+    if (target !== 'lifeform' && isNaN(val)) return;
     planets.value.forEach(p => {
-        if (bulkTarget.value === 'overload') p.overload = (val === 1);
-        else if (bulkTarget.value === 'item') { if ([0,10,20,30,40].includes(val)) p.item = val; } 
-        else if (bulkTarget.value === 'lifeform') p.lifeform = val;
-        else if (p.hasOwnProperty(bulkTarget.value)) p[bulkTarget.value] = val;
+        if (target === 'overload') p.overload = (val === 1);
+        else if (target === 'item') { if ([0,10,20,30,40].includes(val)) p.item = val; }
+        else if (target === 'lifeform') p.lifeform = val;
+        else if (p.hasOwnProperty(target)) p[target] = val;
     });
 };
+
+// ID ricerche LF rilevanti per metallo o bonus collezionista (usate nelle operazioni bulk)
+const lfRelevantResearchIds = computed(() => {
+    const ids = [];
+    for (const lf of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
+        const cat = OGAME_DB[`lf_${lf}_res`];
+        if (!cat) continue;
+        for (const [id, item] of Object.entries(cat.items || {})) {
+            const b = item.bonus;
+            if (b && ((b[0] || 0) > 0 || (b[6] || 0) > 0)) ids.push(id);
+        }
+    }
+    return ids;
+});
 
 // Bonus LF globale (somma di tutti i pianeti, applicato ugualmente a ciascuno)
 const lfResearchPct = computed(() => calcLFResearchBonus(planets.value));
@@ -172,10 +216,20 @@ const collBreakdown = computed(() => {
                         <option value="collector">{{ t('opt_collector') }}</option>
                         <option value="other">{{ t('opt_general') }}</option>
                     </select>
-                    <input v-if="settings.playerClass === 'collector'" type="number" step="0.1"
-                           v-model.number="settings.rocktalEnhancement" @focus="$event.target.select()"
-                           class="input-glass w-20 px-2 py-2 text-center font-mono" placeholder="0.0"
-                           :title="t('lbl_rocktal_collector_bonus')">
+                    <template v-if="settings.playerClass === 'collector'">
+                        <!-- Auto da T18 LF: stessa altezza del select (h-10), colore viola -->
+                        <div v-if="lfResearchPct.collectorBonus > 0"
+                             class="input-glass h-10 w-24 px-2 flex items-center justify-center gap-1 font-mono text-sm cursor-default select-none"
+                             :title="t('lbl_lf_collector_bonus')">
+                            <span class="text-violet-300">+{{ lfResearchPct.collectorBonus.toFixed(2) }}%</span>
+                            <span class="text-[8px] text-violet-500/60 uppercase tracking-wider font-bold">{{ t('lbl_auto') }}</span>
+                        </div>
+                        <!-- Manuale: nessun dato T18 importato -->
+                        <input v-else type="number" step="0.1"
+                               v-model.number="settings.rocktalEnhancement" @focus="$event.target.select()"
+                               class="input-glass h-10 w-20 px-2 py-2 text-center font-mono" placeholder="0.0"
+                               :title="t('lbl_rocktal_collector_bonus')">
+                    </template>
                 </div>
             </div>
             <div>
@@ -255,14 +309,30 @@ const collBreakdown = computed(() => {
             <option value="lifeform">{{ t('lbl_lifeform') }}</option>
             <option value="crawlers">{{ t('lbl_crawlers') }}</option>
             <option value="overload">{{ t('lbl_overload') }}</option>
+            <option value="lf_research_active">{{ t('bulk_lf_active') }}</option>
+            <option value="lf_research_level">{{ t('bulk_lf_level') }}</option>
         </select>
+
+        <!-- Selezione valore in base al target -->
         <select v-if="bulkTarget === 'lifeform'" v-model="bulkValue" class="input-glass px-2 py-1.5 text-sm flex-shrink-0">
             <option value="humans">{{ t('opt_humans') }}</option>
             <option value="rocktal">{{ t('opt_rocktal') }}</option>
             <option value="mecha">{{ t('opt_mecha') }}</option>
         </select>
+        <select v-else-if="bulkTarget === 'item'" v-model="bulkValue" class="input-glass px-2 py-1.5 text-sm flex-shrink-0">
+            <option value="0">&ndash;</option>
+            <option value="10">+10%</option>
+            <option value="20">+20%</option>
+            <option value="30">+30%</option>
+            <option value="40">+40%</option>
+        </select>
+        <select v-else-if="bulkTarget === 'lf_research_active' || bulkTarget === 'overload'" v-model="bulkValue" class="input-glass px-2 py-1.5 text-sm flex-shrink-0">
+            <option value="1">{{ t('bulk_lf_enable') }}</option>
+            <option value="0">{{ t('bulk_lf_disable') }}</option>
+        </select>
         <input v-else type="number" v-model="bulkValue" @focus="$event.target.select()"
                :placeholder="t('bulk_placeholder')" class="input-glass px-3 py-1.5 text-sm font-mono w-28 flex-shrink-0">
+
         <button @click="applyBulk"
                 class="bg-violet-600/80 hover:bg-violet-500 text-white font-semibold px-4 py-1.5 rounded-lg text-sm transition flex-shrink-0">
             {{ t('btn_bulk_apply') }}

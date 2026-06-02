@@ -16,21 +16,20 @@ const emit = defineEmits(['clone', 'remove', 'toggle-lf-research']);
 const { t } = useLanguage();
 const { formatNum, calcPlanetMetalProduction } = useOgameFormulas();
 
-// Ricerche LF raggruppate per specie, solo quelle con bonus metallo o collector
-const lfResearchBySpecies = computed(() => {
-    const groups = [];
+// Ricerche LF ordinate per tier (T1→T18), solo quelle con bonus metallo o collector.
+// Il colore identifica la specie; nessun raggruppamento per specie.
+const lfResearchByTier = computed(() => {
+    const flat = [];
     for (const lf of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
         const cat = OGAME_DB[`lf_${lf}_res`];
         if (!cat) continue;
-        const researches = [];
         for (const [id, item] of Object.entries(cat.items || {})) {
             const b = item.bonus;
             if (b && ((b[0] || 0) > 0 || (b[6] || 0) > 0))
-                researches.push({ id, name: item.name || id, bonus: b });
+                flat.push({ id, name: item.name || id, bonus: b, species: lf, tier: parseInt(id) % 100 });
         }
-        if (researches.length) groups.push({ species: lf, researches });
     }
-    return groups;
+    return flat.sort((a, b) => a.tier - b.tier);
 });
 
 // Contatore ricerche configurate (per il badge nell'header)
@@ -314,63 +313,52 @@ const breakdown = computed(() => {
                  class="w-16 bg-[#070c18]/50 border border-slate-700/30 rounded-md px-1.5 py-1 text-[11px] font-mono text-purple-300 text-center focus:outline-none focus:border-purple-400/40" />
         </div>
 
-        <!-- Ricerche per specie -->
-        <div class="space-y-2.5">
-          <div v-for="group in lfResearchBySpecies" :key="group.species">
+        <!-- Ricerche ordinate per tier T1→T18; colore = specie -->
+        <div class="space-y-0.5">
+          <div v-for="r in lfResearchByTier" :key="r.id"
+               class="flex items-center gap-1.5 px-1.5 py-1 rounded-md transition-colors"
+               :class="isLfActive(r.id) ? SPECIES_COLORS[r.species].bg : 'bg-transparent'">
 
-            <!-- Intestazione specie -->
-            <div class="flex items-center gap-1.5 mb-1">
-              <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="SPECIES_COLORS[group.species].dot"></span>
-              <span class="text-[9px] font-bold uppercase tracking-widest" :class="SPECIES_COLORS[group.species].text">
-                {{ t('opt_' + group.species) }}
+            <!-- Dot specie + Tier + Nome -->
+            <span class="flex-grow min-w-0 flex items-center gap-1.5 overflow-hidden">
+              <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="SPECIES_COLORS[r.species].dot"></span>
+              <span class="flex-shrink-0 text-[9px] font-mono font-bold px-1 py-0.5 rounded bg-slate-800/70 transition-colors"
+                    :class="isLfActive(r.id) ? 'text-slate-500' : 'text-slate-700'">
+                T{{ r.tier }}
               </span>
-            </div>
+              <span class="truncate text-[10px] transition-colors cursor-default"
+                    :class="isLfActive(r.id) ? 'text-slate-300' : 'text-slate-600 line-through'"
+                    :title="r.name">{{ r.name }}</span>
+            </span>
 
-            <!-- Righe ricerca -->
-            <div v-for="r in group.researches" :key="r.id"
-                 class="flex items-center gap-1.5 px-1.5 py-1 rounded-md transition-colors"
-                 :class="isLfActive(r.id) ? SPECIES_COLORS[group.species].bg : 'bg-transparent'">
+            <!-- Toggle attivo/inattivo -->
+            <button @click="toggleLfResearch(r.id)"
+                    class="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold transition-all border"
+                    :class="isLfActive(r.id)
+                        ? 'bg-purple-500/15 border-purple-500/30 text-purple-300 hover:bg-purple-500/25'
+                        : 'bg-slate-700/20 border-slate-700/40 text-slate-600 hover:border-slate-600/50'">
+              {{ isLfActive(r.id) ? '✓' : '×' }}
+            </button>
 
-              <!-- Slot + Nome -->
-              <span class="flex-grow min-w-0 flex items-center gap-1.5 overflow-hidden">
-                <span class="flex-shrink-0 text-[9px] font-mono font-bold px-1 py-0.5 rounded bg-slate-800/70 transition-colors"
-                      :class="isLfActive(r.id) ? 'text-slate-500' : 'text-slate-700'">
-                  T{{ parseInt(r.id) % 100 }}
-                </span>
-                <span class="truncate text-[10px] transition-colors cursor-default"
-                      :class="isLfActive(r.id) ? 'text-slate-300' : 'text-slate-600 line-through'"
-                      :title="r.name">{{ r.name }}</span>
-              </span>
+            <!-- Input livello -->
+            <input type="number" v-model.number="planet.lfResearch[r.id]" @focus="$event.target.select()" min="0"
+                   class="flex-shrink-0 w-12 bg-[#070c18]/60 border border-slate-700/30 rounded-md px-1 py-1 text-[11px] font-mono text-center focus:outline-none focus:border-purple-400/40 transition-opacity"
+                   :class="[isLfActive(r.id) ? 'text-purple-300' : 'text-slate-600 opacity-50']" />
 
-              <!-- Toggle attivo/inattivo -->
-              <button @click="toggleLfResearch(r.id)"
-                      class="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold transition-all border"
-                      :class="isLfActive(r.id)
-                          ? 'bg-purple-500/15 border-purple-500/30 text-purple-300 hover:bg-purple-500/25'
-                          : 'bg-slate-700/20 border-slate-700/40 text-slate-600 hover:border-slate-600/50'">
-                {{ isLfActive(r.id) ? '✓' : '×' }}
-              </button>
-
-              <!-- Input livello -->
-              <input type="number" v-model.number="planet.lfResearch[r.id]" @focus="$event.target.select()" min="0"
-                     class="flex-shrink-0 w-12 bg-[#070c18]/60 border border-slate-700/30 rounded-md px-1 py-1 text-[11px] font-mono text-center focus:outline-none focus:border-purple-400/40 transition-opacity"
-                     :class="[isLfActive(r.id) ? 'text-purple-300' : 'text-slate-600 opacity-50']" />
-
-              <!-- Bonus preview -->
-              <span class="flex-shrink-0 w-[3.5rem] text-right text-[9px] font-mono"
-                    :class="(r.bonus[6]||0) > 0 ? 'text-purple-400/70' : 'text-emerald-500/60'">
-                <template v-if="(planet.lfResearch[r.id]||0) > 0 && isLfActive(r.id)">
-                  <template v-if="(r.bonus[6]||0) > 0">
-                    +{{ (planetResearchMult * (r.bonus[6]*100) * (planet.lfResearch[r.id]||0)).toFixed(2) }}%<span class="text-purple-600"> col</span>
-                  </template>
-                  <template v-else>
-                    +{{ (planetResearchMult * (r.bonus[0]*100) * (planet.lfResearch[r.id]||0)).toFixed(2) }}%
-                  </template>
+            <!-- Bonus preview -->
+            <span class="flex-shrink-0 w-[3.5rem] text-right text-[9px] font-mono"
+                  :class="(r.bonus[6]||0) > 0 ? 'text-purple-400/70' : 'text-emerald-500/60'">
+              <template v-if="(planet.lfResearch[r.id]||0) > 0 && isLfActive(r.id)">
+                <template v-if="(r.bonus[6]||0) > 0">
+                  +{{ (planetResearchMult * (r.bonus[6]*100) * (planet.lfResearch[r.id]||0)).toFixed(2) }}%<span class="text-purple-600"> col</span>
                 </template>
-                <span v-else class="text-slate-700">—</span>
-              </span>
+                <template v-else>
+                  +{{ (planetResearchMult * (r.bonus[0]*100) * (planet.lfResearch[r.id]||0)).toFixed(2) }}%
+                </template>
+              </template>
+              <span v-else class="text-slate-700">—</span>
+            </span>
 
-            </div>
           </div>
         </div>
 

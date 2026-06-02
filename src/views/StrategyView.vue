@@ -213,10 +213,11 @@ const groupedSteps = computed(() => {
 
         if (cheap) {
             // Raccogli step consecutivi economici dello stesso tipo.
-            // Per lf_research raggruppa anche per researchId (ogni ricerca è separata).
+            // Per lf_research raggruppa per researchId+from: step allo stesso livello
+            // su pianeti diversi vengono uniti, ma livelli diversi restano blocchi separati.
             const sameGroup = (a, b) => {
                 if (a.type !== b.type) return false;
-                if (a.type === 'lf_research') return a.researchId === b.researchId;
+                if (a.type === 'lf_research') return a.researchId === b.researchId && a.from === b.from;
                 return true;
             };
             let j = i + 1;

@@ -41,6 +41,14 @@ const routes = [
         }
     },
     {
+        path: '/strategy',
+        component: () => import('./views/StrategyView.vue'),
+        meta: {
+            title: 'Production Planner - OValue',
+            description: 'Pianifica la strategia ottimale per aumentare la produzione di metallo: miniere, plasma, edifici LF e crawlers.'
+        }
+    },
+    {
         path: '/expirations',
         component: () => import('./views/ExpirationsView.vue'),
         meta: {

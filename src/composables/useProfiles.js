@@ -1,4 +1,6 @@
 import { ref, computed } from 'vue';
+import { OGAME_DB } from '../data/ogame_db';
+import { useOgameFormulas } from './useOgameFormulas';
 
 // Global state shared across all instances of useProfiles
 const profiles = ref([]);
@@ -56,8 +58,11 @@ const createDefaultExpirations = () => ({
 // Replica la stessa formula di MetalCalc.vue per aggiornare production.daily al momento dell'import.
 const calcDailyProduction = (settings, planets) => {
     if (!Array.isArray(planets) || planets.length === 0) return 0;
-    const collFactor = 1 + ((settings.rocktalEnhancement || 0) / 100);
     const ecoSpeed = settings.ecoSpeed || 1;
+    const { calcLFResearchBonus } = useOgameFormulas();
+    // Bonus globale: somma di tutti i pianeti, applicato ugualmente a ciascuno
+    const lfResearchPct = calcLFResearchBonus(planets);
+    const collFactor = 1 + ((settings.rocktalEnhancement || 0) / 100) + ((lfResearchPct.collectorBonus || 0) / 100);
     let hourly = 0;
     planets.forEach(p => {
         const met = parseInt(p.metal) || 0;
@@ -76,7 +81,10 @@ const calcDailyProduction = (settings, planets) => {
         totPerc += (parseInt(p.item) || 0) + (parseInt(p.itemCustom) || 0);
         if (p.lifeform === 'rocktal') totPerc += (parseInt(p.magma) || 0) * 2;
         else if (p.lifeform === 'humans') totPerc += (parseInt(p.human) || 0) * 1.5;
-        totPerc += settings.lfBonus || 0;
+        totPerc += lfResearchPct.metal;
+        if (Object.values(p.lfResearch || {}).every(v => !v)) {
+            totPerc += settings.lfBonus || 0;
+        }
         const isCollector = settings.playerClass === 'collector';
         const mineSum = met + (parseInt(p.crystal) || 0) + (parseInt(p.deuterium) || 0);
         let maxCraw = mineSum * 8;
@@ -326,7 +334,7 @@ export function useProfiles() {
     const importFromExporter = (allData) => {
         if (!allData || typeof allData !== 'object') return false;
 
-        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'mecha' };
+        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'kaelesh' };
         const classMap = {
             // vecchio formato IT (esportatore ≤3.2.x)
             'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
@@ -425,6 +433,28 @@ export function useProfiles() {
                 profile.production.planets = raw.planets.map(p => {
                     const rawLf = p.lifeform || (raw.planetLifeforms?.[p.id]) || null;
                     const lifeform = lfMap[rawLf] ?? 'humans';
+                    // Map lifeform species number for lfLevels lookup
+                    const lfNumber = { humans: 1, rocktal: 2, mecha: 3, kaelesh: 4 }[lifeform];
+                    // Priorità: lfLevels dalla pagina LF (più affidabile) > per-pianeta dall'impero
+                    const lifeformLevel = raw.lfLevels?.[String(lfNumber)] || p.lifeformLevel || 0;
+                    // lfActive: activeResearches è un array di numeri, le chiavi sono stringhe
+                    // lfActive: default inattivo. Solo le true esplicite contano nel calcolo.
+                    // Priorità: planetResearches (da lfresearch page) > activeResearches (da lfbonuses)
+                    const lfActive = {};
+                    const perPlanetResearches = raw.planetResearches?.[String(p.id)];
+                    if (perPlanetResearches) {
+                        // Ricerche lette dalla pagina lfresearch: tutte attive, livelli più affidabili
+                        Object.keys(perPlanetResearches).forEach(key => { lfActive[key] = true; });
+                    } else if (raw.lf_collected && Array.isArray(raw.activeResearches)) {
+                        raw.activeResearches.forEach(numId => {
+                            const key = String(numId);
+                            if (key in (p.lfResearch || {})) lfActive[key] = true;
+                        });
+                    }
+                    // Se planetResearches è disponibile per questo pianeta, usa quei livelli (più precisi)
+                    const lfResearch = perPlanetResearches
+                        ? { ...(p.lfResearch ?? {}), ...perPlanetResearches }
+                        : (p.lfResearch ?? {});
                     return {
                         name: p.name ?? '',
                         pos: p.pos ?? 8,
@@ -437,7 +467,11 @@ export function useProfiles() {
                         item: p.item ?? 0,
                         itemCustom: p.itemCustom ?? 0,
                         lifeform,
-                        overload: p.overload ?? false
+                        overload: p.overload ?? false,
+                        lifeformLevel,
+                        lfResearch,
+                        lfBuildings: p.lfBuildings ?? {},
+                        lfActive
                     };
                 });
             }
@@ -457,7 +491,7 @@ export function useProfiles() {
         const profile = activeProfile.value;
         if (!profile || !rawData || typeof rawData !== 'object') return false;
 
-        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'mecha' };
+        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'kaelesh' };
         const classMap = {
             // vecchio formato IT (esportatore ≤3.2.x)
             'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
@@ -494,9 +528,13 @@ export function useProfiles() {
         if (rawData.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(String(rawData.lfBonuses.metal).replace(',', '.')) || 0;
 
         if (rawData.officers) {
-            const geologo = rawData.officers['Geologo'];
+            // Supporta sia nuovo formato CSS-class (≥3.3.0) sia vecchio formato IT (≤3.2.x)
+            const geologo = rawData.officers['geologist'] || rawData.officers['Geologo'];
             if (geologo) profile.production.settings.geologist = geologo.active === true;
-            const ORDER = ['Comandante', 'Ammiraglio', 'Ingegnere', 'Geologo', 'Tecnico'];
+            const OLD = ['Comandante', 'Ammiraglio', 'Ingegnere', 'Geologo', 'Tecnico'];
+            const NEW = ['commander', 'admiral', 'engineer', 'geologist', 'technocrat'];
+            const useNew = NEW.some(n => rawData.officers[n] !== undefined);
+            const ORDER  = useNew ? NEW : OLD;
             const allFive = ORDER.every(n => rawData.officers[n]?.active === true);
             if (ORDER.some(n => rawData.officers[n] !== undefined)) {
                 profile.production.settings.staff = allFive;
@@ -507,6 +545,21 @@ export function useProfiles() {
             profile.production.planets = rawData.planets.map(p => {
                 const rawLf = p.lifeform || (rawData.planetLifeforms?.[p.id]) || null;
                 const lifeform = lfMap[rawLf] ?? 'humans';
+                const lfNumber = { humans: 1, rocktal: 2, mecha: 3, kaelesh: 4 }[lifeform];
+                const lifeformLevel = rawData.lfLevels?.[String(lfNumber)] || p.lifeformLevel || 0;
+                const lfActive = {};
+                const perPlanetResearches = rawData.planetResearches?.[String(p.id)];
+                if (perPlanetResearches) {
+                    Object.keys(perPlanetResearches).forEach(key => { lfActive[key] = true; });
+                } else if (rawData.lf_collected && Array.isArray(rawData.activeResearches)) {
+                    rawData.activeResearches.forEach(numId => {
+                        const key = String(numId);
+                        if (key in (p.lfResearch || {})) lfActive[key] = true;
+                    });
+                }
+                const lfResearch = perPlanetResearches
+                    ? { ...(p.lfResearch ?? {}), ...perPlanetResearches }
+                    : (p.lfResearch ?? {});
                 return {
                     name: p.name ?? '',
                     pos: p.pos ?? 8,
@@ -519,7 +572,11 @@ export function useProfiles() {
                     item: p.item ?? 0,
                     itemCustom: p.itemCustom ?? 0,
                     lifeform,
-                    overload: p.overload ?? false
+                    overload: p.overload ?? false,
+                    lifeformLevel,
+                    lfResearch,
+                    lfBuildings: p.lfBuildings ?? {},
+                    lfActive
                 };
             });
         }

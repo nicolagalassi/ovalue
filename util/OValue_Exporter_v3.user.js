@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.3.5
+// @version      3.4.0
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -114,6 +114,12 @@
             activeLf:       n => `Razze Attive (${n})`,
             globalItems:    n => `Item Globali (${n})`,
             bonusMetal: 'Bonus Metallo', bonusClass: 'Bonus Classe',
+            lifeformLevels: 'Livelli Forme di Vita',
+            activeResearches: n => `Ricerche Attive (${n})`,
+            hintActiveResearches: 'Le ricerche LF attive sono state registrate.',
+            lfResearch: '🔬 Ricerche LF',
+            lfResearchPlanets: (n, tot) => `Pianeti con ricerche: ${n}/${tot}`,
+            hintLfResearch: 'Visita la pagina <a href="?page=ingame&component=lfresearch">Ricerche LF</a> per ogni pianeta per registrare le tecnologie attive.',
             hintOverview: 'Vai alla <a href="?page=ingame&component=overview">Panoramica</a> e attendi il caricamento.',
             hintLf: 'Vai ai <a href="?page=ingame&component=lfbonuses">Bonus LifeForm</a> e attendi il caricamento.',
             hintEmpire:          url => `Vai alla <a class="ov_empire_link" href="${url}" target="_blank">pagina Impero</a> e attendi.`,
@@ -134,6 +140,12 @@
             activeLf:       n => `Active Species (${n})`,
             globalItems:    n => `Global Items (${n})`,
             bonusMetal: 'Metal Bonus', bonusClass: 'Class Bonus',
+            lifeformLevels: 'Lifeform Levels',
+            activeResearches: n => `Active Researches (${n})`,
+            hintActiveResearches: 'Active LF researches have been recorded.',
+            lfResearch: '🔬 LF Research',
+            lfResearchPlanets: (n, tot) => `Planets with research: ${n}/${tot}`,
+            hintLfResearch: 'Visit the <a href="?page=ingame&component=lfresearch">LF Research</a> page for each planet to record active technologies.',
             hintOverview: 'Go to <a href="?page=ingame&component=overview">Overview</a> and wait for loading.',
             hintLf: 'Go to <a href="?page=ingame&component=lfbonuses">LifeForm Bonuses</a> and wait.',
             hintEmpire:         url => `Go to the <a class="ov_empire_link" href="${url}" target="_blank">Empire page</a> and wait.`,
@@ -154,6 +166,12 @@
             activeLf:       n => `Aktive Spezies (${n})`,
             globalItems:    n => `Globale Items (${n})`,
             bonusMetal: 'Metall-Bonus', bonusClass: 'Klassen-Bonus',
+            lifeformLevels: 'Lebensform-Stufen',
+            activeResearches: n => `Aktive Forschungen (${n})`,
+            hintActiveResearches: 'Aktive LF-Forschungen wurden gespeichert.',
+            lfResearch: '🔬 LF-Forschungen',
+            lfResearchPlanets: (n, tot) => `Planeten mit Forschung: ${n}/${tot}`,
+            hintLfResearch: 'Besuche die <a href="?page=ingame&component=lfresearch">LF-Forschungsseite</a> für jeden Planeten, um aktive Technologien zu erfassen.',
             hintOverview: 'Gehe zur <a href="?page=ingame&component=overview">Übersicht</a> und warte auf das Laden.',
             hintLf: 'Gehe zu den <a href="?page=ingame&component=lfbonuses">Lebensform-Boni</a> und warte.',
             hintEmpire:         url => `Gehe zur <a class="ov_empire_link" href="${url}" target="_blank">Imperium-Seite</a> und warte.`,
@@ -174,6 +192,12 @@
             activeLf:       n => `Espèces actives (${n})`,
             globalItems:    n => `Items globaux (${n})`,
             bonusMetal: 'Bonus métal', bonusClass: 'Bonus classe',
+            lifeformLevels: 'Niveaux des formes de vie',
+            activeResearches: n => `Recherches actives (${n})`,
+            hintActiveResearches: 'Les recherches LF actives ont été enregistrées.',
+            lfResearch: '🔬 Recherches LF',
+            lfResearchPlanets: (n, tot) => `Planètes avec recherches : ${n}/${tot}`,
+            hintLfResearch: 'Visitez la page <a href="?page=ingame&component=lfresearch">Recherches LF</a> pour chaque planète afin d\'enregistrer les technologies actives.',
             hintOverview: "Allez à l'<a href=\"?page=ingame&component=overview\">Aperçu</a> et attendez le chargement.",
             hintLf: 'Allez aux <a href="?page=ingame&component=lfbonuses">Bonus Formes de vie</a> et attendez.',
             hintEmpire:         url => `Allez à la <a class="ov_empire_link" href="${url}" target="_blank">page Empire</a> et attendez.`,
@@ -351,21 +375,68 @@
 
     function collectLFBonuses() {
         const bonuses = { metal: '0%', classBonus: '0%' };
-        document.querySelectorAll('inner-bonus-item-heading').forEach(el => {
+        const activeResearches = [];
+
+        // --- Estrai bonus totali per categoria dalla sezione subCategory ---
+        // La pagina usa elementi con .subCategoryTitle + .subCategoryBonus dentro wrapper vari.
+        // Tentiamo sia [data-toggable] (struttura vecchia) che ricerca diretta delle coppie titolo+bonus.
+        document.querySelectorAll('[data-toggable]').forEach(el => {
+            const key = el.getAttribute('data-toggable');
+            if (!key) return;
+            if (/^\d{3,5}$/.test(key)) {
+                const id = parseInt(key);
+                if (id >= 1000 && id < 5000) activeResearches.push(id);
+                return;
+            }
             const titleEl = el.querySelector('.subCategoryTitle');
             const bonusEl = el.querySelector('.subCategoryBonus');
             if (!titleEl || !bonusEl) return;
             const title = (titleEl.getAttribute('aria-label') || titleEl.textContent).trim();
             const bonus = bonusEl.textContent.replace(/Totale:|Total:|Gesamt:|Total\s*:/gi, '').trim();
             if (!bonus) return;
-            // IT: Metallo / EN: Metal / DE: Metall / FR: Métal
-            if (/^(Metallo|Metal|Metall|M[eé]tal)$/i.test(title))
-                bonuses.metal = bonus;
-            // IT: Collezionista / EN: Collector / DE: Sammler / FR: Collecteur
-            if (/^(Collezionista|Collector|Sammler|Collecteur)$/i.test(title))
-                bonuses.classBonus = bonus;
+            if (/^(Metallo|Metal|Metall|M[eé]tal)$/i.test(title))  bonuses.metal = bonus;
+            if (/^(Collezionista|Collector|Sammler|Collecteur)$/i.test(title)) bonuses.classBonus = bonus;
         });
+
+        // Fallback: cerca la sezione Metallo cercando la coppia titolo+bonus più vicina
+        if (bonuses.metal === '0%') {
+            document.querySelectorAll('.subCategoryTitle').forEach(titleEl => {
+                const title = titleEl.textContent.trim();
+                if (!/^(Metallo|Metal|Metall|M[eé]tal)$/i.test(title)) return;
+                const parent = titleEl.closest('div, section, li') || titleEl.parentElement;
+                if (!parent) return;
+                const bonusEl = parent.querySelector('.subCategoryBonus');
+                if (!bonusEl) return;
+                bonuses.metal = bonusEl.textContent.replace(/Totale:|Total:|Gesamt:|Total\s*:/gi, '').trim() || '0%';
+            });
+        }
+
+        // --- Estrai livello della lifeform attiva dalla pagina lfbonuses ---
+        // Struttura: <div class="lifeform-item-icon small lifeformX"><span>LVL</span></div>
+        const lfLevels = d.lfLevels || {};
+        const activeIcon = document.querySelector('.lifeform-item-icon.small[class*="lifeform"]');
+        if (activeIcon) {
+            const cls = Array.from(activeIcon.classList).find(c => /^lifeform\d$/.test(c));
+            const span = activeIcon.querySelector('span');
+            if (cls && span) {
+                const species = cls.replace('lifeform', '');
+                const lvl = parseInt(span.textContent.trim()) || 0;
+                if (lvl > 0) lfLevels[species] = lvl;
+            }
+        }
+        // Fallback: struttura <lifeform-item> (alcune versioni OGame)
+        document.querySelectorAll('lifeform-item').forEach(item => {
+            const icon = item.querySelector('.lifeform-item-icon');
+            const lvl  = item.querySelector('.currentlevel strong');
+            if (!icon || !lvl) return;
+            const cls = Array.from(icon.classList).find(c => /^lifeform\d$/.test(c));
+            if (!cls) return;
+            lfLevels[cls.replace('lifeform', '')] = parseInt(lvl.textContent.trim()) || 0;
+        });
+
         d.lfBonuses = bonuses;
+        d.activeResearches = activeResearches;
+        d.lfLevels = lfLevels;
         d.lf_collected = true;
         captureLifeform();
         save();
@@ -389,12 +460,75 @@
         const coordToId = {};
         sidebar.forEach(sp => { if (sp.id && sp.coords) coordToId[sp.coords] = sp.id; });
 
+        // I valori numerici stanno nella sezione .values.container (div con classe numerica),
+        // non nella sezione .headers.container (ul > li con i nomi degli edifici).
         const lvl = (p, container, cls) => {
-            const node = p.querySelector('.' + container + ' [class~="' + cls + '"]');
+            const section = p.querySelector('.values.' + container) || p.querySelector('.' + container);
+            if (!section) return 0;
+            const node = section.querySelector('[class~="' + cls + '"]');
             if (!node) return 0;
             const src = node.querySelector('a:not(.active)') || node.querySelector('span') || node;
             const m = src.textContent.replace(/\./g, '').match(/\d+/);
             return m ? parseInt(m[0]) : 0;
+        };
+
+        // Estrae TUTTI i livelli delle ricerche LF da un pianeta nell'impero.
+        // I valori stanno nella sezione .values.lifeformXresearch (div con classe 1{lf}2{nn}),
+        // NON nella sezione .headers (ul > li che contiene i nomi delle ricerche).
+        // Schema classi: 1{lifeform}2{id_due_cifre} → es. 11202 = humans research #02 → ogame_db ID 1102
+        const extractLfResearchLevels = (p) => {
+            const result = {};
+            for (let lfNum = 1; lfNum <= 4; lfNum++) {
+                const valSection = p.querySelector('.values.lifeform' + lfNum + 'research');
+                if (!valSection) continue;
+                valSection.querySelectorAll('div').forEach(div => {
+                    const cls = Array.from(div.classList).find(c => /^1\d{4}$/.test(c));
+                    if (!cls) return;
+                    const src = div.querySelector('span') || div;
+                    const raw = src.textContent.trim().replace(/\./g, '');
+                    if (!/^\d+$/.test(raw)) return;  // salta se non è un numero puro
+                    const empireLvl = parseInt(raw);
+                    if (empireLvl <= 0) return;
+                    const lf   = parseInt(cls[1]);
+                    const type = parseInt(cls[2]);
+                    const sub  = parseInt(cls.slice(3));
+                    const ogId = lf * 1000 + (type === 2 ? 100 : 0) + sub;
+                    result[String(ogId)] = empireLvl;
+                });
+            }
+            return result;
+        };
+
+        // Estrae i livelli degli edifici amplificatori LF dalla sezione .values.lifeformXbuildings.
+        // Schema classi: 1{lifeform}1{id_due_cifre} → es. 11111 = Metropolis (lifeform1, bld #11)
+        const extractAmpBuildings = (p) => {
+            const result = {};
+            const bldMap = {
+                '1011': { container: 'lifeform1buildings', empireId: 11111 },
+                '3007': { container: 'lifeform3buildings', empireId: 13107 },
+                '3011': { container: 'lifeform3buildings', empireId: 13111 },
+                '4007': { container: 'lifeform4buildings', empireId: 14107 }
+            };
+            for (const [ogId, { container, empireId }] of Object.entries(bldMap)) {
+                const valSection = p.querySelector('.values.' + container);
+                if (!valSection) continue;
+                const valueDiv = valSection.querySelector('[class~="' + empireId + '"]');
+                if (!valueDiv) continue;
+                const src = valueDiv.querySelector('span') || valueDiv;
+                const m = src.textContent.replace(/\./g, '').match(/\d+/);
+                if (m && parseInt(m[0]) > 0) result[ogId] = parseInt(m[0]);
+            }
+            return result;
+        };
+
+        // Restituisce il livello lifeform per un pianeta.
+        // Priorità: d.lfLevels dalla pagina LF (più affidabile) > testo dell'empire view.
+        const LF_SPECIES_NUM = { Humans: 1, Rocktal: 2, Mechas: 3, Kaelesh: 4 };
+        const getLifeformLevel = (planetId, lifeformName) => {
+            const speciesNum = LF_SPECIES_NUM[lifeformName];
+            if (speciesNum && d.lfLevels?.[speciesNum]) return d.lfLevels[speciesNum];
+            // Fallback: cerca nel testo della sezione lifeform dell'empire view
+            return 0;
         };
 
         const planets = [];
@@ -424,17 +558,28 @@
                 if (amp) itemCustom = parseInt(amp[1]);
             });
 
+            // Lifeform: usa planetLifeforms (da overview visit) o auto-rileva dall'edificio #1
+            let lifeformName = planetId != null ? (d.planetLifeforms[planetId] || null) : null;
+            if (!lifeformName) {
+                if      (lvl(p, 'lifeform1buildings', '11101') > 0) lifeformName = 'Humans';
+                else if (lvl(p, 'lifeform2buildings', '12101') > 0) lifeformName = 'Rocktal';
+                else if (lvl(p, 'lifeform3buildings', '13101') > 0) lifeformName = 'Mechas';
+                else if (lvl(p, 'lifeform4buildings', '14101') > 0) lifeformName = 'Kaelesh';
+            }
             planets.push({
                 id: planetId, name: p.querySelector('.planetname')?.textContent.trim() || '',
                 coords, pos,
-                lifeform: planetId != null ? (d.planetLifeforms[planetId] || null) : null,
+                lifeform: lifeformName,
                 metal:     lvl(p, 'supply', '1'),
                 crystal:   lvl(p, 'supply', '2'),
                 deuterium: lvl(p, 'supply', '3'),
                 human:     lvl(p, 'lifeform1buildings', '11106'),
                 magma:     lvl(p, 'lifeform2buildings', '12106'),
                 crawlers:  lvl(p, 'ships', '217'),
-                item, itemCustom, overload: false
+                item, itemCustom, overload: false,
+                lifeformLevel: getLifeformLevel(planetId, lifeformName),
+                lfResearch: extractLfResearchLevels(p),
+                lfBuildings: extractAmpBuildings(p)
             });
         });
         d.planets = planets;
@@ -485,6 +630,56 @@
         else setTimeout(tryCollectEmpire, 500);
     }
 
+    // Legge le ricerche LF attive dalla pagina lfresearch (per-pianeta).
+    // Tutti gli elementi .technology.lifeformTechXXXXX visibili = ricerche attive cross-species.
+    // ID encoding: lifeformTechSTPP → species S, type T (2=research), sub PP → ogId = S*1000+100+PP
+    function collectLFResearch() {
+        const planetId = getPlanetId();
+        if (!planetId) return;
+
+        if (!d.planetResearches) d.planetResearches = {};
+        const researches = {};
+
+        document.querySelectorAll('.technology[class*="lifeformTech"]').forEach(el => {
+            const techCls = Array.from(el.classList).find(c => /^lifeformTech\d{5}$/.test(c));
+            if (!techCls) return;
+            const code    = techCls.replace('lifeformTech', ''); // '14201'
+            if (parseInt(code[2]) !== 2) return;                 // solo ricerche (type=2), non edifici
+            const species = parseInt(code[1]);
+            const sub     = parseInt(code.slice(3));
+            const ogId    = species * 1000 + 100 + sub;
+
+            const lvlEl = el.querySelector('.level[data-value]');
+            const level = lvlEl ? (parseInt(lvlEl.dataset.value) || 0) : 0;
+            if (level > 0) researches[String(ogId)] = level;
+        });
+
+        if (Object.keys(researches).length === 0) return;
+        d.planetResearches[String(planetId)] = researches;
+
+        // Aggiorna anche d.planets se questo pianeta è già stato letto dall'impero
+        if (Array.isArray(d.planets)) {
+            const p = d.planets.find(p => p.id === planetId);
+            if (p) p.lfResearch = { ...p.lfResearch, ...researches };
+        }
+
+        // LF level dalla pagina
+        if (!d.lfLevels) d.lfLevels = {};
+        const activeIcon = document.querySelector('.lifeform-item-icon.small[class*="lifeform"]');
+        if (activeIcon) {
+            const cls  = Array.from(activeIcon.classList).find(c => /^lifeform\d$/.test(c));
+            const span = activeIcon.querySelector('span');
+            if (cls && span) {
+                const sp  = cls.replace('lifeform', '');
+                const lvl = parseInt(span.textContent.trim()) || 0;
+                if (lvl > 0) d.lfLevels[sp] = lvl;
+            }
+        }
+
+        save();
+        updatePanel();
+    }
+
     // ── ROUTING ──────────────────────────────────────────────────────────────
     const params    = new URLSearchParams(location.search);
     const page      = params.get('page')      || '';
@@ -496,6 +691,8 @@
         setTimeout(collectOverview, 1000);
     } else if (page === 'ingame' && component === 'lfbonuses') {
         setTimeout(collectLFBonuses, 1000);
+    } else if (page === 'ingame' && component === 'lfresearch') {
+        setTimeout(collectLFResearch, 1000);
     } else if (component === 'empire') {
         tryCollectEmpire();
     } else {
@@ -531,6 +728,7 @@
         };
         setbadge('ov_bdg_ov',  d.overview_collected);
         setbadge('ov_bdg_lf',  d.lf_collected);
+        setbadge('ov_bdg_lfr', d.planetResearches && Object.keys(d.planetResearches).length > 0);
         setbadge('ov_bdg_emp', d.empire_collected);
 
         const spd = document.getElementById('ov_speed');
@@ -572,9 +770,32 @@
             if (!d.lf_collected) {
                 lfBody.innerHTML = `<div class="ov_hint">${L.hintLf}</div>`;
             } else {
-                lfBody.innerHTML =
-                    row(L.bonusMetal, `<span class="ov_val">${d.lfBonuses.metal}</span>`) +
-                    row(L.bonusClass, `<span class="ov_val">${d.lfBonuses.classBonus}</span>`);
+                let html = row(L.bonusMetal, `<span class="ov_val">${d.lfBonuses.metal}</span>`) +
+                           row(L.bonusClass, `<span class="ov_val">${d.lfBonuses.classBonus}</span>`);
+                if (d.lfLevels && Object.keys(d.lfLevels).length) {
+                    const lfNames  = { 1: 'Humans', 2: "Rock'tal", 3: 'Mechas', 4: 'Kaelesh' };
+                    const lfColors = { 1: '#6fc52a', 2: '#e8a83a', 3: '#5a9ac8', 4: '#c850c0' };
+                    const levels = Object.entries(d.lfLevels).map(([k, v]) =>
+                        `<span style="color:${lfColors[k] || '#a0bcd4'}">${lfNames[k] || k}: <b>${v}</b></span>`).join(' · ');
+                    html += subTitle(L.lifeformLevels);
+                    html += `<div class="ov_row" style="display:block;padding:3px 0">${levels}</div>`;
+                }
+                lfBody.innerHTML = html;
+            }
+        }
+
+        // ── LF Research body ─────────────────────────────────────────────────
+        const lfrBody = document.getElementById('ov_body_lfr');
+        if (lfrBody) {
+            const pr    = d.planetResearches || {};
+            const total = getSidebarPlanets().length;
+            const done  = Object.keys(pr).length;
+            if (done === 0) {
+                lfrBody.innerHTML = `<div class="ov_hint">${L.hintLfResearch}</div>`;
+            } else {
+                let html = row(L.lfResearchPlanets(done, total), '');
+                if (done < total) html += `<div class="ov_hint">${L.hintLfResearch}</div>`;
+                lfrBody.innerHTML = html;
             }
         }
 
@@ -734,6 +955,15 @@
                     </div>
                     <div id="ov_body_lf" class="ov_body">
                         <div class="ov_hint">${L.hintLf}</div>
+                    </div>
+                </div>
+                <div class="ov_sec">
+                    <div class="ov_sec_hdr">
+                        <a class="ov_sec_lnk" href="?page=ingame&component=lfresearch">${L.lfResearch}</a>
+                        <span id="ov_bdg_lfr" class="ov_badge ov_ko">${L.badgeMissing}</span>
+                    </div>
+                    <div id="ov_body_lfr" class="ov_body">
+                        <div class="ov_hint">${L.hintLfResearch}</div>
                     </div>
                 </div>
                 <div class="ov_sec">

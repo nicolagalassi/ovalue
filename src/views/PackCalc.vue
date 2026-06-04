@@ -330,7 +330,52 @@ const resetFields = () => {
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <div class="lg:col-span-2 space-y-8">
-            
+
+            <!-- Impostazioni Forme di Vita -->
+            <div class="card-glass p-6 border-l-2 border-l-amber-500/40 bg-amber-500/[0.02]">
+                <div class="flex items-center gap-2.5 mb-5">
+                    <span class="w-[2px] h-4 bg-amber-400/60 rounded-full flex-shrink-0"></span>
+                    <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">{{ t('lf_settings_title') }}</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Centro Mineralogia -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-8 h-8 rounded-lg bg-amber-500/[0.12] flex items-center justify-center border border-amber-500/25">
+                                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-7h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] uppercase font-black text-amber-400 tracking-wider leading-none">{{ t('lbl_min_level_settings') }}</label>
+                                <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_min_desc_settings') }}</span>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <input type="number" v-model.number="settings.minLevel" @focus="$event.target.select()" placeholder="0" min="0" class="input-glass w-full px-3 py-2 text-sm font-mono border-amber-500/25 focus:border-amber-400 bg-black/20 pr-10">
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-amber-400/50">LVL</span>
+                        </div>
+                        <p class="text-[10px] text-amber-400/60 mt-1 italic">–{{ Math.min(50, settings.minLevel * 0.5).toFixed(1) }}% {{ t('lbl_bonus_mines_only') }}</p>
+                    </div>
+
+                    <!-- Lab Ricerca LF -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-8 h-8 rounded-lg bg-sky-500/[0.12] flex items-center justify-center border border-sky-500/25">
+                                <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.288a2 2 0 01-2.071 0l-.628-.288a6 6 0 00-3.86-.517l-2.387.477a2 2 0 00-1.022.547V21a1 1 0 001.25.97l2.427-.607a6 6 0 013.623.504l.107.054a2 2 0 001.764 0l.107-.054a6 6 0 013.623-.504l2.427.607A1 1 0 0021 21v-5.572z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] uppercase font-semibold text-sky-400 tracking-wider leading-none">{{ t('lbl_lf_rsr_lab') }}</label>
+                                <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_lf_rsr_lab_desc') }}</span>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <input type="number" v-model.number="settings.lfRsrLabLevel" @focus="$event.target.select()" placeholder="0" min="0" max="100" class="input-glass w-full px-3 py-2 text-sm font-mono border-sky-500/25 focus:border-sky-500/50 bg-black/20 pr-10">
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-sky-500/50">LVL</span>
+                        </div>
+                        <p class="text-[10px] text-sky-400/60 mt-1 italic">–{{ Math.min(25, settings.lfRsrLabLevel * 0.25).toFixed(2) }}% {{ t('lbl_bonus_lf_res_only') }}</p>
+                    </div>
+                </div>
+            </div>
+
             <div class="card-glass p-6 relative overflow-hidden group border-l-2 border-l-emerald-500/50">
                 <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2.5 uppercase tracking-wider">
                     <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
@@ -346,17 +391,17 @@ const resetFields = () => {
                             <option value="fleet" class="bg-[#0d1525] text-white">{{ t('cat_fleet') }}</option>
                             
                             <!-- LifeForms -->
-                            <option value="lf_humans" class="bg-[#0d1525] text-blue-300 font-bold">{{ t('cat_lf_humans') }} - {{ t('cat_facilities') }}</option>
-                            <option value="lf_humans_res" class="bg-[#0d1525] text-blue-300">{{ t('cat_lf_humans') }} - {{ t('cat_research') }}</option>
-                            
-                            <option value="lf_rocktal" class="bg-[#0d1525] text-orange-400 font-bold">{{ t('cat_lf_rocktal') }} - {{ t('cat_facilities') }}</option>
-                            <option value="lf_rocktal_res" class="bg-[#0d1525] text-orange-400">{{ t('cat_lf_rocktal') }} - {{ t('cat_research') }}</option>
-                            
-                            <option value="lf_mecha" class="bg-[#0d1525] text-gray-300 font-bold">{{ t('cat_lf_mecha') }} - {{ t('cat_facilities') }}</option>
-                            <option value="lf_mecha_res" class="bg-[#0d1525] text-gray-300">{{ t('cat_lf_mecha') }} - {{ t('cat_research') }}</option>
-                            
-                            <option value="lf_kaelesh" class="bg-[#0d1525] text-purple-400 font-bold">{{ t('cat_lf_kaelesh') }} - {{ t('cat_facilities') }}</option>
-                            <option value="lf_kaelesh_res" class="bg-[#0d1525] text-purple-400">{{ t('cat_lf_kaelesh') }} - {{ t('cat_research') }}</option>
+                            <option value="lf_humans" class="bg-[#0d1525] text-blue-300 font-bold">{{ t('cat_lf_humans') }} — {{ t('cat_lf_buildings') }}</option>
+                            <option value="lf_humans_res" class="bg-[#0d1525] text-blue-300">{{ t('cat_lf_humans') }} — {{ t('cat_research') }}</option>
+
+                            <option value="lf_rocktal" class="bg-[#0d1525] text-orange-400 font-bold">{{ t('cat_lf_rocktal') }} — {{ t('cat_lf_buildings') }}</option>
+                            <option value="lf_rocktal_res" class="bg-[#0d1525] text-orange-400">{{ t('cat_lf_rocktal') }} — {{ t('cat_research') }}</option>
+
+                            <option value="lf_mecha" class="bg-[#0d1525] text-gray-300 font-bold">{{ t('cat_lf_mecha') }} — {{ t('cat_lf_buildings') }}</option>
+                            <option value="lf_mecha_res" class="bg-[#0d1525] text-gray-300">{{ t('cat_lf_mecha') }} — {{ t('cat_research') }}</option>
+
+                            <option value="lf_kaelesh" class="bg-[#0d1525] text-purple-400 font-bold">{{ t('cat_lf_kaelesh') }} — {{ t('cat_lf_buildings') }}</option>
+                            <option value="lf_kaelesh_res" class="bg-[#0d1525] text-purple-400">{{ t('cat_lf_kaelesh') }} — {{ t('cat_research') }}</option>
                         </select>
                     </div>
                     <div class="md:col-span-1">
@@ -386,50 +431,7 @@ const resetFields = () => {
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                         {{ t('btn_add_queue') }}
                     </button>
-                </div>                <div class="col-span-full border-t border-slate-700/20 pt-6 mt-4">
-                    <div class="flex items-center gap-2.5 mb-4">
-                        <span class="w-[2px] h-3 bg-amber-500/60 rounded-full flex-shrink-0"></span>
-                        <h3 class="text-[11px] font-black text-gray-400 uppercase tracking-wider font-mono">{{ t('lf_settings_title') }}</h3>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Centro Mineralogia -->
-                        <div>
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="w-8 h-8 rounded-lg bg-amber-500/[0.12] flex items-center justify-center border border-amber-500/25">
-                                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-7h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] uppercase font-black text-amber-400 tracking-wider leading-none">{{ t('lbl_min_level_settings') }}</label>
-                                    <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_min_desc_settings') }}</span>
-                                </div>
-                            </div>
-                            <div class="relative">
-                                <input type="number" v-model.number="settings.minLevel" @focus="$event.target.select()" placeholder="0" min="0" class="input-glass w-full px-3 py-2 text-sm font-mono border-amber-500/25 focus:border-amber-400 bg-black/20 pr-10">
-                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-amber-400/50">LVL</span>
-                            </div>
-                            <p class="text-[10px] text-amber-400/60 mt-1 italic">–{{ Math.min(50, settings.minLevel * 0.5).toFixed(1) }}% {{ t('lbl_bonus_mines_only') }}</p>
-                        </div>
-
-                        <!-- Lab Ricerca LF -->
-                        <div>
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="w-8 h-8 rounded-lg bg-sky-500/[0.12] flex items-center justify-center border border-sky-500/25">
-                                    <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.288a2 2 0 01-2.071 0l-.628-.288a6 6 0 00-3.86-.517l-2.387.477a2 2 0 00-1.022.547V21a1 1 0 001.25.97l2.427-.607a6 6 0 013.623.504l.107.054a2 2 0 001.764 0l.107-.054a6 6 0 013.623-.504l2.427.607A1 1 0 0021 21v-5.572z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] uppercase font-semibold text-sky-400 tracking-wider leading-none">{{ t('lbl_lf_rsr_lab') }}</label>
-                                    <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_lf_rsr_lab_desc') }}</span>
-                                </div>
-                            </div>
-                            <div class="relative">
-                                <input type="number" v-model.number="settings.lfRsrLabLevel" @focus="$event.target.select()" placeholder="0" min="0" max="100" class="input-glass w-full px-3 py-2 text-sm font-mono border-sky-500/25 focus:border-sky-500/50 bg-black/20 pr-10">
-                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-sky-500/50">LVL</span>
-                            </div>
-                            <p class="text-[10px] text-sky-400/60 mt-1 italic">–{{ Math.min(25, settings.lfRsrLabLevel * 0.25).toFixed(2) }}% {{ t('lbl_bonus_lf_res_only') }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                </div>            </div>
 
             <!-- Lista Costruzioni -->
             <div class="overflow-hidden rounded-xl border border-slate-700/25 bg-[#0d1525]">

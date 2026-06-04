@@ -22,6 +22,7 @@ const maxSteps = ref(500);
 const shopDiscount = ref(0);
 const moBonus = ref(0);
 const packMode = ref('dynamic');           // 'dynamic' | 'fixed'
+const packBatch = ref(10);                 // pacchi per aggiornamento valore dinamico
 const playerClassOverride = ref('inherit'); // 'inherit' | 'collector'
 
 // ───── Persistenza configurazione ────────────────────────────────────────
@@ -30,12 +31,13 @@ const _saveConfig = () => {
     try {
         localStorage.setItem(STRATEGY_CFG_KEY, JSON.stringify({
             packMode: packMode.value,
+            packBatch: packBatch.value,
             playerClassOverride: playerClassOverride.value,
             includeMines: includeMines.value,
             includePlasma: includePlasma.value,
             includeLf: includeLf.value,
             includeLfResearch: includeLfResearch.value,
-            activateAllLfResearch: activateAllLfResearch.value,
+            lfResearchTierGroups: lfResearchTierGroups.value,
             capMine: capMine.value,
             capPlasma: capPlasma.value,
             capLf: capLf.value,
@@ -64,7 +66,7 @@ const includeMines = ref(true);
 const includePlasma = ref(true);
 const includeLf = ref(true);
 const includeLfResearch = ref(false);
-const activateAllLfResearch = ref(false);
+const lfResearchTierGroups = ref([1, 2, 3]);
 const capMine = ref(0);            // 0 = nessun cap
 const capPlasma = ref(0);
 const capLf = ref(0);
@@ -94,12 +96,13 @@ onMounted(() => {
         if (!raw) return;
         const cfg = JSON.parse(raw);
         if (cfg.packMode !== undefined)              packMode.value = cfg.packMode;
+        if (cfg.packBatch !== undefined)             packBatch.value = cfg.packBatch;
         if (cfg.playerClassOverride !== undefined)   playerClassOverride.value = cfg.playerClassOverride;
         if (cfg.includeMines !== undefined)          includeMines.value = cfg.includeMines;
         if (cfg.includePlasma !== undefined)         includePlasma.value = cfg.includePlasma;
         if (cfg.includeLf !== undefined)             includeLf.value = cfg.includeLf;
         if (cfg.includeLfResearch !== undefined)     includeLfResearch.value = cfg.includeLfResearch;
-        if (cfg.activateAllLfResearch !== undefined) activateAllLfResearch.value = cfg.activateAllLfResearch;
+        if (Array.isArray(cfg.lfResearchTierGroups)) lfResearchTierGroups.value = cfg.lfResearchTierGroups;
         if (cfg.capMine !== undefined)               capMine.value = cfg.capMine;
         if (cfg.capPlasma !== undefined)             capPlasma.value = cfg.capPlasma;
         if (cfg.capLf !== undefined)                 capLf.value = cfg.capLf;
@@ -110,26 +113,16 @@ onMounted(() => {
     } catch {}
 });
 watch(
-    [packMode, playerClassOverride, includeMines, includePlasma, includeLf, includeLfResearch,
-     activateAllLfResearch, capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
+    [packMode, packBatch, playerClassOverride, includeMines, includePlasma, includeLf, includeLfResearch,
+     lfResearchTierGroups, capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
     _saveConfig
 );
 
-// Applica gli override locali (LF + classe) allo stato iniziale.
+// Applica gli override locali (classe) allo stato iniziale.
 const applyOverrides = (state) => {
     if (!state) return state;
     if (playerClassOverride.value && playerClassOverride.value !== 'inherit') {
         state.settings.playerClass = playerClassOverride.value;
-    }
-    if (activateAllLfResearch.value) {
-        state.planets.forEach(p => {
-            Object.keys(p.lfResearch || {}).forEach(id => {
-                if ((parseInt(p.lfResearch[id]) || 0) > 0) {
-                    if (!p.lfActive) p.lfActive = {};
-                    p.lfActive[id] = true;
-                }
-            });
-        });
     }
     return state;
 };
@@ -285,7 +278,6 @@ const computePlan = async () => {
     isComputing.value = true;
     result.value = null;
 
-    // Yield al browser così l'utente vede il loading se il calcolo è pesante.
     await new Promise(r => setTimeout(r, 30));
 
     try {
@@ -297,12 +289,14 @@ const computePlan = async () => {
             includePlasma: includePlasma.value,
             includeLf: includeLf.value,
             includeLfResearch: includeLfResearch.value,
+            lfResearchTierGroups: lfResearchTierGroups.value,
             packMode: packMode.value,
+            packBatch: packBatch.value,
             caps: {
-                metalMine: capMine.value > 0 ? capMine.value : Infinity,
-                plasma:    capPlasma.value > 0 ? capPlasma.value : Infinity,
-                lfBuilding: capLf.value > 0 ? capLf.value : Infinity,
-                lfResearch: capLfResearch.value > 0 ? capLfResearch.value : Infinity
+                metalMine:  capMine.value      > 0 ? capMine.value      : Infinity,
+                plasma:     capPlasma.value    > 0 ? capPlasma.value    : Infinity,
+                lfBuilding: capLf.value        > 0 ? capLf.value        : Infinity,
+                lfResearch: capLfResearch.value > 0 ? capLfResearch.value : Infinity,
             }
         });
         const euro = computeEuroCost(planRes.cumulativePacks, {
@@ -439,6 +433,34 @@ const perPlanetSummary = computed(() => {
     const lfResearchCount = result.value.steps.filter(s => s.type === 'lf_research').length;
     return { planets: [...map.values()].sort((a, b) => a.idx - b.idx), plasma: plasmaSteps, lfResearch: lfResearchCount };
 });
+
+// ───── Riepilogo contributi per categoria ───────────────────────────────
+const typeSummary = computed(() => {
+    if (!result.value) return null;
+    const steps = result.value.steps;
+    const totalDelta = result.value.finalProd - result.value.initialProd;
+    if (totalDelta <= 0) return null;
+
+    const cats = {
+        mine:       { delta: 0, count: 0, levels: 0 },
+        plasma:     { delta: 0, count: 0, levels: 0 },
+        lf_build:   { delta: 0, count: 0, levels: 0 },
+        lf_research:{ delta: 0, count: 0, levels: 0 },
+    };
+
+    steps.forEach(s => {
+        const lvls = (s.to || 0) - (s.from || 0);
+        if (s.type === 'metal_mine')        { cats.mine.delta += s.deltaProd;        cats.mine.count++;        cats.mine.levels += lvls; }
+        else if (s.type === 'plasma_technology') { cats.plasma.delta += s.deltaProd; cats.plasma.count++;      cats.plasma.levels += lvls; }
+        else if (s.type === 'lf_magma' || s.type === 'lf_human') { cats.lf_build.delta += s.deltaProd; cats.lf_build.count++; cats.lf_build.levels += lvls; }
+        else if (s.type === 'lf_research')  { cats.lf_research.delta += s.deltaProd; cats.lf_research.count++; cats.lf_research.levels += lvls; }
+    });
+
+    return Object.entries(cats)
+        .map(([key, v]) => ({ key, ...v, pct: Math.round(v.delta / totalDelta * 100) }))
+        .filter(c => c.count > 0)
+        .sort((a, b) => b.delta - a.delta);
+});
 </script>
 
 <template>
@@ -558,10 +580,19 @@ const perPlanetSummary = computed(() => {
                             <input type="checkbox" v-model="includeLfResearch" class="w-4 h-4 accent-emerald-500 rounded flex-shrink-0">
                             <span class="text-[12px] text-slate-300">{{ t('strategy_lf_research') }}</span>
                         </label>
-                        <label v-if="hasLfResearchData" class="flex items-center gap-2 cursor-pointer pl-6">
-                            <input type="checkbox" v-model="activateAllLfResearch" class="w-3.5 h-3.5 accent-purple-500 rounded flex-shrink-0">
-                            <span class="text-[11px] text-slate-500">{{ t('strategy_lf_activate_all') }}</span>
-                        </label>
+                        <div v-if="includeLfResearch" class="flex gap-1 pl-6">
+                            <button v-for="g in [1, 2, 3]" :key="g"
+                                    @click="lfResearchTierGroups.includes(g)
+                                        ? lfResearchTierGroups = lfResearchTierGroups.filter(x => x !== g)
+                                        : lfResearchTierGroups = [...lfResearchTierGroups, g]"
+                                    class="flex-1 py-1 text-[9px] font-bold rounded-md transition-all duration-150 text-center"
+                                    :class="lfResearchTierGroups.includes(g)
+                                        ? 'bg-emerald-500/20 border border-emerald-400/30 text-emerald-300'
+                                        : 'bg-black/20 text-slate-700 hover:text-slate-500'">
+                                T{{ (g-1)*6+1 }}–{{ g*6 }}
+                            </button>
+                        </div>
+
                     </div>
                 </div>
                 <!-- Cap livello -->
@@ -607,9 +638,12 @@ const perPlanetSummary = computed(() => {
                             {{ t('strategy_pack_fixed') }}
                         </button>
                     </div>
-                    <p class="text-[9px] text-slate-700 mt-2 leading-tight">
-                        {{ packMode === 'dynamic' ? t('strategy_pack_dynamic_desc') : t('strategy_pack_fixed_desc') }}
-                    </p>
+                    <div v-if="packMode === 'dynamic'" class="mt-2 flex items-center gap-2">
+                        <label class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold whitespace-nowrap">{{ t('strategy_pack_batch') }}</label>
+                        <input type="number" v-model.number="packBatch" min="1" max="500" @focus="$event.target.select()"
+                               class="input-glass w-full px-2 py-1 text-center font-mono text-sm">
+                    </div>
+                    <p v-else class="text-[9px] text-slate-700 mt-2 leading-tight">{{ t('strategy_pack_fixed_desc') }}</p>
                 </div>
                 <!-- Classe giocatore -->
                 <div class="bg-[#0a101e] rounded-xl p-4 border border-slate-700/15">
@@ -702,6 +736,10 @@ const perPlanetSummary = computed(() => {
             <div v-if="target <= profileDailyProd && target > 0" class="mt-2 text-right text-[11px] text-amber-400/80">
                 {{ t('strategy_target_too_low') }}
             </div>
+            <div class="mt-2 flex items-start gap-1.5 text-[10px] text-slate-600">
+                <svg class="w-3 h-3 mt-px shrink-0 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span>{{ t('strategy_perf_hint') }}</span>
+            </div>
         </div>
 
         <!-- ────── RISULTATI ────── -->
@@ -783,6 +821,59 @@ const perPlanetSummary = computed(() => {
                 </div>
             </div>
 
+            <!-- Riepilogo contributi per categoria -->
+            <div v-if="typeSummary" class="card-glass p-5 border-l-2 border-l-emerald-500/40">
+                <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2.5 uppercase tracking-wider">
+                    <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
+                    {{ t('strategy_contrib_title') }}
+                </h3>
+                <div class="space-y-3">
+                    <div v-for="cat in typeSummary" :key="cat.key" class="flex items-center gap-3">
+                        <!-- Label + badge -->
+                        <div class="w-36 flex-shrink-0 flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border flex-shrink-0"
+                                  :class="{
+                                      'bg-sky-500/10 text-sky-300 border-sky-500/30':       cat.key === 'mine',
+                                      'bg-violet-500/10 text-violet-300 border-violet-500/30': cat.key === 'plasma',
+                                      'bg-orange-500/10 text-orange-300 border-orange-500/30': cat.key === 'lf_build',
+                                      'bg-emerald-500/10 text-emerald-300 border-emerald-500/30': cat.key === 'lf_research',
+                                  }">
+                                {{ t('strategy_contrib_' + cat.key) }}
+                            </span>
+                        </div>
+                        <!-- Barra progresso -->
+                        <div class="flex-1 bg-black/30 rounded-full h-2 overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500"
+                                 :style="{ width: cat.pct + '%' }"
+                                 :class="{
+                                     'bg-sky-500/70':     cat.key === 'mine',
+                                     'bg-violet-500/70':  cat.key === 'plasma',
+                                     'bg-orange-500/70':  cat.key === 'lf_build',
+                                     'bg-emerald-500/70': cat.key === 'lf_research',
+                                 }">
+                            </div>
+                        </div>
+                        <!-- Percentuale + dettaglio -->
+                        <div class="w-28 flex-shrink-0 flex items-baseline gap-2 justify-end">
+                            <span class="text-base font-black font-mono"
+                                  :class="{
+                                      'text-sky-300':     cat.key === 'mine',
+                                      'text-violet-300':  cat.key === 'plasma',
+                                      'text-orange-300':  cat.key === 'lf_build',
+                                      'text-emerald-300': cat.key === 'lf_research',
+                                  }">
+                                {{ cat.pct }}%
+                            </span>
+                            <span class="text-[10px] text-slate-600 font-mono whitespace-nowrap">
+                                +{{ formatNum(cat.delta) }}
+                                <template v-if="cat.key === 'mine'"> ({{ cat.levels }}↑)</template>
+                                <template v-else-if="cat.key === 'plasma'"> (L+{{ cat.levels }})</template>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Riepilogo per pianeta -->
             <div class="card-glass p-5 border-l-2 border-l-sky-500/40">
                 <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2.5 uppercase tracking-wider">
@@ -861,7 +952,10 @@ const perPlanetSummary = computed(() => {
                                     <span v-if="s.count > 1" class="ml-1.5 text-[9px] text-slate-600 font-mono">×{{ s.count }}</span>
                                 </td>
                                 <td class="px-3 py-2 font-mono text-slate-400">
-                                    <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5">{{ s.researchName }}</div>
+                                    <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5 flex items-center gap-1">
+                                        <span class="px-1 rounded bg-slate-700/50 text-slate-500 font-mono font-bold text-[8px]">T{{ parseInt(s.researchId) % 100 }}</span>
+                                        {{ s.researchName }}
+                                    </div>
                                     {{ s.planetName || '—' }}
                                 </td>
                                 <td class="px-3 py-2 text-center font-mono text-slate-300">{{ s.from }} → {{ s.to }}</td>

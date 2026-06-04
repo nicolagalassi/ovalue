@@ -181,12 +181,15 @@ const buildCandidates = (state, options) => {
     // delta calcolato pari al beneficio di TUTTI i livelli accumulati — ROI falso.
     if (options.includeLfResearch) {
         const capRes = caps?.lfResearch ?? Infinity;
+        const allowedTierGroups = options.lfResearchTierGroups ?? [1, 2, 3];
         for (const species of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
             const catData = OGAME_DB[`lf_${species}_res`];
             if (!catData) continue;
             for (const [idStr, itemData] of Object.entries(catData.items || {})) {
                 const bonus = itemData.bonus;
                 if (!bonus || (bonus[0] || 0) <= 0) continue;
+                const tierGroup = Math.ceil((parseInt(idStr) % 100) / 6);
+                if (!allowedTierGroups.includes(tierGroup)) continue;
                 planets.forEach((p, planetIdx) => {
                     const currentLevel = parseInt((p.lfResearch || {})[idStr]) || 0;
                     const isActive     = (p.lfActive || {})[idStr] === true;
@@ -265,12 +268,22 @@ export const runPlanner = (initialState, options = {}) => {
 
     let stoppedReason = 'max_steps';
 
+    // packValue dinamico: si aggiorna ogni packBatch pacchi accumulati.
+    const packBatch = Math.max(1, parseInt(cfg.packBatch) || 1);
+    let packValueSnapshot = initialProd;
+    let lastSnapshotAt = 0;
+
     for (let step = 0; step < cfg.maxSteps; step++) {
         if (currentProd >= target) { stoppedReason = 'target_reached'; break; }
 
+        // Aggiorna lo snapshot ogni packBatch pacchi (o ad ogni step se packBatch=1)
+        if (cfg.packMode === 'dynamic' && cumulativePacks - lastSnapshotAt >= packBatch) {
+            packValueSnapshot = currentProd;
+            lastSnapshotAt = cumulativePacks;
+        }
         const packValue = cfg.packMode === 'fixed'
             ? Math.max(1, initialProd)
-            : Math.max(1, currentProd);
+            : Math.max(1, packValueSnapshot);
 
         const candidates = buildCandidates(state, cfg);
         if (candidates.length === 0) { stoppedReason = 'no_candidates'; break; }
@@ -323,8 +336,9 @@ export const runPlanner = (initialState, options = {}) => {
             planetName: best.cand.planetIdx != null
                 ? (state.planets[best.cand.planetIdx].name || `#${best.cand.planetIdx + 1}`)
                 : null,
+            researchId:   best.cand.researchId   ?? null,
             researchName: best.cand.researchName ?? null,
-            species: best.cand.species ?? null,
+            species:      best.cand.species      ?? null,
             from: best.cand.from,
             to: best.cand.to,
             cost: best.cand.cost,

@@ -20,6 +20,35 @@ const criticalCount = computed(() => {
         .filter(i => i.expires && (i.expires - now) > 0 && (i.expires - now) <= 86400000).length;
     return officers + items;
 });
+
+const expirationChips = computed(() => {
+    if (!activeProfile.value?.expirations) return [];
+    const now = Date.now();
+    const all = [
+        ...Object.values(activeProfile.value.expirations.officers || {}).map(o => ({ name: o.name, expires: o.expires })),
+        ...(activeProfile.value.expirations.globalItems || []).map(i => ({ name: i.name, expires: i.expires })),
+    ].filter(e => e.expires);
+
+    return all
+        .map(e => {
+            const diff = e.expires - now;
+            const critical = diff > 0 && diff <= 86400000;
+            const warning  = diff > 0 && diff > 86400000 && diff <= 864000000;
+            if (!critical && !warning) return null;
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const d = Math.floor(h / 24);
+            const label = d > 0 ? `${d}g ${h % 24}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+            return { name: e.name, expires: e.expires, critical, label };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+            if (a.critical && !b.critical) return -1;
+            if (!a.critical && b.critical) return 1;
+            return a.expires - b.expires;
+        })
+        .slice(0, 4);
+});
 </script>
 
 <template>
@@ -50,24 +79,20 @@ const criticalCount = computed(() => {
           </p>
 
           <div v-if="activeProfile" class="flex items-center justify-center gap-2 flex-wrap">
-            <div class="profile-chip">
-              <span class="chip-dot bg-sky-400/60"></span>
-              <span>{{ activeProfile.name }}</span>
-            </div>
             <div v-if="activeProfile.production?.daily" class="profile-chip">
               <span class="chip-dot bg-amber-400/60"></span>
               <span class="text-amber-300/80 font-medium">{{ formatNum(activeProfile.production.daily) }}</span>
               <span class="text-slate-500">met/d</span>
             </div>
-            <router-link v-if="criticalCount > 0" to="/expirations"
-              class="profile-chip border-rose-500/20 bg-rose-500/[0.06] hover:bg-rose-500/10 cursor-pointer transition-colors">
-              <span class="chip-dot bg-rose-400 animate-pulse"></span>
-              <span class="text-rose-300">{{ criticalCount }} alert</span>
+            <router-link v-for="chip in expirationChips" :key="chip.name" to="/expirations"
+              class="profile-chip cursor-pointer transition-colors"
+              :class="chip.critical
+                ? 'border-rose-500/20 bg-rose-500/[0.06] hover:bg-rose-500/10'
+                : 'border-orange-500/15 bg-orange-500/[0.04] hover:bg-orange-500/10'">
+              <span class="chip-dot" :class="chip.critical ? 'bg-rose-400 animate-pulse' : 'bg-orange-400/70'"></span>
+              <span :class="chip.critical ? 'text-rose-300' : 'text-orange-300/80'">{{ chip.name }}</span>
+              <span :class="chip.critical ? 'text-rose-500/70' : 'text-orange-600/80'">{{ chip.label }}</span>
             </router-link>
-            <div v-if="activeProfile.lastSync" class="profile-chip">
-              <span class="chip-dot bg-emerald-400/60"></span>
-              <span class="text-slate-400">sync {{ new Date(activeProfile.lastSync).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) }}</span>
-            </div>
           </div>
 
         </div>
@@ -152,30 +177,27 @@ const criticalCount = computed(() => {
             </div>
           </router-link>
 
-          <!-- Production Planner — Alpha / WIP -->
-          <div class="card-4 relative rounded-2xl overflow-hidden bg-[#0d1525] opacity-60 cursor-not-allowed select-none">
-            <div class="corner-tl absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-emerald-500/15"></div>
-            <div class="corner-tr absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-emerald-500/15"></div>
-            <div class="corner-bl absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-emerald-500/15"></div>
-            <div class="corner-br absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-emerald-500/15"></div>
-
-            <!-- Badge WIP -->
-            <div class="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/25">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-400/70 animate-pulse flex-shrink-0"></span>
-              <span class="text-[9px] font-bold uppercase tracking-widest text-amber-400/80">Work in progress</span>
-            </div>
+          <!-- Production Planner -->
+          <router-link to="/strategy" class="tool-card card-4 group relative rounded-2xl overflow-hidden block bg-[#0d1525] hover:bg-[#091209] transition-colors duration-300">
+            <div class="corner-tl absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
+            <div class="corner-tr absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
+            <div class="corner-bl absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
+            <div class="corner-br absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
+            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
             <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
-              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-emerald-950/40 border border-emerald-500/15 flex items-center justify-center">
-                <svg class="w-10 h-10 md:w-12 md:h-12 text-emerald-400/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-emerald-950/60 border border-emerald-500/25 flex items-center justify-center group-hover:border-emerald-400/50 group-hover:bg-emerald-950/80 group-hover:shadow-[0_0_30px_rgba(52,211,153,0.12)] transition-all duration-400">
+                <svg class="w-10 h-10 md:w-12 md:h-12 text-emerald-400/70 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
               </div>
               <div class="flex-grow">
-                <h2 class="text-lg md:text-xl font-bold text-slate-500 uppercase tracking-tight mb-2">{{ t('card_strategy_title') }}</h2>
-                <p class="text-sm text-slate-600 leading-snug px-2">{{ t('card_strategy_desc') }}</p>
+                <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-emerald-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_strategy_title') }}</h2>
+                <p class="text-sm text-slate-500 leading-snug px-2">{{ t('card_strategy_desc') }}</p>
               </div>
-              <span class="text-xs font-semibold text-slate-700 uppercase tracking-widest">Alpha</span>
+              <span class="text-xs font-semibold text-slate-600 group-hover:text-emerald-400 uppercase tracking-widest transition-colors flex items-center gap-1">
+                {{ t('btn_open') }} <span class="text-base leading-none group-hover:translate-x-0.5 transition-transform inline-block">›</span>
+              </span>
             </div>
-          </div>
+          </router-link>
 
         </div>
       </div>

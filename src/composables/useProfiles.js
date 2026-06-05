@@ -341,7 +341,7 @@ export function useProfiles() {
             // vecchio formato IT (esportatore ≤3.2.x)
             'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
             // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
-            'collector': 'collector', 'general': 'other', 'explorer': 'other',
+            'collector': 'collector', 'general': 'other', 'explorer': 'explorer',
             'Collector': 'collector', 'General': 'other', 'Explorer': 'other',
             'Sammler': 'collector', 'Allgemein': 'other', 'Entdecker': 'other',
             'Collecteur': 'collector', 'Général': 'other', 'Explorateur': 'other'
@@ -500,7 +500,7 @@ export function useProfiles() {
             // vecchio formato IT (esportatore ≤3.2.x)
             'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
             // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
-            'collector': 'collector', 'general': 'other', 'explorer': 'other',
+            'collector': 'collector', 'general': 'other', 'explorer': 'explorer',
             'Collector': 'collector', 'General': 'other', 'Explorer': 'other',
             'Sammler': 'collector', 'Allgemein': 'other', 'Entdecker': 'other',
             'Collecteur': 'collector', 'Général': 'other', 'Explorateur': 'other'

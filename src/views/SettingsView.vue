@@ -65,7 +65,7 @@ const sigTotals = computed(() => ({
 const sigPlanets = computed(() => activeProfile.value?.production?.planets || []);
 const sigSettings = computed(() => activeProfile.value?.production?.settings || {});
 const sigMaxMine = computed(() =>
-    sigPlanets.value.length ? Math.max(...sigPlanets.value.map(p => p.metalMine || 0)) : 0,
+    sigPlanets.value.length ? Math.max(...sigPlanets.value.map(p => p.metal || 0)) : 0,
 );
 const sigLfPct = computed(() => calcLFResearchBonus(sigPlanets.value));
 

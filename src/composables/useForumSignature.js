@@ -1,18 +1,19 @@
 export const BG_PRESETS = [
-    { key: 'deep_space',  borderColor: 'rgba(0,240,255,0.55)',   stars: true,  scanlines: false },
-    { key: 'neon_void',   borderColor: 'rgba(157,0,255,0.65)',   stars: false, scanlines: false },
-    { key: 'steel_frame', borderColor: 'rgba(148,163,184,0.35)', stars: false, scanlines: true  },
-    { key: 'cosmic',      borderColor: 'rgba(157,0,255,0.5)',    stars: true,  scanlines: false },
-    { key: 'minimal',     borderColor: 'rgba(0,240,255,0.18)',   stars: false, scanlines: false },
+    { key: 'deep_space',  stars: true,  scanlines: false },
+    { key: 'neon_void',   stars: false, scanlines: false },
+    { key: 'steel_frame', stars: false, scanlines: true  },
+    { key: 'cosmic',      stars: true,  scanlines: false },
+    { key: 'minimal',     stars: false, scanlines: false },
 ];
 
-export const NICK_COLORS = [
-    '#e2e8f0', // bianco
-    '#00f0ff', // ciano neon
-    '#FFB800', // oro
-    '#00ff9d', // verde neon
+// Palette colori condivisa per nick / bordo / produzione
+export const COLOR_SWATCHES = [
+    '#00f0ff', // ciano neon (default bordo)
     '#9d00ff', // viola DM
+    '#FFB800', // oro (default produzione)
+    '#00ff9d', // verde neon
     '#ff2a6d', // rosso neon
+    '#e2e8f0', // bianco (default nick)
 ];
 
 // ─── Stelle deterministiche (LCG seed fisso) ────────────────────────────────
@@ -68,13 +69,12 @@ const drawBackground = (ctx, bgIndex, W, H) => {
     }
 };
 
-// ─── Bordo neon arrotondato ──────────────────────────────────────────────────
-const drawBorder = (ctx, bgIndex, W, H) => {
-    const { borderColor } = BG_PRESETS[bgIndex] || BG_PRESETS[0];
+// ─── Bordo neon arrotondato (colore indipendente dallo sfondo) ───────────────
+const drawBorder = (ctx, color, W, H) => {
     ctx.save();
-    ctx.strokeStyle = borderColor;
+    ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
-    ctx.shadowColor = borderColor;
+    ctx.shadowColor = color;
     ctx.shadowBlur = 9;
     ctx.beginPath();
     ctx.roundRect(0.75, 0.75, W - 1.5, H - 1.5, 7);
@@ -101,27 +101,43 @@ export const drawSignature = (ctx, data, bgIndex, fontReady) => {
         lfBonus       = 0,
         collBonus     = 0,
         isCollector   = false,
+        playerClass   = 'other',
         ecoSpeed      = 8,
         nicknameColor = '#e2e8f0',
+        borderColor   = '#00f0ff',
+        prodColor     = '#FFB800',
         showClass     = true,
         showEco       = true,
         showUniverse  = true,
         showMine      = true,
         showLfBonus   = true,
         showCollBonus = true,
+        labels        = {},
     } = data;
+
+    // Label con fallback EN se non arriva la traduzione
+    const lbl = {
+        pack:            labels.pack            || 'PACK · 24H',
+        mine:            labels.mine            || 'METAL MINE',
+        lfBonus:         labels.lfBonus         || 'LF BONUS',
+        collector:       labels.collector       || 'COLLECTOR',
+        eco:             labels.eco             || 'ECO',
+        classCollector:  labels.classCollector  || 'COLLECTOR',
+        classGeneral:    labels.classGeneral    || 'GENERAL',
+        classExplorer:   labels.classExplorer   || 'EXPLORER',
+    };
 
     ctx.clearRect(0, 0, W, H);
     drawBackground(ctx, bgIndex, W, H);
 
     const font  = fontReady ? 'Orbitron' : 'monospace';
-    const SPLIT = 238; // x separatore verticale
+    const SPLIT = 238;
 
     // ── Separatore verticale tratteggiato ────────────────────────────────
     ctx.save();
-    ctx.strokeStyle = 'rgba(0,240,255,0.18)';
+    ctx.strokeStyle = `${borderColor}55`;
     ctx.lineWidth = 1;
-    ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 4;
+    ctx.shadowColor = borderColor; ctx.shadowBlur = 4;
     ctx.setLineDash([3, 5]);
     ctx.beginPath(); ctx.moveTo(SPLIT, 12); ctx.lineTo(SPLIT, H - 18); ctx.stroke();
     ctx.restore();
@@ -135,25 +151,24 @@ export const drawSignature = (ctx, data, bgIndex, fontReady) => {
 
     let infoY = 41;
     if (showUniverse && universe) {
-        ctx.font = '8px monospace';
-        ctx.fillStyle = '#3d5070';
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#4a5568';
         ctx.fillText(universe.toUpperCase(), 12, infoY);
-        infoY += 12;
+        infoY += 13;
     }
     if (showClass) {
-        const playerClass = data.playerClass || (isCollector ? 'collector' : 'other');
-        const classLabel  = playerClass === 'collector' ? 'COLLEZIONISTA'
-                          : playerClass === 'explorer'  ? 'ESPLORATORE'
-                          : 'GENERALE';
-        const classColor  = playerClass === 'collector' ? '#00f0ff' : '#94a3b8';
-        ctx.font = '9px monospace';
-        neon(ctx, classLabel, 12, infoY, classColor, isCollector ? 6 : 2);
-        infoY += 12;
+        const classLabel = playerClass === 'collector' ? lbl.classCollector
+                         : playerClass === 'explorer'  ? lbl.classExplorer
+                         : lbl.classGeneral;
+        const classColor = playerClass === 'collector' ? '#00f0ff' : '#64748b';
+        ctx.font = `bold 10px '${font}', monospace`;
+        neon(ctx, classLabel.toUpperCase(), 12, infoY, classColor, playerClass === 'collector' ? 6 : 0);
+        infoY += 13;
     }
     if (showEco) {
-        ctx.font = '8px monospace';
+        ctx.font = '9px monospace';
         ctx.fillStyle = '#3d5070';
-        ctx.fillText(`ECO ×${ecoSpeed}`, 12, infoY);
+        ctx.fillText(`${lbl.eco} ×${ecoSpeed}`, 12, infoY);
     }
 
     // ── SINISTRA separatore orizzontale ──────────────────────────────────
@@ -163,37 +178,37 @@ export const drawSignature = (ctx, data, bgIndex, fontReady) => {
     ctx.restore();
 
     // ── SINISTRA BOTTOM: produzione pacchetto 24h ─────────────────────────
-    ctx.font = '7px monospace';
+    ctx.font = '10px monospace';
     ctx.fillStyle = '#475569';
-    ctx.fillText('PACCHETTO  ·  24H', 12, 104);
+    ctx.fillText(lbl.pack, 12, 104);
 
-    const packStr = new Intl.NumberFormat('it-IT').format(Math.floor(daily));
+    const packStr      = new Intl.NumberFormat('it-IT').format(Math.floor(daily));
     const packFontSize = packStr.length <= 10 ? 20 : packStr.length <= 13 ? 17 : 14;
     ctx.font = `bold ${packFontSize}px '${font}', monospace`;
-    neon(ctx, packStr, 12, 128, '#FFB800', 14);
+    neon(ctx, packStr, 12, 127, prodColor, 14);
 
     // ── DESTRA: stats account ─────────────────────────────────────────────
     const rightX = SPLIT + 14;
     const rightStats = [
-        showMine    ? { label: 'MIN. METALLO', value: `Lv.${maxMine}`,                         color: '#00f0ff' } : null,
-        showLfBonus ? { label: 'BONUS LF',     value: `+${Number(lfBonus).toFixed(2)}%`,       color: '#00ff9d' } : null,
+        showMine    ? { label: lbl.mine,      value: `Lv.${maxMine}`,                         color: '#00f0ff' } : null,
+        showLfBonus ? { label: lbl.lfBonus,   value: `+${Number(lfBonus).toFixed(2)}%`,       color: '#00ff9d' } : null,
         (showCollBonus && isCollector && Number(collBonus) > 0)
-                    ? { label: 'COLLECTOR',    value: `+${Number(collBonus).toFixed(2)}%`,     color: '#9d00ff' } : null,
+                    ? { label: lbl.collector, value: `+${Number(collBonus).toFixed(2)}%`,     color: '#9d00ff' } : null,
     ].filter(Boolean);
 
     if (rightStats.length > 0) {
-        const usableH = H - 18 - 12;
-        const rowH    = Math.min(38, Math.floor(usableH / rightStats.length));
-        const totalH  = rightStats.length * rowH;
-        const startY  = Math.round((usableH - totalH) / 2) + 12 + 8;
+        const usableH  = H - 18 - 12;
+        const rowH     = Math.min(38, Math.floor(usableH / rightStats.length));
+        const totalH   = rightStats.length * rowH;
+        const startY   = Math.round((usableH - totalH) / 2) + 12 + 8;
 
         rightStats.forEach(({ label, value, color }, i) => {
             const baseY = startY + i * rowH;
-            ctx.font = '7px monospace';
-            ctx.fillStyle = '#3d5070';
+            ctx.font = '10px monospace';
+            ctx.fillStyle = '#4a5568';
             ctx.fillText(label, rightX, baseY);
-            ctx.font = `bold 13px '${font}', monospace`;
-            neon(ctx, value, rightX, baseY + 17, color, 9);
+            ctx.font = `bold 14px '${font}', monospace`;
+            neon(ctx, value, rightX, baseY + 18, color, 9);
         });
     }
 
@@ -208,5 +223,5 @@ export const drawSignature = (ctx, data, bgIndex, fontReady) => {
     ctx.fillStyle = '#243045';
     ctx.fillText('PRODUCTION CORE  •  OVALUE', W / 2, H - 6);
 
-    drawBorder(ctx, bgIndex, W, H);
+    drawBorder(ctx, borderColor || '#00f0ff', W, H);
 };

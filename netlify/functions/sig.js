@@ -34,8 +34,10 @@ const fmtNum = n => new Intl.NumberFormat('it-IT').format(Math.floor(n || 0));
 const fmtPct = v => `+${Number(v || 0).toFixed(2)}%`;
 
 const buildLayout = (data, bgIndex) => {
-    const bg     = BG_CSS[bgIndex]       || BG_CSS[0];
-    const border = BORDER_COLORS[bgIndex] || BORDER_COLORS[0];
+    const bg          = BG_CSS[bgIndex]       || BG_CSS[0];
+    const borderAlpha = BORDER_COLORS[bgIndex] || BORDER_COLORS[0];
+    const borderColor = data.borderColor || '#00f0ff';
+    const prodColor   = data.prodColor   || '#FFB800';
 
     const packStr      = fmtNum(data.daily);
     const packFontSize = packStr.length <= 10 ? 20 : packStr.length <= 13 ? 17 : 14;
@@ -51,6 +53,22 @@ const buildLayout = (data, bgIndex) => {
     const nickname = data.nickname || data.universe || 'Player';
     const universe = data.universe || '';
 
+    // Labels localizzate con fallback EN
+    const lbl = {
+        pack:           (data.labels && data.labels.pack)           || 'PACK · 24H',
+        mine:           (data.labels && data.labels.mine)           || 'METAL MINE',
+        lfBonus:        (data.labels && data.labels.lfBonus)        || 'LF BONUS',
+        collector:      (data.labels && data.labels.collector)      || 'COLLECTOR',
+        eco:            (data.labels && data.labels.eco)            || 'ECO',
+        classCollector: (data.labels && data.labels.classCollector) || 'COLLECTOR',
+        classGeneral:   (data.labels && data.labels.classGeneral)   || 'GENERAL',
+        classExplorer:  (data.labels && data.labels.classExplorer)  || 'EXPLORER',
+    };
+
+    const classLabel = data.playerClass === 'collector' ? lbl.classCollector
+                     : data.playerClass === 'explorer'  ? lbl.classExplorer
+                     : lbl.classGeneral;
+
     // ── Info giocatore TOP (sinistra) ────────────────────────────────────────
     const topInfoChildren = [
         {
@@ -63,7 +81,7 @@ const buildLayout = (data, bgIndex) => {
         ...(showUniverse && universe ? [{
             type: 'span',
             props: {
-                style: { fontSize: 8, color: '#3d5070', letterSpacing: '1px' },
+                style: { fontSize: 10, color: '#4a5568', letterSpacing: '1px' },
                 children: universe.toUpperCase(),
             },
         }] : []),
@@ -71,30 +89,29 @@ const buildLayout = (data, bgIndex) => {
             type: 'span',
             props: {
                 style: {
-                    fontSize: 9,
-                    color: data.playerClass === 'collector' ? '#00f0ff' : '#94a3b8',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: data.playerClass === 'collector' ? '#00f0ff' : '#64748b',
                     letterSpacing: '1px',
                 },
-                children: data.playerClass === 'collector' ? 'COLLEZIONISTA'
-                        : data.playerClass === 'explorer'  ? 'ESPLORATORE'
-                        : 'GENERALE',
+                children: classLabel.toUpperCase(),
             },
         }] : []),
         ...(showEco ? [{
             type: 'span',
             props: {
-                style: { fontSize: 8, color: '#3d5070', letterSpacing: '1px' },
-                children: `ECO ×${data.ecoSpeed || 8}`,
+                style: { fontSize: 9, color: '#3d5070', letterSpacing: '1px' },
+                children: `${lbl.eco} ×${data.ecoSpeed || 8}`,
             },
         }] : []),
     ];
 
     // ── Stats destra ─────────────────────────────────────────────────────────
     const rightStats = [
-        showMine    ? { label: 'MIN. METALLO', value: `Lv.${data.maxMine || 0}`, color: '#00f0ff' } : null,
-        showLfBonus ? { label: 'BONUS LF',     value: fmtPct(data.lfBonus),      color: '#00ff9d' } : null,
+        showMine    ? { label: lbl.mine,      value: `Lv.${data.maxMine || 0}`, color: '#00f0ff' } : null,
+        showLfBonus ? { label: lbl.lfBonus,   value: fmtPct(data.lfBonus),      color: '#00ff9d' } : null,
         (showCollBonus && data.isCollector && Number(data.collBonus) > 0)
-                    ? { label: 'COLLECTOR',    value: fmtPct(data.collBonus),    color: '#9d00ff' } : null,
+                    ? { label: lbl.collector, value: fmtPct(data.collBonus),    color: '#9d00ff' } : null,
     ].filter(Boolean);
 
     const statsGap = rightStats.length >= 3 ? 10 : rightStats.length === 2 ? 18 : 0;
@@ -106,7 +123,7 @@ const buildLayout = (data, bgIndex) => {
                 width: '500px', height: '150px',
                 display: 'flex', flexDirection: 'column',
                 background: bg,
-                border: `1.5px solid ${border}`,
+                border: `1.5px solid ${borderAlpha}`,
                 borderRadius: '6px',
                 fontFamily: 'Orbitron',
                 overflow: 'hidden',
@@ -132,7 +149,7 @@ const buildLayout = (data, bgIndex) => {
                                         {
                                             type: 'div',
                                             props: {
-                                                style: { display: 'flex', flexDirection: 'column', gap: '5px' },
+                                                style: { display: 'flex', flexDirection: 'column', gap: '4px' },
                                                 children: topInfoChildren,
                                             },
                                         },
@@ -144,11 +161,11 @@ const buildLayout = (data, bgIndex) => {
                                                 children: [
                                                     {
                                                         type: 'span',
-                                                        props: { style: { fontSize: 7, color: '#475569', letterSpacing: '2px' }, children: 'PACCHETTO  ·  24H' },
+                                                        props: { style: { fontSize: 10, color: '#475569', letterSpacing: '2px' }, children: lbl.pack },
                                                     },
                                                     {
                                                         type: 'span',
-                                                        props: { style: { fontSize: packFontSize, fontWeight: 700, color: '#FFB800', letterSpacing: '-0.5px' }, children: packStr },
+                                                        props: { style: { fontSize: packFontSize, fontWeight: 700, color: prodColor, letterSpacing: '-0.5px' }, children: packStr },
                                                     },
                                                 ],
                                             },
@@ -161,7 +178,7 @@ const buildLayout = (data, bgIndex) => {
                                 type: 'div',
                                 props: {
                                     style: {
-                                        width: '1px', background: 'rgba(0,240,255,0.18)',
+                                        width: '1px', background: `${borderColor}55`,
                                         margin: '0 6px', alignSelf: 'stretch',
                                     },
                                 },
@@ -180,8 +197,8 @@ const buildLayout = (data, bgIndex) => {
                                             props: {
                                                 style: { display: 'flex', flexDirection: 'column', gap: '3px' },
                                                 children: [
-                                                    { type: 'span', props: { style: { fontSize: 7, color: '#3d5070', letterSpacing: '0.8px' }, children: label } },
-                                                    { type: 'span', props: { style: { fontSize: 13, fontWeight: 700, color }, children: value } },
+                                                    { type: 'span', props: { style: { fontSize: 10, color: '#4a5568', letterSpacing: '0.8px' }, children: label } },
+                                                    { type: 'span', props: { style: { fontSize: 14, fontWeight: 700, color }, children: value } },
                                                 ],
                                             },
                                         }))

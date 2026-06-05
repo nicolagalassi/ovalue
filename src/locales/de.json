@@ -386,5 +386,16 @@
     "sig_show_coll": "Collector",
     "settings_nickname": "In-game Nickname",
     "settings_nickname_desc": "Dein Spielername — in der Forensignatur angezeigt",
-    "settings_nickname_placeholder": "z.B. GalaxyConqueror"
+    "settings_nickname_placeholder": "z.B. GalaxyConqueror",
+    "sig_colors": "Farben",
+    "sig_prod_color": "Produktion",
+    "sig_border_color": "Rahmen",
+    "sig_lbl_pack": "PAKET · 24H",
+    "sig_lbl_mine": "METALLMINE",
+    "sig_lbl_lf": "LF-BONUS",
+    "sig_lbl_coll": "COLLECTOR",
+    "sig_lbl_eco": "ECO",
+    "sig_lbl_class_collector": "SAMMLER",
+    "sig_lbl_class_general": "GENERAL",
+    "sig_lbl_class_explorer": "ENTDECKER"
 }

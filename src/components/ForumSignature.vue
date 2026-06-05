@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
-import { drawSignature, BG_PRESETS, NICK_COLORS } from '../composables/useForumSignature';
+import { drawSignature, BG_PRESETS, COLOR_SWATCHES } from '../composables/useForumSignature';
 import { getOrCreateSig, syncSignature } from '../services/signatureService';
 
 const { t } = useLanguage();
@@ -24,6 +24,8 @@ const savePrefs = () => {
     localStorage.setItem('ovalue_sig_prefs', JSON.stringify({
         selectedBg:    selectedBg.value,
         nicknameColor: nicknameColor.value,
+        borderColor:   borderColor.value,
+        prodColor:     prodColor.value,
         showClass:     showClass.value,
         showEco:       showEco.value,
         showUniverse:  showUniverse.value,
@@ -44,9 +46,11 @@ const syncing     = ref(false);
 const syncError   = ref(false);
 const sigId       = ref(localStorage.getItem('ovalue_sig_id') || null);
 
-// Preferenze visuali
+// Preferenze visive
 const selectedBg    = ref(_p.selectedBg    ?? 0);
 const nicknameColor = ref(_p.nicknameColor ?? '#e2e8f0');
+const borderColor   = ref(_p.borderColor   ?? '#00f0ff');
+const prodColor     = ref(_p.prodColor     ?? '#FFB800');
 const showClass     = ref(_p.showClass     ?? true);
 const showEco       = ref(_p.showEco       ?? true);
 const showUniverse  = ref(_p.showUniverse  ?? true);
@@ -66,6 +70,18 @@ const loadFont = async () => {
     fontLoaded.value = true;
 };
 
+// ─── Labels localizzate per il canvas ────────────────────────────────────────
+const buildLabels = () => ({
+    pack:           t('sig_lbl_pack'),
+    mine:           t('sig_lbl_mine'),
+    lfBonus:        t('sig_lbl_lf'),
+    collector:      t('sig_lbl_coll'),
+    eco:            t('sig_lbl_eco'),
+    classCollector: t('sig_lbl_class_collector'),
+    classGeneral:   t('sig_lbl_class_general'),
+    classExplorer:  t('sig_lbl_class_explorer'),
+});
+
 // ─── Costruzione dati firma ───────────────────────────────────────────────────
 const buildData = () => ({
     nickname:      props.nickname  || props.universe || 'Player',
@@ -78,12 +94,15 @@ const buildData = () => ({
     playerClass:   props.settings?.playerClass || 'other',
     ecoSpeed:      props.settings?.ecoSpeed || 8,
     nicknameColor: nicknameColor.value,
+    borderColor:   borderColor.value,
+    prodColor:     prodColor.value,
     showClass:     showClass.value,
     showEco:       showEco.value,
     showUniverse:  showUniverse.value,
     showMine:      showMine.value,
     showLfBonus:   showLfBonus.value,
     showCollBonus: showCollBonus.value,
+    labels:        buildLabels(),
 });
 
 // ─── Ridisegno canvas ────────────────────────────────────────────────────────
@@ -99,7 +118,8 @@ watch(
         () => props.collBonus, () => props.settings,
         () => props.nickname, () => props.universe,
         selectedBg, fontLoaded,
-        nicknameColor, showClass, showEco, showUniverse, showMine, showLfBonus, showCollBonus,
+        nicknameColor, borderColor, prodColor,
+        showClass, showEco, showUniverse, showMine, showLfBonus, showCollBonus,
     ],
     redraw,
     { deep: true },
@@ -128,7 +148,6 @@ const scheduleSync = (delay = 3000) => {
     syncTimer = setTimeout(doSync, delay);
 };
 
-// Dati produzione → sync 3s
 watch(
     [() => props.totals, () => props.maxMine, () => props.lfBonus,
      () => props.collBonus, () => props.settings, () => props.nickname, () => props.universe],
@@ -136,9 +155,9 @@ watch(
     { deep: true },
 );
 
-// Preferenze visive → salva + sync 600ms
 watch(
-    [selectedBg, nicknameColor, showClass, showEco, showUniverse, showMine, showLfBonus, showCollBonus],
+    [selectedBg, nicknameColor, borderColor, prodColor,
+     showClass, showEco, showUniverse, showMine, showLfBonus, showCollBonus],
     () => {
         savePrefs();
         if (sigId.value) scheduleSync(600);
@@ -164,8 +183,7 @@ onBeforeUnmount(() => clearTimeout(syncTimer));
 const forumUrl    = computed(() => sigId.value ? `${window.location.origin}/api/sig/${sigId.value}.png` : '');
 const forumBBCode = computed(() => {
     if (!forumUrl.value) return '';
-    const site = window.location.origin;
-    return `[url=${site}][img]${forumUrl.value}[/img][/url]`;
+    return `[url=${window.location.origin}][img]${forumUrl.value}[/img][/url]`;
 });
 
 const copyBBCode = async () => {
@@ -203,10 +221,8 @@ const downloadPng = () => {
           <span class="w-1.5 h-1.5 rounded-full bg-violet-400/60 inline-block"/>
           {{ t('sig_syncing') }}
         </span>
-        <span v-else-if="syncError"
-              class="text-[9px] text-red-400/70">{{ t('sig_sync_error') }}</span>
-        <span v-else-if="sigId"
-              class="flex items-center gap-1 text-[9px] text-emerald-400/50">
+        <span v-else-if="syncError" class="text-[9px] text-red-400/70">{{ t('sig_sync_error') }}</span>
+        <span v-else-if="sigId" class="flex items-center gap-1 text-[9px] text-emerald-400/50">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400/50 inline-block"/>
           sync
         </span>
@@ -228,39 +244,62 @@ const downloadPng = () => {
                 style="image-rendering: crisp-edges; box-shadow: 0 0 20px rgba(0,0,0,0.6);"/>
       </div>
 
-      <!-- ── Riga opzioni: sfondo + colore nick ─────────────────────────── -->
-      <div class="grid grid-cols-2 gap-4">
+      <!-- ── Sfondo ────────────────────────────────────────────────────── -->
+      <div>
+        <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">
+          {{ t('sig_bg_label') }}
+        </label>
+        <div class="flex gap-1.5 flex-wrap">
+          <button v-for="(bg, i) in BG_PRESETS" :key="bg.key"
+                  @click="selectedBg = i"
+                  class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all border"
+                  :class="selectedBg === i
+                    ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                    : 'bg-[#0a101e] border-slate-700/30 text-slate-500 hover:text-slate-300 hover:border-slate-600/50'">
+            {{ t('sig_bg_' + i) }}
+          </button>
+        </div>
+      </div>
 
-        <!-- Sfondo -->
-        <div>
-          <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">
-            {{ t('sig_bg_label') }}
-          </label>
-          <div class="flex gap-1.5 flex-wrap">
-            <button v-for="(bg, i) in BG_PRESETS" :key="bg.key"
-                    @click="selectedBg = i"
-                    class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all border"
-                    :class="selectedBg === i
-                      ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
-                      : 'bg-[#0a101e] border-slate-700/30 text-slate-500 hover:text-slate-300 hover:border-slate-600/50'">
-              {{ t('sig_bg_' + i) }}
-            </button>
+      <!-- ── Colori ────────────────────────────────────────────────────── -->
+      <div class="space-y-2">
+        <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+          {{ t('sig_colors') }}
+        </label>
+
+        <!-- Nickname -->
+        <div class="flex items-center gap-3">
+          <span class="text-[9px] text-slate-600 w-24 flex-shrink-0">{{ t('sig_nick_color') }}</span>
+          <div class="flex gap-2 flex-wrap">
+            <button v-for="color in COLOR_SWATCHES" :key="'n'+color"
+                    @click="nicknameColor = color"
+                    class="w-5 h-5 rounded-full border-2 transition-all flex-shrink-0"
+                    :style="{ backgroundColor: color, boxShadow: nicknameColor === color ? `0 0 6px ${color}` : 'none' }"
+                    :class="nicknameColor === color ? 'border-white scale-110' : 'border-transparent hover:border-white/40'"/>
           </div>
         </div>
 
-        <!-- Colore nickname -->
-        <div>
-          <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">
-            {{ t('sig_nick_color') }}
-          </label>
-          <div class="flex gap-2 items-center flex-wrap">
-            <button v-for="color in NICK_COLORS" :key="color"
-                    @click="nicknameColor = color"
-                    class="w-6 h-6 rounded-full border-2 transition-all flex-shrink-0"
-                    :style="{ backgroundColor: color, boxShadow: nicknameColor === color ? `0 0 8px ${color}` : 'none' }"
-                    :class="nicknameColor === color
-                      ? 'border-white scale-110'
-                      : 'border-transparent hover:border-white/40'"/>
+        <!-- Produzione -->
+        <div class="flex items-center gap-3">
+          <span class="text-[9px] text-slate-600 w-24 flex-shrink-0">{{ t('sig_prod_color') }}</span>
+          <div class="flex gap-2 flex-wrap">
+            <button v-for="color in COLOR_SWATCHES" :key="'p'+color"
+                    @click="prodColor = color"
+                    class="w-5 h-5 rounded-full border-2 transition-all flex-shrink-0"
+                    :style="{ backgroundColor: color, boxShadow: prodColor === color ? `0 0 6px ${color}` : 'none' }"
+                    :class="prodColor === color ? 'border-white scale-110' : 'border-transparent hover:border-white/40'"/>
+          </div>
+        </div>
+
+        <!-- Bordo -->
+        <div class="flex items-center gap-3">
+          <span class="text-[9px] text-slate-600 w-24 flex-shrink-0">{{ t('sig_border_color') }}</span>
+          <div class="flex gap-2 flex-wrap">
+            <button v-for="color in COLOR_SWATCHES" :key="'b'+color"
+                    @click="borderColor = color"
+                    class="w-5 h-5 rounded-full border-2 transition-all flex-shrink-0"
+                    :style="{ backgroundColor: color, boxShadow: borderColor === color ? `0 0 6px ${color}` : 'none' }"
+                    :class="borderColor === color ? 'border-white scale-110' : 'border-transparent hover:border-white/40'"/>
           </div>
         </div>
       </div>
@@ -276,23 +315,17 @@ const downloadPng = () => {
             <span class="text-[9px] text-slate-600 w-20 flex-shrink-0">{{ t('sig_player_info') }}</span>
             <button @click="showUniverse = !showUniverse"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showUniverse
-                      ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
-                      : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showUniverse ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_universe') }}
             </button>
             <button @click="showClass = !showClass"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showClass
-                      ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
-                      : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showClass ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_class') }}
             </button>
             <button @click="showEco = !showEco"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showEco
-                      ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
-                      : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showEco ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_eco') }}
             </button>
           </div>
@@ -301,24 +334,18 @@ const downloadPng = () => {
             <span class="text-[9px] text-slate-600 w-20 flex-shrink-0">{{ t('sig_stats') }}</span>
             <button @click="showMine = !showMine"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showMine
-                      ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
-                      : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showMine ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_mine') }}
             </button>
             <button @click="showLfBonus = !showLfBonus"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showLfBonus
-                      ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
-                      : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showLfBonus ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_lf') }}
             </button>
             <button v-if="isCollector"
                     @click="showCollBonus = !showCollBonus"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showCollBonus
-                      ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
-                      : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showCollBonus ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_coll') }}
             </button>
           </div>
@@ -339,9 +366,7 @@ const downloadPng = () => {
                  @click="$event.target.select()"/>
           <button @click="copyBBCode"
                   class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold uppercase tracking-wider transition-all"
-                  :class="urlCopied
-                    ? 'bg-violet-500/20 text-violet-300'
-                    : 'bg-violet-500/10 hover:bg-violet-500/20 text-violet-400'">
+                  :class="urlCopied ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-500/10 hover:bg-violet-500/20 text-violet-400'">
             <svg v-if="!urlCopied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>

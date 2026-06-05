@@ -5,7 +5,6 @@ import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useProfiles } from '../composables/useProfiles';
 import { OGAME_DB } from '../data/ogame_db';
 import PlanetCard from '../components/PlanetCard.vue';
-import ForumSignature from '../components/ForumSignature.vue';
 
 const { t } = useLanguage();
 const { calcPlanetMetalProduction, calcLFResearchBonus, formatNum } = useOgameFormulas();
@@ -379,19 +378,7 @@ const maxMetalMine = computed(() =>
         />
     </div>
 
-    <!-- ── FIRMA FORUM ──────────────────────────────────────────────────── -->
-    <div class="mb-6">
-      <ForumSignature
-        :totals="totals"
-        :max-mine="maxMetalMine"
-        :lf-bonus="lfResearchPct.metal"
-        :coll-bonus="lfResearchPct.collectorBonus"
-        :settings="settings"
-        :profile-name="activeProfile?.name"
-      />
-    </div>
-
-    <div class="fixed bottom-0 left-0 w-full bg-[#070c18]/95 backdrop-blur-xl border-t border-slate-700/25 py-3 z-40">
+<div class="fixed bottom-0 left-0 w-full bg-[#070c18]/95 backdrop-blur-xl border-t border-slate-700/25 py-3 z-40">
         <div class="max-w-7xl mx-auto flex flex-row items-center px-4 md:px-6 gap-0">
             <div class="text-center flex-1 cursor-default">
                 <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-0.5">{{ t('footer_prod_hour') }}</div>

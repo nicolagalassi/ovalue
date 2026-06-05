@@ -7,12 +7,13 @@ import { getOrCreateSig, syncSignature } from '../services/signatureService';
 const { t } = useLanguage();
 
 const props = defineProps({
-    totals:      { type: Object,  required: true   },
-    maxMine:     { type: Number,  default: 0        },
-    lfBonus:     { type: Number,  default: 0        },
-    collBonus:   { type: Number,  default: 0        },
-    settings:    { type: Object,  required: true    },
-    profileName: { type: String,  default: 'Player' },
+    totals:   { type: Object, required: true  },
+    maxMine:  { type: Number, default: 0      },
+    lfBonus:  { type: Number, default: 0      },
+    collBonus:{ type: Number, default: 0      },
+    settings: { type: Object, required: true  },
+    nickname: { type: String, default: ''     },
+    universe: { type: String, default: ''     },
 });
 
 // ─── Persistenza preferenze ──────────────────────────────────────────────────
@@ -25,6 +26,7 @@ const savePrefs = () => {
         nicknameColor: nicknameColor.value,
         showClass:     showClass.value,
         showEco:       showEco.value,
+        showUniverse:  showUniverse.value,
         showMine:      showMine.value,
         showLfBonus:   showLfBonus.value,
         showCollBonus: showCollBonus.value,
@@ -47,6 +49,7 @@ const selectedBg    = ref(_p.selectedBg    ?? 0);
 const nicknameColor = ref(_p.nicknameColor ?? '#e2e8f0');
 const showClass     = ref(_p.showClass     ?? true);
 const showEco       = ref(_p.showEco       ?? true);
+const showUniverse  = ref(_p.showUniverse  ?? true);
 const showMine      = ref(_p.showMine      ?? true);
 const showLfBonus   = ref(_p.showLfBonus   ?? true);
 const showCollBonus = ref(_p.showCollBonus ?? true);
@@ -65,16 +68,19 @@ const loadFont = async () => {
 
 // ─── Costruzione dati firma ───────────────────────────────────────────────────
 const buildData = () => ({
-    name:          props.profileName || 'Player',
+    nickname:      props.nickname  || props.universe || 'Player',
+    universe:      props.universe  || '',
     daily:         props.totals?.daily  || 0,
     maxMine:       props.maxMine,
     lfBonus:       props.lfBonus,
     collBonus:     props.collBonus,
     isCollector:   isCollector.value,
+    playerClass:   props.settings?.playerClass || 'other',
     ecoSpeed:      props.settings?.ecoSpeed || 8,
     nicknameColor: nicknameColor.value,
     showClass:     showClass.value,
     showEco:       showEco.value,
+    showUniverse:  showUniverse.value,
     showMine:      showMine.value,
     showLfBonus:   showLfBonus.value,
     showCollBonus: showCollBonus.value,
@@ -90,9 +96,10 @@ const redraw = () => {
 watch(
     [
         () => props.totals, () => props.maxMine, () => props.lfBonus,
-        () => props.collBonus, () => props.settings, () => props.profileName,
+        () => props.collBonus, () => props.settings,
+        () => props.nickname, () => props.universe,
         selectedBg, fontLoaded,
-        nicknameColor, showClass, showEco, showMine, showLfBonus, showCollBonus,
+        nicknameColor, showClass, showEco, showUniverse, showMine, showLfBonus, showCollBonus,
     ],
     redraw,
     { deep: true },
@@ -124,14 +131,14 @@ const scheduleSync = (delay = 3000) => {
 // Dati produzione → sync 3s
 watch(
     [() => props.totals, () => props.maxMine, () => props.lfBonus,
-     () => props.collBonus, () => props.settings, () => props.profileName],
+     () => props.collBonus, () => props.settings, () => props.nickname, () => props.universe],
     () => { if (sigId.value) scheduleSync(3000); },
     { deep: true },
 );
 
 // Preferenze visive → salva + sync 600ms
 watch(
-    [selectedBg, nicknameColor, showClass, showEco, showMine, showLfBonus, showCollBonus],
+    [selectedBg, nicknameColor, showClass, showEco, showUniverse, showMine, showLfBonus, showCollBonus],
     () => {
         savePrefs();
         if (sigId.value) scheduleSync(600);
@@ -267,6 +274,13 @@ const downloadPng = () => {
           <!-- Info giocatore -->
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-[9px] text-slate-600 w-20 flex-shrink-0">{{ t('sig_player_info') }}</span>
+            <button @click="showUniverse = !showUniverse"
+                    class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
+                    :class="showUniverse
+                      ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
+                      : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+              {{ t('sig_show_universe') }}
+            </button>
             <button @click="showClass = !showClass"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
                     :class="showClass

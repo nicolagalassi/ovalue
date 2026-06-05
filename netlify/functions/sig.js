@@ -43,9 +43,13 @@ const buildLayout = (data, bgIndex) => {
     const nicknameColor = data.nicknameColor || '#e2e8f0';
     const showClass     = data.showClass     !== false;
     const showEco       = data.showEco       !== false;
+    const showUniverse  = data.showUniverse  !== false;
     const showMine      = data.showMine      !== false;
     const showLfBonus   = data.showLfBonus   !== false;
     const showCollBonus = data.showCollBonus !== false;
+
+    const nickname = data.nickname || data.universe || 'Player';
+    const universe = data.universe || '';
 
     // ── Info giocatore TOP (sinistra) ────────────────────────────────────────
     const topInfoChildren = [
@@ -53,14 +57,27 @@ const buildLayout = (data, bgIndex) => {
             type: 'span',
             props: {
                 style: { fontSize: 13, fontWeight: 700, color: nicknameColor, letterSpacing: '0.5px' },
-                children: (data.name || 'Player').toUpperCase().slice(0, 18),
+                children: nickname.toUpperCase().slice(0, 18),
             },
         },
+        ...(showUniverse && universe ? [{
+            type: 'span',
+            props: {
+                style: { fontSize: 8, color: '#3d5070', letterSpacing: '1px' },
+                children: universe.toUpperCase(),
+            },
+        }] : []),
         ...(showClass ? [{
             type: 'span',
             props: {
-                style: { fontSize: 9, color: data.isCollector ? '#00f0ff' : '#94a3b8', letterSpacing: '1px' },
-                children: data.isCollector ? 'COLLEZIONISTA' : 'GENERALE',
+                style: {
+                    fontSize: 9,
+                    color: data.playerClass === 'collector' ? '#00f0ff' : '#94a3b8',
+                    letterSpacing: '1px',
+                },
+                children: data.playerClass === 'collector' ? 'COLLEZIONISTA'
+                        : data.playerClass === 'explorer'  ? 'ESPLORATORE'
+                        : 'GENERALE',
             },
         }] : []),
         ...(showEco ? [{

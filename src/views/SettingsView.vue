@@ -11,7 +11,8 @@ const {
     profiles, activeProfileId, activeProfile, knownServers,
     createProfile, renameProfile, deleteProfile,
     switchProfile, exportProfiles, importProfiles,
-    toggleAutoSync, setSyncServer, duplicateProfile, importManual
+    toggleAutoSync, setSyncServer, duplicateProfile, importManual,
+    setPlayerName
 } = useProfiles();
 
 // ── CONTACT FORM ─────────────────────────────────────────────────────────────
@@ -276,6 +277,17 @@ const confirmImportOGame = () => {
             {{ lastSyncFormatted ?? t('sync_never') }}
           </span>
         </div>
+
+        <!-- Nickname in-game -->
+        <div class="px-5 py-4">
+          <div class="text-sm font-bold text-white/90 mb-0.5">{{ t('settings_nickname') }}</div>
+          <div class="text-[11px] text-gray-500 mb-3">{{ t('settings_nickname_desc') }}</div>
+          <input type="text"
+                 :value="activeProfile.playerName || ''"
+                 @input="setPlayerName($event.target.value)"
+                 :placeholder="t('settings_nickname_placeholder')"
+                 class="input-glass w-full px-3 py-2 text-sm" />
+        </div>
       </div>
     </section>
 
@@ -460,7 +472,8 @@ const confirmImportOGame = () => {
         :lf-bonus="sigLfPct.metal"
         :coll-bonus="sigLfPct.collectorBonus"
         :settings="sigSettings"
-        :profile-name="activeProfile.name"
+        :nickname="activeProfile.playerName || ''"
+        :universe="activeProfile.name"
       />
     </div>
 

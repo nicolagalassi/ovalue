@@ -94,7 +94,8 @@ const neon = (ctx, text, x, y, color, blur = 10) => {
 export const drawSignature = (ctx, data, bgIndex, fontReady) => {
     const W = 500, H = 150;
     const {
-        name          = 'Player',
+        nickname      = 'Player',
+        universe      = '',
         daily         = 0,
         maxMine       = 0,
         lfBonus       = 0,
@@ -104,6 +105,7 @@ export const drawSignature = (ctx, data, bgIndex, fontReady) => {
         nicknameColor = '#e2e8f0',
         showClass     = true,
         showEco       = true,
+        showUniverse  = true,
         showMine      = true,
         showLfBonus   = true,
         showCollBonus = true,
@@ -126,18 +128,27 @@ export const drawSignature = (ctx, data, bgIndex, fontReady) => {
 
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 
-    // ── SINISTRA TOP: nickname + classe + eco ─────────────────────────────
-    const displayName = name.length > 18 ? name.slice(0, 17) + '…' : name;
+    // ── SINISTRA TOP: nickname + universo + classe + eco ─────────────────
+    const displayNick = nickname.length > 18 ? nickname.slice(0, 17) + '…' : nickname;
     ctx.font = `bold 13px '${font}', monospace`;
-    neon(ctx, displayName.toUpperCase(), 12, 28, nicknameColor, 8);
+    neon(ctx, displayNick.toUpperCase(), 12, 28, nicknameColor, 8);
 
-    let infoY = 42;
+    let infoY = 41;
+    if (showUniverse && universe) {
+        ctx.font = '8px monospace';
+        ctx.fillStyle = '#3d5070';
+        ctx.fillText(universe.toUpperCase(), 12, infoY);
+        infoY += 12;
+    }
     if (showClass) {
-        const classLabel = isCollector ? 'COLLEZIONISTA' : 'GENERALE';
-        const classColor = isCollector ? '#00f0ff' : '#94a3b8';
+        const playerClass = data.playerClass || (isCollector ? 'collector' : 'other');
+        const classLabel  = playerClass === 'collector' ? 'COLLEZIONISTA'
+                          : playerClass === 'explorer'  ? 'ESPLORATORE'
+                          : 'GENERALE';
+        const classColor  = playerClass === 'collector' ? '#00f0ff' : '#94a3b8';
         ctx.font = '9px monospace';
         neon(ctx, classLabel, 12, infoY, classColor, isCollector ? 6 : 2);
-        infoY += 13;
+        infoY += 12;
     }
     if (showEco) {
         ctx.font = '8px monospace';

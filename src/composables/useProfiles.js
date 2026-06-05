@@ -235,6 +235,7 @@ export function useProfiles() {
         const defProfile = {
             id: 'p' + Date.now(),
             name: 'Default',
+            playerName: '',
             production: createDefaultProduction(),
             packExchange: createDefaultPackExchange(),
             shoppingList: createDefaultShoppingList(),
@@ -256,6 +257,7 @@ export function useProfiles() {
         const newP = {
             id: 'p' + Date.now(),
             name: name,
+            playerName: '',
             production: createDefaultProduction(),
             packExchange: createDefaultPackExchange(),
             shoppingList: createDefaultShoppingList(),
@@ -364,6 +366,7 @@ export function useProfiles() {
                 const newP = {
                     id: 'p' + Date.now() + Math.random().toString(36).slice(2, 5),
                     name: universeName,
+                    playerName: raw.playerName || '',
                     production: createDefaultProduction(),
                     packExchange: createDefaultPackExchange(),
                     shoppingList: createDefaultShoppingList(),
@@ -476,6 +479,7 @@ export function useProfiles() {
                 });
             }
 
+            if (raw.playerName) profile.playerName = raw.playerName;
             profile.production.daily = calcDailyProduction(profile.production.settings, profile.production.planets);
             profile.lastSync = Date.now();
             didImport = true;
@@ -581,6 +585,7 @@ export function useProfiles() {
             });
         }
 
+        if (rawData.playerName) profile.playerName = rawData.playerName;
         profile.production.daily = calcDailyProduction(profile.production.settings, profile.production.planets);
         profile.lastSync = Date.now();
         saveProfiles();
@@ -616,6 +621,13 @@ export function useProfiles() {
         saveProfiles();
     };
 
+    const setPlayerName = (name) => {
+        const profile = activeProfile.value;
+        if (!profile) return;
+        profile.playerName = name;
+        saveProfiles();
+    };
+
     return {
         profiles,
         activeProfileId,
@@ -633,6 +645,7 @@ export function useProfiles() {
         importManual,
         duplicateProfile,
         toggleAutoSync,
-        setSyncServer
+        setSyncServer,
+        setPlayerName
     };
 }

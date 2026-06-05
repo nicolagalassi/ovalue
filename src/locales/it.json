@@ -711,9 +711,13 @@
     "sig_visibility": "Elementi Visibili",
     "sig_player_info": "Info giocatore",
     "sig_stats": "Stats account",
+    "sig_show_universe": "Universo",
     "sig_show_class": "Classe",
     "sig_show_eco": "Velocità Eco",
     "sig_show_mine": "Min. Metallo",
     "sig_show_lf": "Bonus LF",
-    "sig_show_coll": "Collector"
+    "sig_show_coll": "Collector",
+    "settings_nickname": "Nickname in-game",
+    "settings_nickname_desc": "Il tuo nome nel gioco — mostrato nella firma forum",
+    "settings_nickname_placeholder": "Es. GalaxyConqueror"
 }

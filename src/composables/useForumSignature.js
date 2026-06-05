@@ -1,9 +1,9 @@
 export const BG_PRESETS = [
-    { key: 'deep_space',  stars: true,  scanlines: false },
-    { key: 'neon_void',   stars: false, scanlines: false },
-    { key: 'steel_frame', stars: false, scanlines: true  },
-    { key: 'cosmic',      stars: true,  scanlines: false },
-    { key: 'minimal',     stars: false, scanlines: false },
+    { key: 'stellar' },
+    { key: 'forge'   },
+    { key: 'cartoon' },
+    { key: 'anime'   },
+    { key: 'cyber'   },
 ];
 
 // Palette colori condivisa per nick / bordo / produzione
@@ -29,47 +29,108 @@ const drawStars = (ctx, count, W, H) => {
     }
 };
 
+// ─── Braci Fucina (seed diverso dalle stelle) ────────────────────────────────
+const drawEmbers = (ctx, count, W, H) => {
+    let s = 137;
+    const rng = () => { s = (Math.imul(1664525, s) + 1013904223) | 0; return (s >>> 0) / 4294967296; };
+    for (let i = 0; i < count; i++) {
+        const x = rng() * W, y = H * 0.2 + rng() * H * 0.8;
+        const r = rng() * 1.8 + 0.3;
+        const a = rng() * 0.65 + 0.2;
+        const g = Math.floor(60 + rng() * 100);
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,${g},10,${a.toFixed(2)})`;
+        ctx.fill();
+    }
+};
+
+// ─── Griglia olografica Cyber ────────────────────────────────────────────────
+const drawCyberGrid = (ctx, W, H) => {
+    ctx.save();
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 0.5;
+    const step = 16;
+    for (let x = 0; x <= W; x += step) {
+        ctx.globalAlpha = x % (step * 3) === 0 ? 0.10 : 0.04;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y <= H; y += step) {
+        ctx.globalAlpha = y % (step * 3) === 0 ? 0.10 : 0.04;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+};
+
 // ─── Sfondi ─────────────────────────────────────────────────────────────────
 const drawBackground = (ctx, bgIndex, W, H) => {
     let g;
     switch (bgIndex) {
-        case 0: // Deep Space
+        case 0: { // Stellare — spazio profondo blu
             g = ctx.createLinearGradient(0, 0, W, H);
-            g.addColorStop(0, '#070c18'); g.addColorStop(1, '#0d1a33');
+            g.addColorStop(0, '#060a16'); g.addColorStop(1, '#0c1830');
             ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-            drawStars(ctx, 55, W, H);
+            const rg0 = ctx.createRadialGradient(380, 38, 0, 380, 38, 130);
+            rg0.addColorStop(0, 'rgba(0,100,180,0.15)'); rg0.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = rg0; ctx.fillRect(0, 0, W, H);
+            drawStars(ctx, 65, W, H);
             break;
-        case 1: // Neon Void
-            g = ctx.createLinearGradient(0, 0, W, H);
-            g.addColorStop(0, '#0a0014'); g.addColorStop(1, '#1a0030');
-            ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-            { const rg = ctx.createRadialGradient(90, 75, 0, 90, 75, 110);
-              rg.addColorStop(0, 'rgba(70,0,110,0.55)'); rg.addColorStop(1, 'rgba(26,0,48,0)');
-              ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H); }
-            break;
-        case 2: // Steel Frame
+        }
+        case 1: { // Fucina — miniera in fusione
             g = ctx.createLinearGradient(0, 0, 0, H);
-            g.addColorStop(0, '#0a0f14'); g.addColorStop(1, '#111b26');
+            g.addColorStop(0, '#0e0400'); g.addColorStop(0.55, '#1e0900'); g.addColorStop(1, '#2c1100');
             ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-            ctx.fillStyle = 'rgba(0,0,0,0.08)';
-            for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 2);
+            const rg1 = ctx.createRadialGradient(250, H + 20, 0, 250, H + 20, 220);
+            rg1.addColorStop(0, 'rgba(230,75,0,0.50)');
+            rg1.addColorStop(0.45, 'rgba(150,35,0,0.22)');
+            rg1.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = rg1; ctx.fillRect(0, 0, W, H);
+            drawEmbers(ctx, 48, W, H);
             break;
-        case 3: // Cosmic
-            g = ctx.createLinearGradient(0, 0, W, H);
-            g.addColorStop(0, '#050810'); g.addColorStop(0.45, '#18003c'); g.addColorStop(1, '#050810');
+        }
+        case 2: { // Cartoon — stile piatto e vivace
+            g = ctx.createLinearGradient(0, 0, 0, H);
+            g.addColorStop(0, '#120600'); g.addColorStop(0.55, '#261000'); g.addColorStop(1, '#351a00');
             ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-            { const rg = ctx.createRadialGradient(250, 75, 0, 250, 75, 130);
-              rg.addColorStop(0, 'rgba(80,0,160,0.35)'); rg.addColorStop(1, 'rgba(5,8,16,0)');
-              ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H); }
-            drawStars(ctx, 40, W, H);
+            const rg2 = ctx.createRadialGradient(110, H + 10, 0, 110, H + 10, 170);
+            rg2.addColorStop(0, 'rgba(255,130,0,0.40)'); rg2.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = rg2; ctx.fillRect(0, 0, W, H);
+            // Banda terreno stile cartoon
+            const groundY = Math.round(H * 0.72);
+            ctx.fillStyle = 'rgba(50,18,0,0.55)';
+            ctx.fillRect(0, groundY, W, H - groundY);
+            ctx.save();
+            ctx.strokeStyle = 'rgba(200,80,0,0.30)'; ctx.lineWidth = 1; ctx.setLineDash([]);
+            ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(W, groundY); ctx.stroke();
+            ctx.restore();
             break;
-        default: // Minimal
-            ctx.fillStyle = '#050810'; ctx.fillRect(0, 0, W, H);
+        }
+        case 3: { // Anime — cielo notturno, fuoco a sx, luna a dx
+            g = ctx.createLinearGradient(0, 0, 0, H);
+            g.addColorStop(0, '#03050e'); g.addColorStop(0.42, '#0e0600'); g.addColorStop(1, '#1c0a00');
+            ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+            const rg3a = ctx.createRadialGradient(55, H + 10, 0, 55, H + 10, 170);
+            rg3a.addColorStop(0, 'rgba(215,55,0,0.40)'); rg3a.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = rg3a; ctx.fillRect(0, 0, W, H);
+            const rg3b = ctx.createRadialGradient(430, 18, 0, 430, 18, 110);
+            rg3b.addColorStop(0, 'rgba(30,80,170,0.20)'); rg3b.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = rg3b; ctx.fillRect(0, 0, W, H);
+            drawStars(ctx, 28, W, H * 0.55);
             break;
+        }
+        default: { // Cyber — griglia olografica
+            ctx.fillStyle = '#020508'; ctx.fillRect(0, 0, W, H);
+            const rgC = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 220);
+            rgC.addColorStop(0, 'rgba(0,200,255,0.07)'); rgC.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = rgC; ctx.fillRect(0, 0, W, H);
+            drawCyberGrid(ctx, W, H);
+            break;
+        }
     }
 };
 
-// ─── Bordo neon arrotondato (colore indipendente dallo sfondo) ───────────────
+// ─── Bordo neon arrotondato ───────────────────────────────────────────────────
 const drawBorder = (ctx, color, W, H) => {
     ctx.save();
     ctx.strokeStyle = color;
@@ -115,7 +176,6 @@ export const drawSignature = (ctx, data, bgIndex, fontReady) => {
         labels        = {},
     } = data;
 
-    // Label con fallback EN se non arriva la traduzione
     const lbl = {
         pack:            labels.pack            || 'PACK · 24H',
         mine:            labels.mine            || 'METAL MINE',
@@ -190,17 +250,17 @@ export const drawSignature = (ctx, data, bgIndex, fontReady) => {
     // ── DESTRA: stats account ─────────────────────────────────────────────
     const rightX = SPLIT + 14;
     const rightStats = [
-        showMine    ? { label: lbl.mine,      value: `Lv.${maxMine}`,                         color: '#00f0ff' } : null,
-        showLfBonus ? { label: lbl.lfBonus,   value: `+${Number(lfBonus).toFixed(2)}%`,       color: '#00ff9d' } : null,
+        showMine    ? { label: lbl.mine,      value: `Lv.${maxMine}`,                     color: '#00f0ff' } : null,
+        showLfBonus ? { label: lbl.lfBonus,   value: `+${Number(lfBonus).toFixed(2)}%`,   color: '#00ff9d' } : null,
         (showCollBonus && isCollector && Number(collBonus) > 0)
-                    ? { label: lbl.collector, value: `+${Number(collBonus).toFixed(2)}%`,     color: '#9d00ff' } : null,
+                    ? { label: lbl.collector, value: `+${Number(collBonus).toFixed(2)}%`, color: '#9d00ff' } : null,
     ].filter(Boolean);
 
     if (rightStats.length > 0) {
-        const usableH  = H - 18 - 12;
-        const rowH     = Math.min(38, Math.floor(usableH / rightStats.length));
-        const totalH   = rightStats.length * rowH;
-        const startY   = Math.round((usableH - totalH) / 2) + 12 + 8;
+        const usableH = H - 18 - 12;
+        const rowH    = Math.min(38, Math.floor(usableH / rightStats.length));
+        const totalH  = rightStats.length * rowH;
+        const startY  = Math.round((usableH - totalH) / 2) + 12 + 8;
 
         rightStats.forEach(({ label, value, color }, i) => {
             const baseY = startY + i * rowH;

@@ -16,26 +16,18 @@ try {
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 
 const BG_CSS = [
-    'linear-gradient(135deg, #070c18 0%, #0d1a33 100%)',
-    'linear-gradient(135deg, #0a0014 0%, #1a0030 100%)',
-    'linear-gradient(180deg, #0a0f14 0%, #111b26 100%)',
-    'linear-gradient(135deg, #050810 0%, #18003c 50%, #050810 100%)',
-    '#050810',
-];
-const BORDER_COLORS = [
-    'rgba(0,240,255,0.55)',
-    'rgba(157,0,255,0.65)',
-    'rgba(148,163,184,0.35)',
-    'rgba(157,0,255,0.5)',
-    'rgba(0,240,255,0.18)',
+    'linear-gradient(135deg, #060a16 0%, #0c1830 100%)',               // Stellare
+    'linear-gradient(180deg, #0e0400 0%, #1e0900 55%, #2c1100 100%)', // Fucina
+    'linear-gradient(180deg, #120600 0%, #261000 55%, #351a00 100%)', // Cartoon
+    'linear-gradient(180deg, #03050e 0%, #0e0600 42%, #1c0a00 100%)', // Anime
+    'linear-gradient(135deg, #020508 0%, #040c10 100%)',               // Cyber
 ];
 
 const fmtNum = n => new Intl.NumberFormat('it-IT').format(Math.floor(n || 0));
 const fmtPct = v => `+${Number(v || 0).toFixed(2)}%`;
 
 const buildLayout = (data, bgIndex) => {
-    const bg          = BG_CSS[bgIndex]       || BG_CSS[0];
-    const borderAlpha = BORDER_COLORS[bgIndex] || BORDER_COLORS[0];
+    const bg          = BG_CSS[bgIndex] || BG_CSS[0];
     const borderColor = data.borderColor || '#00f0ff';
     const prodColor   = data.prodColor   || '#FFB800';
 
@@ -123,7 +115,7 @@ const buildLayout = (data, bgIndex) => {
                 width: '500px', height: '150px',
                 display: 'flex', flexDirection: 'column',
                 background: bg,
-                border: `1.5px solid ${borderAlpha}`,
+                border: `1.5px solid ${borderColor}aa`,
                 borderRadius: '6px',
                 fontFamily: 'Orbitron',
                 overflow: 'hidden',

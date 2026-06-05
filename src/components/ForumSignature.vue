@@ -155,7 +155,11 @@ onBeforeUnmount(() => clearTimeout(syncTimer));
 
 // ─── BBCode / URL ────────────────────────────────────────────────────────────
 const forumUrl    = computed(() => sigId.value ? `${window.location.origin}/api/sig/${sigId.value}.png` : '');
-const forumBBCode = computed(() => forumUrl.value ? `[img]${forumUrl.value}[/img]` : '');
+const forumBBCode = computed(() => {
+    if (!forumUrl.value) return '';
+    const site = window.location.origin;
+    return `[url=${site}][img]${forumUrl.value}[/img][/url]`;
+});
 
 const copyBBCode = async () => {
     if (!forumBBCode.value) return;

@@ -3,8 +3,8 @@ import { Resvg } from '@resvg/resvg-js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ljdihkfmazskfthdbici.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_VCvu1tmWOJvpMsul5e3hng_jCcT8xV0';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 
 let fontData;
 try {

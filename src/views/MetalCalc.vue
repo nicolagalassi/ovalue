@@ -5,6 +5,7 @@ import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useProfiles } from '../composables/useProfiles';
 import { OGAME_DB } from '../data/ogame_db';
 import PlanetCard from '../components/PlanetCard.vue';
+import ForumSignature from '../components/ForumSignature.vue';
 
 const { t } = useLanguage();
 const { calcPlanetMetalProduction, calcLFResearchBonus, formatNum } = useOgameFormulas();
@@ -152,6 +153,11 @@ const collBreakdown = computed(() => {
         geo: (10 * f).toFixed(2)
     };
 });
+
+// ── Firma Forum ──────────────────────────────────────────────────────────────
+const maxMetalMine = computed(() =>
+    planets.value.length ? Math.max(...planets.value.map(p => p.metal || 0)) : 0
+);
 
 </script>
 
@@ -371,6 +377,18 @@ const collBreakdown = computed(() => {
             @clone="clonePlanet(index)"
             @remove="removePlanet(index)"
         />
+    </div>
+
+    <!-- ── FIRMA FORUM ──────────────────────────────────────────────────── -->
+    <div class="mb-6">
+      <ForumSignature
+        :totals="totals"
+        :max-mine="maxMetalMine"
+        :lf-bonus="lfResearchPct.metal"
+        :coll-bonus="lfResearchPct.collectorBonus"
+        :settings="settings"
+        :profile-name="activeProfile?.name"
+      />
     </div>
 
     <div class="fixed bottom-0 left-0 w-full bg-[#070c18]/95 backdrop-blur-xl border-t border-slate-700/25 py-3 z-40">

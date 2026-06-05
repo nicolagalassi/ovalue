@@ -1,0 +1,16 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[functions]
+  directory        = "netlify/functions"
+  node_bundler     = "esbuild"
+  included_files   = ["public/fonts/*.woff2"]
+
+[[functions.sig]]
+  external_node_modules = ["@resvg/resvg-js"]
+
+[[redirects]]
+  from   = "/api/sig/*"
+  to     = "/.netlify/functions/sig"
+  status = 200

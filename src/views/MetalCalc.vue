@@ -3,10 +3,12 @@ import { ref, reactive, computed, watch } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useProfiles } from '../composables/useProfiles';
+import { useToast } from '../composables/useToast';
 import { OGAME_DB } from '../data/ogame_db';
 import PlanetCard from '../components/PlanetCard.vue';
 
 const { t } = useLanguage();
+const { show: showToast } = useToast();
 const { calcPlanetMetalProduction, calcLFResearchBonus, formatNum } = useOgameFormulas();
 const { activeProfile, saveProfiles } = useProfiles();
 
@@ -31,7 +33,10 @@ const showAllLfResearch = ref(false);
 watch(activeProfile, (newP) => {
     if (newP && newP.production) {
         Object.assign(settings, JSON.parse(JSON.stringify(newP.production.settings)));
-        planets.value = JSON.parse(JSON.stringify(newP.production.planets));
+        planets.value = JSON.parse(JSON.stringify(newP.production.planets)).map(p => ({
+            ...p,
+            id: p.id || crypto.randomUUID()
+        }));
     }
 }, { immediate: true });
 
@@ -51,6 +56,7 @@ watch([settings, planets], () => {
 }, { deep: true });
 
 const createPlanet = () => ({
+    id: crypto.randomUUID(),
     name: '',
     metal: 30, crystal: 25, deuterium: 20,
     pos: 8,
@@ -65,13 +71,19 @@ const createPlanet = () => ({
 });
 
 const addPlanet = () => { planets.value.push(createPlanet()); };
-const clonePlanet = (index) => { planets.value.splice(index + 1, 0, JSON.parse(JSON.stringify(planets.value[index]))); };
-const removePlanet = (index) => { planets.value.splice(index, 1); };
-const resetAll = () => { 
-    if(confirm(t('btn_reset') + "?")) { 
-        planets.value = [createPlanet()]; 
-    } 
+const clonePlanet = (index) => {
+    const clone = JSON.parse(JSON.stringify(planets.value[index]));
+    clone.id = crypto.randomUUID();
+    planets.value.splice(index + 1, 0, clone);
 };
+const removePlanet = (index) => { planets.value.splice(index, 1); };
+const resetConfirmOpen = ref(false);
+const resetAll = () => { resetConfirmOpen.value = true; };
+const doResetAll = () => { planets.value = [createPlanet()]; resetConfirmOpen.value = false; };
+
+const bulkConfirmOpen = ref(false);
+const requestBulk = () => { if (bulkValue.value !== '' && planets.value.length > 1) { bulkConfirmOpen.value = true; } else { applyBulk(); } };
+const doBulkApply = () => { applyBulk(); bulkConfirmOpen.value = false; };
 
 const applyBulk = () => {
     const target = bulkTarget.value;
@@ -164,31 +176,31 @@ const maxMetalMine = computed(() =>
   <div class="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-32">
     <!-- Page Header -->
     <div class="mb-10 text-center relative">
-        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase">
             {{ t('metal_calc_title') }}
         </h1>
         <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-sky-500 to-sky-400 mx-auto rounded-full opacity-70"></div>
     </div>
 
     <!-- Intro Section -->
-    <div class="card-glass mb-8 border-l-4 border-l-sky-500/40 bg-sky-500/[0.03] relative overflow-hidden">
+    <div class="card-glass mb-8 bg-sky-500/[0.03] relative overflow-hidden">
 
         <!-- Mobile: collapsed header -->
-        <button @click="showIntro = !showIntro" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-sky-400">
+        <button @click="showIntro = !showIntro" :aria-expanded="showIntro" aria-controls="intro-panel-content" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-sky-400">
             <div class="flex items-center gap-2">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <span class="text-xs font-black uppercase tracking-widest">{{ t('metal_calc_title') }}</span>
+                <span class="text-xs font-black uppercase tracking-widest">{{ t('metal_calc_about') }}</span>
             </div>
             <svg class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': showIntro }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
         </button>
 
         <!-- Collapsible body on mobile, always visible on desktop -->
-        <div class="p-6 md:flex md:flex-row md:items-center md:gap-6 relative z-10 group" :class="showIntro ? 'block' : 'hidden md:flex'">
-            <div class="hidden md:block p-4 rounded-2xl bg-sky-500/[0.08] text-sky-400 flex-shrink-0 group-hover:scale-110 transition-transform duration-500">
+        <div id="intro-panel-content" class="p-6 md:flex md:flex-row md:items-center md:gap-6 relative z-10 group" :class="showIntro ? 'block' : 'hidden md:flex'">
+            <div class="hidden md:block p-4 rounded-2xl bg-sky-500/[0.08] text-sky-400 flex-shrink-0 group-hover:scale-105 transition-transform duration-200">
                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <div class="flex-grow">
-                <p class="text-sm text-gray-300 leading-relaxed font-medium mb-4">{{ t('metal_calc_intro') }}</p>
+                <p class="text-sm text-slate-300 leading-relaxed font-medium mb-4">{{ t('metal_calc_intro') }}</p>
                 <a href="https://update.greasyfork.org/scripts/574448/OValue%20Exporter.user.js" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/[0.08] hover:bg-sky-500/[0.15] text-sky-400 text-[10px] font-semibold uppercase tracking-widest border border-sky-500/20 transition-all">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     {{ t('btn_download_script') }}
@@ -201,23 +213,23 @@ const maxMetalMine = computed(() =>
 
 
     <!-- ── IMPOSTAZIONI GLOBALI ──────────────────────────────────────── -->
-    <div class="card-glass p-5 mb-6 border-l-2 border-l-sky-500/40">
+    <div class="card-glass p-5 mb-6">
 
-        <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2.5 uppercase tracking-wider">
-            <span class="w-[2px] h-4 bg-sky-400/60 rounded-full flex-shrink-0"></span>
+        <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2 uppercase tracking-wider">
+            <svg class="w-3.5 h-3.5 text-sky-400/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
             {{ t('settings_title') }}
         </h3>
 
         <!-- Riga 1: controlli principali -->
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
             <div>
-                <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_eco_speed') }}</label>
-                <input type="number" v-model.number="settings.ecoSpeed" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
+                <label for="mc-eco-speed" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_eco_speed') }}</label>
+                <input id="mc-eco-speed" type="number" v-model.number="settings.ecoSpeed" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
             </div>
             <div class="col-span-2">
-                <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_player_class') }}</label>
+                <label for="mc-player-class" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_player_class') }}</label>
                 <div class="flex gap-2">
-                    <select v-model="settings.playerClass" class="input-glass flex-grow px-3 py-2 text-sm h-10">
+                    <select id="mc-player-class" v-model="settings.playerClass" class="input-glass flex-grow px-3 py-2 text-sm h-10">
                         <option value="collector">{{ t('opt_collector') }}</option>
                         <option value="other">{{ t('opt_general') }}</option>
                     </select>
@@ -227,7 +239,7 @@ const maxMetalMine = computed(() =>
                              class="input-glass h-10 w-24 px-2 flex items-center justify-center gap-1 font-mono text-sm cursor-default select-none"
                              :title="t('lbl_lf_collector_bonus')">
                             <span class="text-violet-300">+{{ lfResearchPct.collectorBonus.toFixed(2) }}%</span>
-                            <span class="text-[8px] text-violet-500/60 uppercase tracking-wider font-bold">{{ t('lbl_auto') }}</span>
+                            <span class="text-[10px] text-violet-500/60 uppercase tracking-wider font-bold">{{ t('lbl_auto') }}</span>
                         </div>
                         <!-- Manuale: nessun dato T18 importato -->
                         <input v-else type="number" step="0.1"
@@ -238,11 +250,11 @@ const maxMetalMine = computed(() =>
                 </div>
             </div>
             <div>
-                <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_plasma') }}</label>
-                <input type="number" v-model.number="settings.plasma" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
+                <label for="mc-plasma" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_plasma') }}</label>
+                <input id="mc-plasma" type="number" v-model.number="settings.plasma" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
             </div>
             <div>
-                <label class="block text-[10px] uppercase tracking-wider font-semibold mb-1.5"
+                <label for="mc-lf-bonus" class="block text-[10px] uppercase tracking-wider font-semibold mb-1.5"
                     :class="hasLfResearchData ? 'text-ogame-success/70' : 'text-slate-500'">
                     {{ t('lbl_lf_bonus') }} %
                     <span v-if="hasLfResearchData" class="normal-case tracking-normal text-[9px] text-ogame-success/50 ml-1">{{ t('lbl_auto') }}</span>
@@ -254,7 +266,7 @@ const maxMetalMine = computed(() =>
                     +{{ lfResearchPct.metal.toFixed(2) }}
                 </div>
                 <!-- Manuale: nessun dato LF importato -->
-                <input v-else type="number" v-model.number="settings.lfBonus"
+                <input v-else id="mc-lf-bonus" type="number" v-model.number="settings.lfBonus"
                     @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
             </div>
         </div>
@@ -270,7 +282,7 @@ const maxMetalMine = computed(() =>
                 <span class="text-sm text-slate-400 group-hover:text-slate-200 transition-colors">{{ t('lbl_staff') }}</span>
             </label>
             <div class="flex items-center gap-2 ml-auto">
-                <span class="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">{{ t('lbl_ally_class') }}</span>
+                <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{{ t('lbl_ally_class') }}</span>
                 <select v-model="settings.allyClass" class="input-glass px-3 py-1.5 text-sm">
                     <option value="none">{{ t('opt_none') }}</option>
                     <option value="trader">{{ t('opt_trader') }}</option>
@@ -279,26 +291,24 @@ const maxMetalMine = computed(() =>
         </div>
 
         <!-- Collector bonus detail (condizionale) -->
-        <div v-if="settings.playerClass === 'collector'" class="mt-3 pt-3 border-t border-slate-700/20">
-            <div class="grid grid-cols-3 gap-3">
-                <div class="bg-[#0a101e] rounded-xl p-3 border border-slate-700/15 text-center">
-                    <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('lbl_mine_prod_ext') }}</div>
-                    <div class="text-lg font-black text-sky-300 font-mono">+{{ collBreakdown.mine }}%</div>
-                </div>
-                <div class="bg-[#0a101e] rounded-xl p-3 border border-slate-700/15 text-center">
-                    <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('lbl_crawler_prod_ext') }}</div>
-                    <div class="text-lg font-black text-amber-300 font-mono">+{{ collBreakdown.crawler }}%</div>
-                </div>
-                <div class="bg-[#0a101e] rounded-xl p-3 border border-slate-700/15 text-center">
-                    <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('lbl_max_crawlers_geo_ext') }}</div>
-                    <div class="text-lg font-black text-emerald-300 font-mono">+{{ collBreakdown.geo }}%</div>
-                </div>
+        <div v-if="settings.playerClass === 'collector'" class="mt-3 pt-3 border-t border-slate-700/20 flex items-center gap-x-6 gap-y-1.5 flex-wrap">
+            <div class="flex items-baseline gap-1.5">
+                <span class="text-xs text-slate-400">{{ t('lbl_mine_prod_ext') }}</span>
+                <span class="text-sm font-black text-sky-300 font-mono">+{{ collBreakdown.mine }}%</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+                <span class="text-xs text-slate-400">{{ t('lbl_crawler_prod_ext') }}</span>
+                <span class="text-sm font-black text-amber-300 font-mono">+{{ collBreakdown.crawler }}%</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+                <span class="text-xs text-slate-400">{{ t('lbl_max_crawlers_geo_ext') }}</span>
+                <span class="text-sm font-black text-emerald-300 font-mono">+{{ collBreakdown.geo }}%</span>
             </div>
         </div>
     </div>
 
     <!-- ── MODIFICA MASSIVA ───────────────────────────────────────── -->
-    <div class="bg-[#0d1525] border border-slate-700/20 rounded-xl p-3 mb-6 flex items-center gap-3 flex-wrap">
+    <div class="bg-ogame-panel border border-slate-700/20 rounded-xl p-3 mb-6 flex items-center gap-3 flex-wrap">
         <div class="flex items-center gap-1.5 text-violet-400/70 flex-shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
             <span class="text-[11px] font-semibold uppercase tracking-wider">{{ t('bulk_title') }}</span>
@@ -338,25 +348,25 @@ const maxMetalMine = computed(() =>
         <input v-else type="number" v-model="bulkValue" @focus="$event.target.select()"
                :placeholder="t('bulk_placeholder')" class="input-glass px-3 py-1.5 text-sm font-mono w-28 flex-shrink-0">
 
-        <button @click="applyBulk"
+        <button @click="requestBulk"
                 class="bg-violet-600/80 hover:bg-violet-500 text-white font-semibold px-4 py-1.5 rounded-lg text-sm transition flex-shrink-0">
             {{ t('btn_bulk_apply') }}
         </button>
     </div>
 
     <div class="flex flex-row justify-between items-center mb-6 gap-4">
-        <h2 class="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2.5 font-mono">
-            <span class="w-[2px] h-4 bg-sky-400/60 rounded-full flex-shrink-0"></span>
+        <h2 class="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 font-mono">
+            <svg class="w-3.5 h-3.5 text-sky-400/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <span>{{ t('planet_mgmt') }}</span>
             <span class="text-xs font-bold text-sky-400 bg-sky-900/20 px-2 py-1 rounded border border-sky-500/20">
                 {{ planets.length }}
             </span>
         </h2>
         <div class="flex items-center gap-2">
-            <button @click="resetAll" class="flex items-center justify-center w-9 h-9 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-200 transition border border-red-500/20" :title="t('btn_reset')">
+            <button @click="resetAll" :aria-label="t('btn_reset')" class="flex items-center justify-center w-9 h-9 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-200 transition border border-red-500/20" :title="t('btn_reset')">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
             </button>
-            <button @click="addPlanet" class="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold rounded-xl shadow-lg transition flex items-center gap-2 border border-white/10">
+            <button @click="addPlanet" class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center gap-2">
                 <span class="text-lg leading-none">+</span>
                 <span class="hidden md:inline">{{ t('btn_add_planet') }}</span>
             </button>
@@ -366,7 +376,7 @@ const maxMetalMine = computed(() =>
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         <PlanetCard
             v-for="(planet, index) in planets"
-            :key="index"
+            :key="planet.id"
             :planet="planet"
             :index="index"
             :global="settings"
@@ -378,7 +388,7 @@ const maxMetalMine = computed(() =>
         />
     </div>
 
-<div class="fixed bottom-0 left-0 w-full bg-[#070c18]/95 backdrop-blur-xl border-t border-slate-700/25 py-3 z-40">
+<div class="fixed bottom-0 left-0 w-full bg-ogame-bg/95 backdrop-blur-xl border-t border-slate-700/25 py-3 z-40">
         <div class="max-w-7xl mx-auto flex flex-row items-center px-4 md:px-6 gap-0">
             <div class="text-center flex-1 cursor-default">
                 <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-0.5">{{ t('footer_prod_hour') }}</div>
@@ -397,9 +407,52 @@ const maxMetalMine = computed(() =>
     </div>
   </div>
 
+  <!-- Confirm bulk apply dialog -->
+  <Transition name="fade">
+    <div v-if="bulkConfirmOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="bulkConfirmOpen = false"></div>
+      <div class="bg-ogame-panel border border-white/10 rounded-xl w-full max-w-sm p-7 relative z-10 shadow-2xl">
+        <p class="text-white font-semibold text-base mb-2 leading-snug">{{ t('btn_bulk_apply') }}?</p>
+        <p class="text-slate-400 text-sm mb-7">{{ t('msg_bulk_confirm') }}</p>
+        <div class="flex justify-end gap-3">
+          <button @click="bulkConfirmOpen = false" class="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition text-sm">
+            {{ t('btn_cancel') }}
+          </button>
+          <button @click="doBulkApply" class="px-6 py-2 rounded-xl bg-violet-700 hover:bg-violet-600 text-white font-black uppercase tracking-wider transition text-sm">
+            {{ t('btn_confirm') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- Confirm reset dialog -->
+  <Transition name="fade">
+    <div v-if="resetConfirmOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" :aria-label="t('btn_reset')">
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="resetConfirmOpen = false"></div>
+      <div class="bg-ogame-panel border border-white/10 rounded-xl w-full max-w-sm p-7 relative z-10 shadow-2xl">
+        <p class="text-white font-semibold text-base mb-2 leading-snug">{{ t('btn_reset') }}?</p>
+        <p class="text-slate-400 text-sm mb-7">{{ t('msg_reset_confirm') }}</p>
+        <div class="flex justify-end gap-3">
+          <button @click="resetConfirmOpen = false" class="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition text-sm">
+            {{ t('btn_cancel') }}
+          </button>
+          <button @click="doResetAll" class="px-6 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-black uppercase tracking-wider transition text-sm">
+            {{ t('btn_confirm') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
 </template>
 
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-enter-active, .fade-leave-active { transition: none; }
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
 </style>

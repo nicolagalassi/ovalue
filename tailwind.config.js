@@ -8,15 +8,21 @@ export default {
     extend: {
       colors: {
         ogame: {
-          bg: '#0b0e14',        // Più scuro, quasi nero profondo
-          panel: '#151923',     // Blu notte desaturato
-          border: '#2d3748',    
+          bg: '#070c18',        // Void — sfondo pagina
+          panel: '#0d1525',     // Hull — card/pannelli principali
+          surface: '#0a101e',   // Deep Surface — input, inner card
+          border: '#2d3748',
           accent: '#00f0ff',    // Ciano Cyberpunk
           success: '#00ff9d',   // Verde Neon
           danger: '#ff2a6d',    // Rosso Neon
           warning: '#ffb800',   // Oro
           dm: '#9d00ff',        // Viola scuro
-          text: '#e2e8f0'
+          text: '#e2e8f0',
+          // Hover tints — panel + leggero tint del colore tool
+          'hover-mine':     '#0f1a30',
+          'hover-pack':     '#130f08',
+          'hover-shopping': '#0e0c1a',
+          'hover-strategy': '#091209',
         }
       },
       boxShadow: {

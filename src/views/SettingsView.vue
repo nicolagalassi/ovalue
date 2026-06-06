@@ -3,9 +3,11 @@ import { ref, computed } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
+import { useToast } from '../composables/useToast';
 import ForumSignature from '../components/ForumSignature.vue';
 
 const { currentLang, setLanguage, t } = useLanguage();
+const { show: showToast } = useToast();
 const { calcLFResearchBonus } = useOgameFormulas();
 const {
     profiles, activeProfileId, activeProfile, knownServers,
@@ -98,8 +100,23 @@ const confirmModal = () => {
     modalOpen.value = false;
 };
 
+// ── Confirm dialog ─────────────────────────────────────────────────────────
+const confirmDialogOpen = ref(false);
+const confirmDialogMsg = ref('');
+const confirmDialogCb = ref(null);
+
+const showConfirm = (msg, cb) => {
+    confirmDialogMsg.value = msg;
+    confirmDialogCb.value = cb;
+    confirmDialogOpen.value = true;
+};
+const onConfirmOk = () => {
+    confirmDialogCb.value?.();
+    confirmDialogOpen.value = false;
+};
+
 const handleDelete = (id) => {
-    if (confirm(t('confirm_delete_profile'))) deleteProfile(id);
+    showConfirm(t('confirm_delete_profile'), () => deleteProfile(id));
 };
 
 // ── Backup Import/Export ───────────────────────────────────────────────────
@@ -109,7 +126,7 @@ const handleBackupImport = (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
         const ok = importProfiles(e.target.result);
-        alert(ok ? t('msg_import_success') : t('msg_import_error'));
+        showToast(ok ? t('msg_import_success') : t('msg_import_error'), ok ? 'success' : 'error');
     };
     reader.readAsText(file);
     event.target.value = '';
@@ -129,14 +146,14 @@ const confirmImportOGame = () => {
         const data = JSON.parse(text.substring(start, end + 1));
         const ok = importManual(data);
         if (ok) {
-            alert(t('settings_import_success'));
+            showToast(t('settings_import_success'), 'success');
             importText.value = '';
             importModalOpen.value = false;
         } else {
-            alert(t('settings_import_error') + 'Dati non validi');
+            showToast(t('settings_import_error') + 'Dati non validi', 'error');
         }
     } catch (e) {
-        alert(t('settings_import_error') + e.message);
+        showToast(t('settings_import_error') + e.message, 'error');
     }
 };
 </script>
@@ -146,7 +163,7 @@ const confirmImportOGame = () => {
 
     <!-- Page Header -->
     <div class="text-center mb-10">
-      <h1 class="text-4xl md:text-5xl font-black text-slate-100 tracking-tighter uppercase italic">{{ t('settings_title') }}</h1>
+      <h1 class="text-4xl md:text-5xl font-black text-slate-100 tracking-tighter uppercase">{{ t('settings_title') }}</h1>
       <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-slate-500 to-slate-400 mx-auto rounded-full opacity-60"></div>
     </div>
 
@@ -164,7 +181,7 @@ const confirmImportOGame = () => {
         <span class="text-[9px] text-gray-600 font-mono">{{ profiles.length }}</span>
       </div>
 
-      <div class="bg-[#0d1525]/60 border border-slate-700/25 rounded-xl overflow-hidden divide-y divide-slate-700/20 mb-3">
+      <div class="bg-ogame-panel/60 border border-slate-700/25 rounded-xl overflow-hidden divide-y divide-slate-700/20 mb-3">
         <div
           v-for="p in profiles" :key="p.id"
           class="flex items-center gap-3 px-4 py-3 transition-colors duration-200 group"
@@ -235,7 +252,7 @@ const confirmImportOGame = () => {
         <div class="flex-grow h-px bg-white/5"></div>
       </div>
 
-      <div class="bg-[#0b0e14]/80 border border-white/5 rounded-xl divide-y divide-white/5">
+      <div class="bg-ogame-bg/80 border border-white/5 rounded-xl divide-y divide-white/5">
         <!-- Toggle AutoSync -->
         <div class="flex items-center justify-between px-5 py-4">
           <div>
@@ -243,7 +260,10 @@ const confirmImportOGame = () => {
             <div class="text-[11px] text-gray-500 mt-0.5">{{ t('settings_sync_auto_desc') }}</div>
           </div>
           <button @click="toggleAutoSync"
-            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none flex-shrink-0 ml-4"
+            role="switch"
+            :aria-checked="activeProfile.autoSync"
+            :aria-label="t('settings_sync_auto_title')"
+            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ogame-bg flex-shrink-0 ml-4"
             :class="activeProfile.autoSync ? 'bg-green-500' : 'bg-gray-700'"
           >
             <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
@@ -253,16 +273,16 @@ const confirmImportOGame = () => {
 
         <!-- Server selector -->
         <div class="px-5 py-4">
-          <div class="text-sm font-bold text-white/90 mb-1">{{ t('settings_server_title') }}</div>
+          <label for="sync-server" class="block text-sm font-bold text-white/90 mb-1">{{ t('settings_server_title') }}</label>
           <div class="text-[11px] text-gray-500 mb-3">{{ t('settings_server_desc') }}</div>
           <div v-if="knownServers.length > 0">
-            <select
+            <select id="sync-server"
               :value="activeProfile.syncServer ?? ''"
               @change="setSyncServer($event.target.value)"
               class="w-full text-sm bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-gray-300 focus:outline-none focus:border-sky-500/40 cursor-pointer"
             >
-              <option value="" class="bg-[#161b22] text-gray-500">{{ t('settings_server_none') }}</option>
-              <option v-for="srv in knownServers" :key="srv" :value="srv" class="bg-[#161b22]">
+              <option value="" class="bg-gray-900 text-gray-500">{{ t('settings_server_none') }}</option>
+              <option v-for="srv in knownServers" :key="srv" :value="srv" class="bg-gray-900">
                 {{ srv.split('.')[0] }} ({{ srv }})
               </option>
             </select>
@@ -280,9 +300,9 @@ const confirmImportOGame = () => {
 
         <!-- Nickname in-game -->
         <div class="px-5 py-4">
-          <div class="text-sm font-bold text-white/90 mb-0.5">{{ t('settings_nickname') }}</div>
+          <label for="settings-nickname" class="block text-sm font-bold text-white/90 mb-0.5">{{ t('settings_nickname') }}</label>
           <div class="text-[11px] text-gray-500 mb-3">{{ t('settings_nickname_desc') }}</div>
-          <input type="text"
+          <input id="settings-nickname" type="text"
                  :value="activeProfile.playerName || ''"
                  @input="setPlayerName($event.target.value)"
                  :placeholder="t('settings_nickname_placeholder')"
@@ -301,7 +321,7 @@ const confirmImportOGame = () => {
         <div class="flex-grow h-px bg-white/5"></div>
       </div>
 
-      <div class="bg-[#0b0e14]/80 border border-white/5 rounded-xl p-5 space-y-4">
+      <div class="bg-ogame-bg/80 border border-white/5 rounded-xl p-5 space-y-4">
         <p class="text-[11px] text-gray-500 italic">{{ t('settings_import_desc') }}</p>
         <textarea
           v-model="importText"
@@ -313,7 +333,7 @@ const confirmImportOGame = () => {
             {{ t('btn_cancel') }}
           </button>
           <button @click="confirmImportOGame"
-            class="px-6 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black uppercase tracking-wider transition shadow-[0_0_15px_rgba(6,182,212,0.3)] text-xs">
+            class="px-6 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black uppercase tracking-wider transition hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] text-xs">
             {{ t('btn_import_now') }}
           </button>
         </div>
@@ -382,15 +402,15 @@ const confirmImportOGame = () => {
         <div class="flex-grow h-px bg-white/5"></div>
       </div>
 
-      <div class="bg-[#0d1525]/60 border border-slate-700/25 rounded-xl p-5 space-y-4">
+      <div class="bg-ogame-panel/60 border border-slate-700/25 rounded-xl p-5 space-y-4">
 
         <!-- Tipo richiesta + email reply -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
+            <label for="contact-type" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
               {{ t('contact_type_label') }}
             </label>
-            <select v-model="contactType" class="input-glass w-full px-3 py-2 text-sm">
+            <select id="contact-type" v-model="contactType" class="input-glass w-full px-3 py-2 text-sm">
               <option value="bug">{{ t('contact_type_bug') }}</option>
               <option value="feature">{{ t('contact_type_feature') }}</option>
               <option value="question">{{ t('contact_type_question') }}</option>
@@ -398,10 +418,10 @@ const confirmImportOGame = () => {
             </select>
           </div>
           <div>
-            <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
+            <label for="contact-email" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
               {{ t('contact_email_label') }}
             </label>
-            <input type="email" v-model="contactEmail"
+            <input id="contact-email" type="email" v-model="contactEmail"
                    :placeholder="t('contact_email_placeholder')"
                    class="input-glass w-full px-3 py-2 text-sm" />
           </div>
@@ -409,10 +429,10 @@ const confirmImportOGame = () => {
 
         <!-- Messaggio -->
         <div>
-          <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
+          <label for="contact-message" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
             {{ t('contact_message_label') }}
           </label>
-          <textarea v-model="contactMessage"
+          <textarea id="contact-message" v-model="contactMessage"
                     :placeholder="t('contact_message_placeholder')"
                     rows="4"
                     class="input-glass w-full px-3 py-2 text-sm resize-none leading-relaxed"
@@ -506,8 +526,26 @@ const confirmImportOGame = () => {
           <button @click="modalOpen = false" class="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition text-sm">
             {{ t('btn_cancel') }}
           </button>
-          <button @click="confirmModal" class="px-8 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider transition shadow-[0_0_15px_rgba(37,99,235,0.4)] text-sm">
+          <button @click="confirmModal" class="px-8 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider transition hover:shadow-[0_0_15px_rgba(37,99,235,0.4)] text-sm">
             OK
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- Confirm dialog -->
+  <Transition name="fade">
+    <div v-if="confirmDialogOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" :aria-label="confirmDialogMsg">
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="confirmDialogOpen = false"></div>
+      <div class="card-glass w-full max-w-sm p-7 relative z-10 border border-white/10 shadow-2xl">
+        <p class="text-white font-semibold text-base mb-7 leading-snug">{{ confirmDialogMsg }}</p>
+        <div class="flex justify-end gap-3">
+          <button @click="confirmDialogOpen = false" class="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition text-sm">
+            {{ t('btn_cancel') }}
+          </button>
+          <button @click="onConfirmOk" class="px-6 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-black uppercase tracking-wider transition text-sm">
+            {{ t('btn_confirm') || 'Conferma' }}
           </button>
         </div>
       </div>
@@ -518,4 +556,8 @@ const confirmImportOGame = () => {
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-enter-active, .fade-leave-active { transition: none; }
+}
 </style>

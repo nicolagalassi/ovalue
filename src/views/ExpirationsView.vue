@@ -82,7 +82,7 @@ const statusLabel = computed(() => ({
 
     <!-- Page Header -->
     <div class="mb-8 text-center relative">
-      <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic drop-shadow-[0_0_15px_rgba(255,255,255,0.15)]">
+      <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase">
         {{ t('card_expirations_title') }}
       </h1>
       <div class="mt-2 h-[3px] w-24 rounded-full mx-auto opacity-70"
@@ -134,20 +134,13 @@ const statusLabel = computed(() => ({
           'border-white/[0.03]':                    getStatus(item.expires) === 'permanent' || getStatus(item.expires) === 'expired',
         }"
       >
-        <!-- Corner brackets — color matches status -->
-        <div class="corner-tl absolute top-0 left-0 w-3 h-3 border-t border-l transition-all duration-300 group-hover:w-4 group-hover:h-4"
+        <!-- Top gradient line — color matches status, revealed on hover -->
+        <div class="absolute top-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent to-transparent"
              :class="{
-               'border-red-500/50 group-hover:border-red-400/80':    getStatus(item.expires) === 'critical',
-               'border-orange-500/40 group-hover:border-orange-400/70': getStatus(item.expires) === 'warning',
-               'border-green-500/30 group-hover:border-green-400/60': getStatus(item.expires) === 'ok',
-               'border-white/10':                                    getStatus(item.expires) === 'permanent' || getStatus(item.expires) === 'expired',
-             }"></div>
-        <div class="corner-br absolute bottom-0 right-0 w-3 h-3 border-b border-r transition-all duration-300 group-hover:w-4 group-hover:h-4"
-             :class="{
-               'border-red-500/30':    getStatus(item.expires) === 'critical',
-               'border-orange-500/25': getStatus(item.expires) === 'warning',
-               'border-green-500/20':  getStatus(item.expires) === 'ok',
-               'border-white/5':       getStatus(item.expires) === 'permanent' || getStatus(item.expires) === 'expired',
+               'via-red-500/50':    getStatus(item.expires) === 'critical',
+               'via-orange-400/40': getStatus(item.expires) === 'warning',
+               'via-green-500/35':  getStatus(item.expires) === 'ok',
+               'via-white/10':      getStatus(item.expires) === 'permanent' || getStatus(item.expires) === 'expired',
              }"></div>
 
         <!-- Left accent bar -->
@@ -174,7 +167,7 @@ const statusLabel = computed(() => ({
           <div class="flex-grow min-w-0">
             <div class="text-[12px] font-bold text-white/80 truncate leading-tight">{{ item.name }}</div>
             <div class="flex items-center gap-1.5 mt-0.5">
-              <span class="text-[8px] font-black uppercase tracking-widest font-mono"
+              <span class="text-[10px] font-black uppercase tracking-widest font-mono"
                     :class="{
                       'text-red-500/70':    getStatus(item.expires) === 'critical',
                       'text-orange-500/60': getStatus(item.expires) === 'warning',
@@ -184,8 +177,8 @@ const statusLabel = computed(() => ({
                     }">
                 {{ statusLabel[getStatus(item.expires)] }}
               </span>
-              <span class="text-[8px] text-gray-700 font-mono">·</span>
-              <span class="text-[8px] text-gray-700 font-mono uppercase tracking-wider">{{ item.type === 'officer' ? t('exp_type_officer') : t('exp_type_item') }}</span>
+              <span class="text-[10px] text-gray-700 font-mono">·</span>
+              <span class="text-[10px] text-gray-700 font-mono uppercase tracking-wider">{{ item.type === 'officer' ? t('exp_type_officer') : t('exp_type_item') }}</span>
             </div>
           </div>
 
@@ -210,8 +203,6 @@ const statusLabel = computed(() => ({
     <div v-else class="flex flex-col items-center justify-center py-24 gap-6">
       <div class="empty-hud relative w-24 h-24 flex items-center justify-center">
         <div class="absolute inset-0 border border-white/5 rounded-lg"></div>
-        <div class="absolute top-0 left-0 w-4 h-4 border-t border-l border-rose-500/30"></div>
-        <div class="absolute bottom-0 right-0 w-4 h-4 border-b border-r border-rose-500/30"></div>
         <svg class="w-10 h-10 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
@@ -254,6 +245,11 @@ const statusLabel = computed(() => ({
 
 .item-card {
   animation: itemIn 0.3s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item-card { animation: none; opacity: 1; }
+  .animate-pulse { animation: none !important; }
 }
 
 .item-card:nth-child(1)  { animation-delay: 0.05s; }

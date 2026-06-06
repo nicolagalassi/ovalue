@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-05T00:00:00Z",
+  "title": "Design System: OValue",
+  "extensions": {
+    "colorMeta": {
+      "bg":              { "role": "neutral",   "displayName": "Void",         "canonical": "oklch(8% 0.015 240)",  "tonalRamp": ["#020408","#060810","#0b0e14","#131826","#1c2438","#2c3a58","#4a6090","#8aaace"] },
+      "panel":           { "role": "neutral",   "displayName": "Hull",         "canonical": "oklch(12% 0.016 240)", "tonalRamp": ["#040609","#090c14","#151923","#202b3e","#2e3f5e","#445a82","#6b8ab8","#a8c0e0"] },
+      "panel-deep":      { "role": "neutral",   "displayName": "Deep Panel",   "canonical": "oklch(10% 0.02 240)",  "tonalRamp": ["#030508","#07090f","#0d1525","#131f38","#1d2e52","#2e4478","#4d6eaa","#8aaad8"] },
+      "header":          { "role": "neutral",   "displayName": "Nav-Dark",     "canonical": "oklch(6% 0.018 240)",  "tonalRamp": ["#010305","#040609","#070c18","#0d1628","#172442","#26386a","#445ea8","#8aaad8"] },
+      "border":          { "role": "neutral",   "displayName": "Mesh",         "canonical": "oklch(24% 0.02 240)",  "tonalRamp": ["#0a0e18","#141c2c","#1e2840","#2d3748","#3e4e68","#5a6e90","#849ab8","#c0cee0"] },
+      "accent-cyan":     { "role": "primary",   "displayName": "Cyber Cyan",   "canonical": "oklch(92% 0.15 195)", "tonalRamp": ["#012528","#024b52","#037280","#009aac","#00c0d8","#00e8f8","#40f4ff","#b0fafe"] },
+      "success":         { "role": "secondary", "displayName": "Neon Emerald", "canonical": "oklch(92% 0.18 160)", "tonalRamp": ["#012510","#024520","#006835","#009048","#00b864","#00e88a","#40f0a8","#a0f8d0"] },
+      "danger":          { "role": "secondary", "displayName": "Neon Coral",   "canonical": "oklch(60% 0.28 355)", "tonalRamp": ["#280010","#500025","#800040","#aa1050","#d41860","#ff2a6d","#ff6898","#ffc0d4"] },
+      "warning":         { "role": "secondary", "displayName": "Neon Gold",    "canonical": "oklch(80% 0.18 75)",  "tonalRamp": ["#201400","#402a00","#704800","#a06800","#cc8c00","#ffb800","#ffcc50","#ffe8a0"] },
+      "dm-violet":       { "role": "tertiary",  "displayName": "Deep Violet",  "canonical": "oklch(48% 0.30 300)", "tonalRamp": ["#0e001a","#1e0038","#320060","#500090","#7000c8","#9d00ff","#c060ff","#e0b0ff"] },
+      "text-primary":    { "role": "neutral",   "displayName": "Data",         "canonical": "oklch(91% 0.008 240)", "tonalRamp": ["#2a3040","#3c4558","#545e78","#6a7898","#8898b8","#aab8d0","#cad8e8","#e2e8f0"] },
+      "text-muted":      { "role": "neutral",   "displayName": "Muted",        "canonical": "oklch(72% 0.012 240)", "tonalRamp": ["#1e2430","#2c3448","#3e4a62","#54637e","#6e809a","#8898b4","#a8b4c8","#94a3b8"] },
+      "text-dim":        { "role": "neutral",   "displayName": "Dim",          "canonical": "oklch(48% 0.014 240)", "tonalRamp": ["#141820","#1e2430","#2a3040","#38445a","#4a5872","#5e6e8a","#64748b","#94a0b4"] },
+      "tool-mine":       { "role": "tertiary",  "displayName": "Mission Sky",  "canonical": "oklch(74% 0.18 215)", "tonalRamp": ["#011828","#023050","#04507e","#0672aa","#1494cc","#2ab4e8","#38bdf8","#a8dff8"] },
+      "tool-pack":       { "role": "tertiary",  "displayName": "Ops Amber",    "canonical": "oklch(82% 0.18 78)",  "tonalRamp": ["#1e1400","#3c2a00","#624400","#8a6000","#b48000","#d8a000","#fbbf24","#fde080"] },
+      "tool-shopping":   { "role": "tertiary",  "displayName": "Signal Violet","canonical": "oklch(70% 0.18 292)", "tonalRamp": ["#120020","#240040","#3a0070","#540098","#7800c8","#9a40e8","#a78bfa","#d4b8fc"] },
+      "tool-strategy":   { "role": "tertiary",  "displayName": "Grid Emerald", "canonical": "oklch(80% 0.18 160)", "tonalRamp": ["#011a10","#023020","#044a34","#086848","#10905e","#20b478","#34d399","#90f0c4"] },
+      "tool-expirations":{ "role": "tertiary",  "displayName": "Alert Rose",   "canonical": "oklch(72% 0.22 355)", "tonalRamp": ["#200014","#420028","#700042","#9a1058","#c82870","#f05088","#fb7185","#fdb4be"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Titoli di pagina e sezioni principali." },
+      "title":    { "displayName": "Title",    "purpose": "Titoli card e intestazioni tool." },
+      "body":     { "displayName": "Body",     "purpose": "Testo descrittivo, max 65ch su prose." },
+      "label":    { "displayName": "Label",    "purpose": "Separatori sezione, badge, micro-label. Mono, black, UPPERCASE, tracking 0.2em." },
+      "data":     { "displayName": "Data",     "purpose": "Valori numerici inline, timestamp, nomi server." }
+    },
+    "shadows": [
+      { "name": "dropdown-overlay",  "value": "0 12px 40px rgba(0,0,0,0.8)",           "purpose": "Floating layer (dropdown, modal). Unica ombra classica del sistema." },
+      { "name": "neon-hover-cyan",   "value": "0 0 30px rgba(0,240,255,0.15)",          "purpose": "Hover glow su card con accento cyan. Max 0.15 opacità." },
+      { "name": "neon-hover-tool",   "value": "0 0 30px rgba(56,189,248,0.12)",         "purpose": "Hover glow su tool card (varia colore per tool). Max 0.12-0.15 opacità." },
+      { "name": "neon-cta",          "value": "0 0 15px rgba(6,182,212,0.30)",          "purpose": "Glow su CTA button solido. Solo su hover o active." }
+    ],
+    "motion": [
+      { "name": "ease-state",    "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Transizioni di stato (colore, opacità). 150ms." },
+      { "name": "ease-enter",    "value": "cubic-bezier(0, 0, 0.2, 1)",   "purpose": "Ingresso elementi (dropdown, modal). 150ms." },
+      { "name": "ease-exit",     "value": "cubic-bezier(0.4, 0, 1, 1)",   "purpose": "Uscita elementi. 100ms." },
+      { "name": "ease-card-in",  "value": "ease-out",                     "purpose": "Stagger card ingresso pagina. 500ms, delay 0.2-0.5s per card." }
+    ],
+    "breakpoints": [
+      { "name": "sm",  "value": "640px" },
+      { "name": "md",  "value": "768px" },
+      { "name": "lg",  "value": "1024px" },
+      { "name": "xl",  "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "CTA Button (Solido)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Azione primaria critica. Usato raramente: importazione, conferma. Sfondo cyan pieno con neon glow su hover.",
+      "html": "<button class=\"ds-btn-primary\">IMPORTA ORA</button>",
+      "css": ".ds-btn-primary { background: #0891b2; color: #fff; padding: 8px 24px; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; border: none; border-radius: 6px; cursor: pointer; transition: background 150ms, box-shadow 150ms; } .ds-btn-primary:hover { background: #06b6d4; box-shadow: 0 0 15px rgba(6,182,212,0.35); } .ds-btn-primary:focus-visible { outline: 1px solid rgba(0,240,255,0.5); outline-offset: 2px; } .ds-btn-primary:active { background: #0e7490; }"
+    },
+    {
+      "name": "Tinted Button (Sky)",
+      "kind": "button",
+      "refersTo": "button-tinted",
+      "description": "Azione secondaria colorata. Sfondo a opacità molto bassa, bordo tintato, testo nel colore pieno. Variante sky per contesti miniere/profilo.",
+      "html": "<button class=\"ds-btn-tinted-sky\"><svg width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" stroke-width=\"2\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4\"/></svg> ESPORTA</button>",
+      "css": ".ds-btn-tinted-sky { display: inline-flex; align-items: center; gap: 6px; background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.20); color: #38bdf8; padding: 8px 16px; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; border-radius: 12px; cursor: pointer; transition: background 150ms; } .ds-btn-tinted-sky:hover { background: rgba(14,165,233,0.15); } .ds-btn-tinted-sky:focus-visible { outline: 1px solid rgba(56,189,248,0.4); outline-offset: 2px; } .ds-btn-tinted-sky:active { background: rgba(14,165,233,0.22); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Azione secondaria neutra. Annulla, reset. Nessun colore semantico.",
+      "html": "<button class=\"ds-btn-ghost\">ANNULLA</button>",
+      "css": ".ds-btn-ghost { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.07); color: #94a3b8; padding: 8px 16px; font-size: 12px; font-weight: 700; border-radius: 12px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-ghost:hover { background: rgba(255,255,255,0.10); color: #e2e8f0; } .ds-btn-ghost:focus-visible { outline: 1px solid rgba(148,163,184,0.4); outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Badge di stato: attivo/sync/manual. Font mono, black, UPPERCASE, tracking estremo.",
+      "html": "<span class=\"ds-badge ds-badge-active\">ATTIVO</span><span class=\"ds-badge ds-badge-manual\">MANUAL</span>",
+      "css": ".ds-badge { display: inline-block; font-family: ui-monospace, monospace; font-size: 9px; font-weight: 900; letter-spacing: 0.15em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; border: 1px solid; } .ds-badge-active { color: #38bdf8; background: rgba(56,189,248,0.10); border-color: rgba(56,189,248,0.20); } .ds-badge-manual { color: #64748b; background: rgba(255,255,255,0.03); border-color: rgba(100,116,139,0.20); } .ds-badge-sync { color: #34d399; background: rgba(52,211,153,0.10); border-color: rgba(52,211,153,0.20); } .ds-badge-danger { color: #fb7185; background: rgba(251,113,133,0.10); border-color: rgba(251,113,133,0.20); }"
+    },
+    {
+      "name": "Profile Chip",
+      "kind": "chip",
+      "refersTo": "chip-status",
+      "description": "Chip inline per valori di stato rapido: produzione giornaliera, scadenza imminente. Pill con dot colorato.",
+      "html": "<span class=\"ds-chip ds-chip-warning\"><span class=\"ds-chip-dot ds-chip-dot-warning\"></span><span class=\"ds-chip-value\">12.4M</span><span class=\"ds-chip-unit\">met/d</span></span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid rgba(100,116,139,0.20); border-radius: 9999px; background: rgba(255,255,255,0.02); font-size: 11px; color: rgba(148,163,184,0.80); text-decoration: none; } .ds-chip-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; } .ds-chip-value { font-weight: 500; } .ds-chip-unit { color: #64748b; } .ds-chip-warning { border-color: rgba(251,191,36,0.20); background: rgba(251,191,36,0.05); } .ds-chip-dot-warning { background: rgba(251,191,36,0.60); } .ds-chip-danger { border-color: rgba(239,68,68,0.20); background: rgba(239,68,68,0.06); } .ds-chip-dot-danger { background: #fb7185; animation: ds-pulse 2s infinite; } @keyframes ds-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} } @media (prefers-reduced-motion: reduce) { .ds-chip-dot-danger { animation: none; } }"
+    },
+    {
+      "name": "Tool Card",
+      "kind": "card",
+      "description": "Componente identitario principale. Card navigazione verso uno strumento con corner brackets animati e accento cromatico per tool. Ogni tool ha il suo colore.",
+      "html": "<a class=\"ds-tool-card ds-tool-card-mine\" href=\"#\">\n  <span class=\"ds-corner ds-corner-tl\"></span><span class=\"ds-corner ds-corner-tr\"></span>\n  <span class=\"ds-corner ds-corner-bl\"></span><span class=\"ds-corner ds-corner-br\"></span>\n  <div class=\"ds-tool-inner\">\n    <div class=\"ds-tool-icon\">\n      <svg width=\"40\" height=\"40\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" stroke-width=\"1.5\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z\"/></svg>\n    </div>\n    <h2 class=\"ds-tool-title\">PRODUZIONE</h2>\n    <p class=\"ds-tool-desc\">Calcola la produzione giornaliera di metallo per pianeta.</p>\n    <span class=\"ds-tool-cta\">Apri ›</span>\n  </div>\n</a>",
+      "css": ".ds-tool-card { position: relative; display: block; border-radius: 16px; overflow: hidden; background: #0d1525; text-decoration: none; cursor: pointer; transition: background 300ms; } .ds-tool-card-mine:hover { background: #0f1a30; } .ds-corner { position: absolute; width: 20px; height: 20px; transition: width 300ms, height 300ms, border-color 300ms; } .ds-corner-tl { top:0; left:0; border-top: 2px solid rgba(56,189,248,0.25); border-left: 2px solid rgba(56,189,248,0.25); } .ds-corner-tr { top:0; right:0; border-top: 2px solid rgba(56,189,248,0.25); border-right: 2px solid rgba(56,189,248,0.25); } .ds-corner-bl { bottom:0; left:0; border-bottom: 2px solid rgba(56,189,248,0.25); border-left: 2px solid rgba(56,189,248,0.25); } .ds-corner-br { bottom:0; right:0; border-bottom: 2px solid rgba(56,189,248,0.25); border-right: 2px solid rgba(56,189,248,0.25); } .ds-tool-card:hover .ds-corner { width: 28px; height: 28px; } .ds-tool-card-mine:hover .ds-corner { border-color: rgba(56,189,248,0.60); } .ds-tool-inner { padding: 40px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 20px; } .ds-tool-icon { width: 80px; height: 80px; border-radius: 12px; background: rgba(14,165,233,0.10); border: 1px solid rgba(56,189,248,0.25); display: flex; align-items: center; justify-content: center; color: rgba(56,189,248,0.70); transition: background 300ms, border-color 300ms, box-shadow 300ms; } .ds-tool-card:hover .ds-tool-icon { background: rgba(14,165,233,0.20); border-color: rgba(56,189,248,0.50); box-shadow: 0 0 30px rgba(56,189,248,0.12); color: #38bdf8; } .ds-tool-title { font-size: 18px; font-weight: 700; color: #cbd5e1; letter-spacing: -0.01em; text-transform: uppercase; transition: color 150ms; margin: 0; } .ds-tool-card:hover .ds-tool-title { color: #38bdf8; } .ds-tool-desc { font-size: 14px; color: #64748b; line-height: 1.4; margin: 0; } .ds-tool-cta { font-size: 11px; font-weight: 600; color: #64748b; letter-spacing: 0.1em; text-transform: uppercase; transition: color 150ms; } .ds-tool-card:hover .ds-tool-cta { color: #38bdf8; } @media (prefers-reduced-motion: reduce) { .ds-tool-card, .ds-tool-card *, .ds-corner { transition: none; } }"
+    },
+    {
+      "name": "Section Header",
+      "kind": "custom",
+      "description": "Pattern trasversale a tutte le view: dot/icon colorato + mono label + divider line flex-grow.",
+      "html": "<div class=\"ds-section-header\">\n  <span class=\"ds-section-dot ds-section-dot-sky\"></span>\n  <span class=\"ds-section-label ds-section-label-sky\">PROFILI</span>\n  <div class=\"ds-section-divider\"></div>\n  <span class=\"ds-section-count\">3</span>\n</div>",
+      "css": ".ds-section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; } .ds-section-dot { width: 2px; height: 16px; border-radius: 9999px; flex-shrink: 0; } .ds-section-dot-sky { background: rgba(56,189,248,0.60); } .ds-section-dot-purple { background: rgba(168,85,247,0.60); } .ds-section-label { font-family: ui-monospace, monospace; font-size: 10px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; white-space: nowrap; } .ds-section-label-sky { color: rgba(56,189,248,0.80); } .ds-section-label-purple { color: rgba(168,85,247,0.80); } .ds-section-divider { flex: 1; height: 1px; background: rgba(255,255,255,0.05); } .ds-section-count { font-family: ui-monospace, monospace; font-size: 9px; color: #64748b; }"
+    },
+    {
+      "name": "Navigation Header",
+      "kind": "nav",
+      "description": "Header sticky dell'app. Sfondo quasi-trasparente con blur, nav link con dot attivo, profile switcher, language switcher.",
+      "html": "<header class=\"ds-header\"><nav class=\"ds-nav\"><span class=\"ds-nav-link ds-nav-link-active ds-nav-link-mine\"><span class=\"ds-nav-dot ds-nav-dot-mine\"></span>PRODUZIONE</span><span class=\"ds-nav-link\">PACK</span><span class=\"ds-nav-link\">SHOPPING</span></nav></header>",
+      "css": ".ds-header { position: sticky; top: 0; z-index: 50; background: rgba(7,12,24,0.95); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(100,116,139,0.20); } .ds-nav { display: flex; align-items: center; gap: 2px; padding: 0 8px; height: 56px; } .ds-nav-link { display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 6px; color: #94a3b8; cursor: pointer; transition: color 150ms, background 150ms; } .ds-nav-link:hover { color: #e2e8f0; background: rgba(255,255,255,0.04); } .ds-nav-link-active { color: #38bdf8; background: rgba(255,255,255,0.05); } .ds-nav-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; } .ds-nav-dot-mine { background: #38bdf8; } @media (prefers-reduced-motion: reduce) { .ds-nav-link { transition: none; } }"
+    },
+    {
+      "name": "Input / Select",
+      "kind": "input",
+      "description": "Campo testo e select. Superficie traslucida scura, focus con border-color shift verso cyan.",
+      "html": "<div style=\"display:flex;flex-direction:column;gap:8px;\"><input class=\"ds-input\" placeholder=\"Nome giocatore...\"><select class=\"ds-input\"><option>it.ogame.gameforge.com</option></select></div>",
+      "css": ".ds-input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; padding: 10px 16px; font-size: 14px; color: #cbd5e1; width: 100%; outline: none; transition: border-color 150ms; box-sizing: border-box; } .ds-input::placeholder { color: #475569; } .ds-input:focus { border-color: rgba(56,189,248,0.40); } .ds-input:disabled { opacity: 0.40; cursor: not-allowed; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Lo Schermo delle Operazioni",
+    "overview": "OValue è il pannello di controllo che un comandante di flotta tiene aperto a fianco della partita. Non ha bisogno di impressionare: deve essere leggibile a ore di distanza, rispondere allo stato del gioco in tempo reale, e uscire di scena non appena il giocatore ha trovato il numero che cercava. La superficie è scura non per estetica cyberpunk ma per ridurre l'affaticamento visivo durante sessioni lunghe. Il colore ha una sola funzione: comunicare stato.\n\nIl sistema è costruito su quattro livelli di profondità tonale, senza ombre classiche. Il neon esiste in questo sistema, ma è guadagnato: appare solo sull'hover o sugli elementi attivi, mai a riposo. A riposo, tutto è flat. Questa economia del glow è la regola più importante del sistema.\n\nIl vocabolario visivo è coerente tra tutti gli strumenti. Stesso bottone, stessa card, stesso badge, stesso pattern di sezione. La coerenza riduce il carico cognitivo; il giocatore sa già dove guardare prima di aprire una schermata.",
+    "keyCharacteristics": [
+      "4 livelli di profondità tonale: header → bg → panel → card (nessuna ombra classica)",
+      "Colore semantico: ogni stato, ogni tool, ogni alert ha il suo token",
+      "Font mono riservato esclusivamente a etichette machine-readable",
+      "Corner decoration system: brackets angolari animati sulle card principali",
+      "Neon glow solo su hover e stati attivi: mai a riposo"
+    ],
+    "rules": [
+      { "name": "La Regola del Glow Guadagnato", "body": "Il neon è un reward, non un default. A riposo, i colori semantici compaiono come tinta (rgba bassa opacità) o come testo puro. Il box-shadow con rgba neon è permesso solo su :hover e su elementi attivi/selezionati. Se un glow è visibile senza interazione, è sbagliato.", "section": "colors" },
+      { "name": "La Regola dei Cinque Tool", "body": "Gli accenti tool sono fissi: sky=miniere, amber=pack, violet=shopping, emerald=strategia, rose=scadenze. Non si inventano nuovi accenti tool; si usa il vocabolario esistente.", "section": "colors" },
+      { "name": "La Regola del Nessun Font", "body": "Zero font custom caricati. Il sistema usa ui-sans-serif e ui-monospace come unico stack tipografico. La personalità visiva viene da peso, spaziatura e trattamento uppercase, non dalla scelta del font.", "section": "typography" },
+      { "name": "La Regola del Mono Riservato", "body": "Il font mono è usato esclusivamente per contenuto machine-readable: timestamp di sincronizzazione, nomi profilo nell'header, dati numerici in contesto mono. Non per decorazione.", "section": "typography" },
+      { "name": "La Regola Flat-By-Default", "body": "Le superfici sono piatte a riposo. L'unica ombra strutturale è quella dei floating layer (dropdown/modal). Il neon hover glow non è un'ombra classica: è feedback di stato.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usare i 4 livelli tonali (#070c18 → #0b0e14 → #151923 → #0d1525) per comunicare profondità",
+      "Do limitare il Cyber Cyan (#00f0ff) al 10% massimo di qualsiasi schermata",
+      "Do assegnare il colore tool corretto a ogni nuovo strumento: sky=miniere, amber=pack, violet=shopping, emerald=strategia, rose=scadenze",
+      "Do usare font mono esclusivamente per contenuto machine-readable",
+      "Do tenere il neon glow a rgba ≤ 30% opacità, solo su hover e stati attivi",
+      "Do nascondere azioni distruttive con opacity-0 group-hover:opacity-100",
+      "Do applicare @media (prefers-reduced-motion: reduce) su tutte le animazioni"
+    ],
+    "donts": [
+      "Don't aggiungere glow o neon a riposo — il glow si guadagna con l'interazione",
+      "Don't usare gradient text (background-clip: text) — testo in colore solido sempre",
+      "Don't caricare font custom — solo ui-sans-serif e ui-monospace",
+      "Don't inventare accenti tool fuori dal vocabolario definito dei cinque",
+      "Don't usare border-left o border-right > 1px come stripe colorata su card, row o alert",
+      "Don't replicare l'estetica OGame originale (texture, gif, layout tabelle, colori fluorescenti fissi)",
+      "Don't produrre il neon site AI-generated: gradients ovunque, glow permanente, palette saturata senza gerarchia",
+      "Don't usare glassmorphism come default di superficie — solo per header sticky",
+      "Don't applicare il pattern section-header (dot + mono label) come eyebrow su ogni heading"
+    ]
+  }
+}

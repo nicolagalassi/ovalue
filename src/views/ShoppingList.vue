@@ -56,6 +56,7 @@ const shopItemImageSrc = (k) => shopImgUrl(SHOP_ITEM_IMAGES[k]);
 // State
 const shopCart = ref([]);
 const cartDrawerOpen = ref(false);
+const clearCartConfirmOpen = ref(false);
 const activeCategory = ref(SHOP_ITEMS.categories[0].id);
 const activeDiscountEvent = ref('none');
 const isMounted = ref(false);
@@ -285,6 +286,8 @@ const addToShopCart = (id, tier, duration, baseCost) => {
 
 const removeShopCart = (idx) => shopCart.value.splice(idx, 1);
 const clearCart = () => { shopCart.value = []; };
+const requestClearCart = () => { clearCartConfirmOpen.value = true; };
+const doClearCart = () => { clearCart(); clearCartConfirmOpen.value = false; };
 
 const totalShopCartMO = computed(() => shopCart.value.reduce((s, i) => s + i.cost, 0));
 const totalShopCartCashback = computed(() => shopCart.value.reduce((s, i) => s + (i.cashback || 0), 0));
@@ -319,7 +322,7 @@ const getTierBadgeClass = (tier) => {
     if (tier === 'gold')     return 'bg-amber-400/15 text-amber-300 border-amber-400/25';
     if (tier === 'silver')   return 'bg-slate-400/15 text-slate-300 border-slate-400/25';
     if (tier === 'bronze')   return 'bg-orange-400/15 text-orange-300 border-orange-400/25';
-    return 'bg-cyan-400/15 text-cyan-300 border-cyan-400/25';
+    return 'bg-ogame-accent/10 text-ogame-accent border-ogame-accent/25';
 };
 // Swipe delete logic
 const swipeState = reactive({ idx: null, startX: 0, currentXP: 0 });
@@ -389,7 +392,7 @@ const getSwipeStyle = (idx) => {
             <div>
               <div class="flex items-center gap-2 mb-3">
                 <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Eventi Attivi</span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-cyan-500/60">{{ t('lbl_active_events') }}</span>
               </div>
               <div class="mobile-event-bar flex gap-2 overflow-x-auto pb-6 pt-2 px-1 custom-scrollbar no-scrollbar -ml-1">
                 <button
@@ -408,14 +411,14 @@ const getSwipeStyle = (idx) => {
             <div>
               <div class="flex items-center gap-2 mb-3 mt-1">
                 <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
-                <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Categorie</span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-cyan-500/60">{{ t('lbl_categories') }}</span>
               </div>
               <div class="mobile-event-bar flex gap-2 overflow-x-auto pb-6 pt-2 px-1 custom-scrollbar no-scrollbar -ml-1">
                 <button
                   v-for="cat in visibleCategories" :key="cat.id"
                   @click="scrollToCategory(cat.id)"
                   class="shrink-0 py-2.5 px-4 flex items-center justify-center rounded-xl border transition-all text-[11px] font-bold whitespace-nowrap"
-                  :class="activeCategory === cat.id ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 shadow-[0_10px_20px_-5px_rgba(6,182,212,0.2)]' : 'bg-white/5 border-white/5 text-gray-400 hover:text-gray-200'"
+                  :class="activeCategory === cat.id ? 'bg-ogame-accent/15 border-ogame-accent/40 text-ogame-accent shadow-[0_10px_20px_-5px_rgba(0,240,255,0.15)]' : 'bg-white/5 border-white/5 text-slate-400 hover:text-slate-200'"
                 >
                   {{ t(cat.name) }}
                 </button>
@@ -426,8 +429,8 @@ const getSwipeStyle = (idx) => {
 
       <!-- Page Title Area -->
       <div class="catalog-header px-4 md:px-10 pt-8 pb-4">
-        <h1 class="text-3xl md:text-4xl font-black italic uppercase tracking-tighter text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.15)]">{{ t('shopping_title') }}</h1>
-        <div class="mt-2 h-[2px] w-16 bg-gradient-to-r from-purple-500 to-transparent rounded-full shadow-[0_0_8px_rgba(168,85,247,0.5)]"></div>
+        <h1 class="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white">{{ t('shopping_title') }}</h1>
+        <div class="mt-2 h-[2px] w-16 bg-gradient-to-r from-purple-500 to-transparent rounded-full"></div>
       </div>
 
       <!-- Catalog Grid -->
@@ -438,21 +441,21 @@ const getSwipeStyle = (idx) => {
           class="scroll-mt-[100px]"
         >
           <div class="section-divider flex items-center gap-3 mb-6">
-            <span class="w-[2px] h-4 bg-cyan-500/40 rounded-full flex-shrink-0"></span>
-            <h2 class="text-[9px] font-black uppercase tracking-[0.25em] text-cyan-400/60 font-mono">{{ t(catData.name) }}</h2>
-            <div class="h-px flex-1 bg-gradient-to-r from-cyan-500/10 to-transparent"></div>
+            <span class="w-[2px] h-4 bg-ogame-accent/40 rounded-full flex-shrink-0"></span>
+            <h2 class="text-[9px] font-black uppercase tracking-[0.25em] text-ogame-accent/60 font-mono">{{ t(catData.name) }}</h2>
+            <div class="h-px flex-1 bg-gradient-to-r from-ogame-accent/10 to-transparent"></div>
           </div>
 
           <div class="section-blocks space-y-10">
             <div v-for="block in catData.blocks" :key="block.blockKey" class="block-wrap">
-              <h3 v-if="block.titleKey" class="text-[8px] font-black uppercase tracking-[0.2em] text-gray-700 mb-4 pl-1 font-mono">
+              <h3 v-if="block.titleKey" class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 mb-4 pl-1 font-mono">
                 {{ t(block.titleKey) }}
               </h3>
 
               <div class="product-grid grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-2 md:gap-4">
                 <article
                   v-for="entry in block.items" :key="entry.key"
-                  class="product-card relative flex flex-col overflow-hidden rounded-xl bg-[#0d1525] border border-slate-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
+                  class="product-card relative flex flex-col overflow-hidden rounded-xl bg-ogame-panel border border-slate-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
                   :class="{
                     'card-highlight': isItemHighlighted(entry.key, entry.val.costs),
                     'just-added': lastAddedId === entry.key
@@ -542,17 +545,17 @@ const getSwipeStyle = (idx) => {
       <div class="cart-sticky-container custom-scrollbar">
         <div class="panel-header flex items-center justify-between mb-6">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]">
+            <div class="w-10 h-10 rounded-xl bg-ogame-accent/10 flex items-center justify-center text-ogame-accent border border-ogame-accent/20 shadow-[0_0_15px_rgba(0,240,255,0.08)]">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
             </div>
-            <span class="text-xs font-black uppercase tracking-[0.2em] text-white">Carrello</span>
+            <span class="text-xs font-black uppercase tracking-[0.2em] text-white">{{ t('shopping_cart_title') }}</span>
           </div>
-          <button @click="clearCart" class="text-[10px] font-bold text-red-500/40 hover:text-red-400 transition-colors uppercase tracking-tighter" v-if="shopCart.length > 0">Reset</button>
+          <button @click="requestClearCart" class="text-[10px] font-bold text-red-500/40 hover:text-red-400 transition-colors uppercase tracking-tighter" v-if="shopCart.length > 0">Reset</button>
         </div>
         
         <div class="cart-scroll-area space-y-2">
           <div v-for="(item, idx) in [...shopCart].reverse()" :key="idx"
-               class="group flex items-start justify-between gap-3 p-3 rounded-xl bg-[#0a101e] border border-slate-700/30 hover:border-slate-600/50 transition-all">
+               class="group flex items-start justify-between gap-3 p-3 rounded-xl bg-ogame-surface border border-slate-700/30 hover:border-slate-600/50 transition-all">
             <div class="flex-1 min-w-0">
               <div class="text-xs font-bold text-slate-100 truncate leading-snug">{{ item.mult }}× {{ t(item.tKey) }}</div>
               <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
@@ -562,7 +565,7 @@ const getSwipeStyle = (idx) => {
                   <span v-if="getTierSuffix(item.tKey, item.tier)" class="ml-0.5 opacity-80">{{ getTierSuffix(item.tKey, item.tier) }}</span>
                 </span>
                 <span v-if="item.duration !== 'base'"
-                      class="text-[10px] font-black text-cyan-300 uppercase px-1.5 py-px bg-cyan-500/10 border border-cyan-500/20 rounded">{{ item.duration }}</span>
+                      class="text-[10px] font-black text-ogame-accent uppercase px-1.5 py-px bg-ogame-accent/10 border border-ogame-accent/20 rounded">{{ item.duration }}</span>
                 <span v-if="item.event && item.event !== 'none'"
                       class="text-[10px] font-black text-emerald-300 uppercase px-1.5 py-px bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center gap-1">
                   {{ getEventInfo(item.event)?.icon }} {{ t(getEventInfo(item.event)?.label) }}
@@ -570,24 +573,24 @@ const getSwipeStyle = (idx) => {
               </div>
             </div>
             <div class="flex flex-col items-end gap-1 flex-shrink-0">
-              <span class="text-sm font-mono font-black text-cyan-300">{{ formatNum(item.cost) }}</span>
+              <span class="text-sm font-mono font-black text-ogame-accent">{{ formatNum(item.cost) }}</span>
               <button @click="removeShopCart(shopCart.length - 1 - idx)"
                       class="text-[9px] text-red-500/50 hover:text-red-400 opacity-0 group-hover:opacity-100 uppercase font-black transition-all">✕</button>
             </div>
           </div>
           <div v-if="shopCart.length === 0" class="flex flex-col items-center justify-center py-12 opacity-20 filter grayscale">
             <svg class="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-            <span class="text-[10px] uppercase font-black tracking-widest italic">Vuoto</span>
+            <span class="text-[10px] uppercase font-black tracking-widest">{{ t('shopping_cart_empty') }}</span>
           </div>
         </div>
 
         <div v-if="shopCart.length > 0" class="panel-total mt-10 pt-6 border-t border-white/10">
           <div class="flex items-center justify-between mb-4">
-            <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Totale MO</span>
+            <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{{ t('shopping_total_mo') }}</span>
             <span class="text-2xl font-black text-white glow-white">{{ formatNum(totalShopCartMO) }}</span>
           </div>
           <button @click="cartDrawerOpen = true" class="checkout-btn w-full">
-            Dettaglio Acquisto
+            {{ t('shopping_detail_btn') }}
           </button>
         </div>
       </div>
@@ -595,34 +598,57 @@ const getSwipeStyle = (idx) => {
 
     <!-- Mobile Floating Cart Button -->
     <div class="xl:hidden fixed bottom-6 right-6 z-40">
-      <button @click="cartDrawerOpen = true" class="relative bg-cyan-500 text-black p-4 rounded-full shadow-[0_10px_25px_rgba(6,182,212,0.5)] active:scale-95 transition-transform border border-cyan-400">
+      <button @click="cartDrawerOpen = true" :aria-label="t('shopping_cart_title')" class="relative bg-ogame-accent text-black p-4 rounded-full shadow-[0_10px_25px_rgba(0,240,255,0.4)] active:scale-95 transition-transform border border-ogame-accent/80">
          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-         <span v-if="shopCart.length > 0" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#050505]">{{ cartTotalQty }}</span>
+         <span v-if="shopCart.length > 0" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-black">{{ cartTotalQty }}</span>
       </button>
     </div>
+
+    <!-- ════ CLEAR CART CONFIRM DIALOG ════ -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="clearCartConfirmOpen" class="fixed inset-0 z-[200] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="clearCartConfirmOpen = false"></div>
+          <div class="bg-ogame-panel border border-white/10 rounded-xl w-full max-w-sm p-7 relative z-10 shadow-2xl">
+            <p class="text-white font-semibold text-base mb-2 leading-snug">{{ t('shopping_cart_title') }} — Reset?</p>
+            <p class="text-slate-400 text-sm mb-7">{{ t('msg_clear_cart_confirm') }}</p>
+            <div class="flex justify-end gap-3">
+              <button @click="clearCartConfirmOpen = false"
+                      class="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors">
+                {{ t('btn_cancel') }}
+              </button>
+              <button @click="doClearCart"
+                      class="px-4 py-2 text-sm font-semibold text-white bg-red-700 hover:bg-red-600 rounded-lg transition-colors">
+                {{ t('btn_confirm') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- ════ FULL CART DRAWER (Mobile/Desktop Detail) ════ -->
     <Teleport to="body">
       <div v-show="cartDrawerOpen" class="fixed inset-0 z-[100] flex justify-end">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="cartDrawerOpen = false" />
-        <aside class="relative z-10 w-full max-w-xl bg-[#06080d] border-l border-white/10 flex flex-col shadow-2xl overflow-hidden">
+        <aside class="relative z-10 w-full max-w-xl bg-ogame-bg border-l border-white/10 flex flex-col shadow-2xl overflow-hidden">
           <div class="header-drawer flex items-center justify-between px-8 py-6 border-b border-white/5 bg-black/40">
             <span class="text-xs font-black uppercase tracking-[0.3em] text-white flex items-center gap-4">
-              <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-              Riepilogo Database
+              <svg class="w-5 h-5 text-ogame-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+              {{ t('shopping_detail_btn') }}
             </span>
-            <button @click="cartDrawerOpen = false" class="p-3 hover:bg-white/5 rounded-full text-gray-500 transition-all"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            <button @click="cartDrawerOpen = false" class="p-3 hover:bg-white/5 rounded-full text-slate-500 transition-all"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
           </div>
           <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-3 custom-scrollbar overflow-x-hidden">
             <div v-for="(item, idx) in shopCart" :key="idx" class="relative group overflow-hidden rounded-2xl w-full">
               <!-- Delete background -->
               <div class="absolute inset-0 bg-red-600/90 flex justify-end items-center px-6 cursor-pointer" @click="removeShopCart(idx)">
-                <span class="text-xs font-black uppercase text-white mr-2 hidden lg:block">Elimina</span>
+                <span class="text-xs font-black uppercase text-white mr-2 hidden lg:block">{{ t('btn_delete') }}</span>
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
               </div>
 
               <!-- Item container -->
-              <div class="relative bg-[#0d1525] flex items-center justify-between gap-4 p-4 md:p-5 border border-slate-700/30 hover:border-cyan-500/30 w-full transition-colors"
+              <div class="relative bg-ogame-panel flex items-center justify-between gap-4 p-4 md:p-5 border border-slate-700/30 hover:border-ogame-accent/30 w-full transition-colors"
                    @touchstart="tsStart($event, idx)"
                    @touchmove="tsMove($event, idx)"
                    @touchend="tsEnd(idx)"
@@ -638,7 +664,7 @@ const getSwipeStyle = (idx) => {
                       <span v-if="getTierSuffix(item.tKey, item.tier)" class="opacity-80">{{ getTierSuffix(item.tKey, item.tier) }}</span>
                     </span>
                     <span v-if="item.duration !== 'base'"
-                          class="text-[10px] font-black text-cyan-300 uppercase px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded">{{ item.duration }}</span>
+                          class="text-[10px] font-black text-ogame-accent uppercase px-2 py-0.5 bg-ogame-accent/10 border border-ogame-accent/20 rounded">{{ item.duration }}</span>
                     <span v-if="item.event && item.event !== 'none'"
                           class="text-[10px] font-black text-emerald-300 uppercase px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center gap-1">
                       {{ getEventInfo(item.event)?.icon }} {{ t(getEventInfo(item.event)?.label) }}
@@ -646,7 +672,7 @@ const getSwipeStyle = (idx) => {
                   </div>
                 </div>
                 <div class="flex flex-col items-end gap-1 flex-shrink-0">
-                  <span class="text-base md:text-lg font-black text-cyan-300 font-mono tracking-tighter">{{ formatNum(item.cost) }}</span>
+                  <span class="text-base md:text-lg font-black text-ogame-accent font-mono tracking-tighter">{{ formatNum(item.cost) }}</span>
                   <span class="text-[10px] text-slate-500 font-mono">{{ formatNum(item.unitCost) }} / ud</span>
                 </div>
               </div>
@@ -656,15 +682,15 @@ const getSwipeStyle = (idx) => {
              <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mb-4 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
                 <span class="text-[10px] font-black uppercase text-green-500 flex items-center gap-1.5">
                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                   Cashback Previsto
+                   {{ t('shopping_cashback') }}
                 </span>
                 <span class="text-xs font-black text-green-400 font-mono tracking-tight">+ {{ formatNum(totalShopCartCashback) }} MO</span>
              </div>
              <div class="flex items-baseline justify-between gap-4 mb-6 md:mb-10 px-2">
-                <span class="text-xs font-black text-gray-500 uppercase tracking-widest text-[11px]">Totale Ordine</span>
+                <span class="text-xs font-black text-slate-500 uppercase tracking-widest text-[11px]">{{ t('shopping_order_total') }}</span>
                 <span class="text-4xl font-black text-white glow-white tracking-tighter">{{ formatNum(totalShopCartMO) }} <span class="text-sm opacity-40 font-normal">MO</span></span>
              </div>
-             <button @click="cartDrawerOpen = false" class="w-full py-4 bg-white text-black text-[11px] font-black uppercase tracking-[0.4em] rounded-2xl hover:bg-cyan-400 transition-all shadow-[0_15px_30px_rgba(0,0,0,0.4)] active:scale-95">Salva e Chiudi</button>
+             <button @click="cartDrawerOpen = false" class="w-full py-4 bg-white text-black text-[11px] font-black uppercase tracking-[0.4em] rounded-2xl hover:bg-ogame-accent transition-all shadow-[0_15px_30px_rgba(0,0,0,0.4)] active:scale-95">{{ t('shopping_save_close') }}</button>
           </div>
         </aside>
       </div>
@@ -727,7 +753,7 @@ const getSwipeStyle = (idx) => {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 8px;
-  color: #9ca3af;
+  color: theme('colors.slate.400');
   font-family: monospace;
   font-size: 10px;
   font-weight: 700;
@@ -736,11 +762,11 @@ const getSwipeStyle = (idx) => {
   transition: all 0.2s;
 }
 .mobile-evt-active {
-  background: rgba(6, 182, 212, 0.08);
-  border-color: rgba(6, 182, 212, 0.3);
-  color: #22d3ee;
+  background: rgba(0, 240, 255, 0.08);
+  border-color: rgba(0, 240, 255, 0.3);
+  color: theme('colors.ogame.accent');
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px -4px rgba(6, 182, 212, 0.15);
+  box-shadow: 0 6px 16px -4px rgba(0, 240, 255, 0.15);
 }
 
 /* ─── PRODUCT CARDS ─── */
@@ -750,7 +776,7 @@ const getSwipeStyle = (idx) => {
 }
 .just-added { animation: flashAdd 0.8s ease-out; }
 @keyframes flashAdd {
-  0%   { border-color: rgba(6, 182, 212, 0.55); box-shadow: 0 0 10px rgba(6,182,212,0.25); }
+  0%   { border-color: rgba(0, 240, 255, 0.55); box-shadow: 0 0 10px rgba(6,182,212,0.25); }
   100% { border-color: rgba(51, 65, 85, 0.2); box-shadow: none; }
 }
 
@@ -760,7 +786,7 @@ const getSwipeStyle = (idx) => {
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
-  color: #9ca3af;
+  color: theme('colors.slate.400');
   letter-spacing: 0.15em;
   display: flex;
   align-items: center;
@@ -781,19 +807,19 @@ const getSwipeStyle = (idx) => {
   text-transform: uppercase;
   transition: all 0.15s;
   border: 1px solid transparent;
-  color: #6b7280;
+  color: theme('colors.slate.500');
 }
-.event-btn:hover, .cat-btn:hover { color: #d1d5db; background: rgba(255,255,255,0.03); }
+.event-btn:hover, .cat-btn:hover { color: theme('colors.slate.300'); background: rgba(255,255,255,0.03); }
 
 .event-active {
-  background: rgba(6, 182, 212, 0.08);
-  border-color: rgba(6, 182, 212, 0.30);
-  color: #67e8f9;
+  background: rgba(0, 240, 255, 0.08);
+  border-color: rgba(0, 240, 255, 0.30);
+  color: theme('colors.ogame.accent');
 }
 .cat-active {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.10);
-  color: #f1f5f9;
+  color: theme('colors.slate.100');
 }
 
 .sidebar-divider {
@@ -822,9 +848,9 @@ const getSwipeStyle = (idx) => {
 /* ─── CHECKOUT BTN ─── */
 .checkout-btn {
   width: 100%;
-  background: rgba(6, 182, 212, 0.15);
-  border: 1px solid rgba(6, 182, 212, 0.35);
-  color: #22d3ee;
+  background: rgba(0, 240, 255, 0.15);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  color: theme('colors.ogame.accent');
   font-family: monospace;
   font-size: 9px;
   font-weight: 900;
@@ -835,8 +861,8 @@ const getSwipeStyle = (idx) => {
   transition: all 0.2s;
 }
 .checkout-btn:hover {
-  background: rgba(6, 182, 212, 0.25);
-  border-color: rgba(6, 182, 212, 0.55);
+  background: rgba(0, 240, 255, 0.25);
+  border-color: rgba(0, 240, 255, 0.55);
   box-shadow: 0 0 16px rgba(6,182,212,0.2);
 }
 
@@ -850,4 +876,9 @@ const getSwipeStyle = (idx) => {
 .custom-scrollbar::-webkit-scrollbar { width: 3px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.04); border-radius: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .just-added { animation: none; }
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
 </style>

@@ -205,7 +205,7 @@ const downloadPng = () => {
 </script>
 
 <template>
-  <div class="card-glass border-l-2 border-l-violet-500/40 bg-violet-500/[0.02]">
+  <div class="card-glass border border-violet-500/20 bg-violet-500/[0.03]">
 
     <!-- ── Header / toggle ────────────────────────────────────────────────── -->
     <button @click="showPanel = !showPanel"
@@ -245,27 +245,27 @@ const downloadPng = () => {
       </div>
 
       <!-- ── Sfondo ────────────────────────────────────────────────────── -->
-      <div>
-        <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">
+      <div role="group" aria-labelledby="sig-bg-label">
+        <div id="sig-bg-label" class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">
           {{ t('sig_bg_label') }}
-        </label>
+        </div>
         <div class="flex gap-1.5 flex-wrap">
           <button v-for="(bg, i) in BG_PRESETS" :key="bg.key"
                   @click="selectedBg = i"
                   class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all border"
                   :class="selectedBg === i
                     ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
-                    : 'bg-[#0a101e] border-slate-700/30 text-slate-500 hover:text-slate-300 hover:border-slate-600/50'">
+                    : 'bg-ogame-surface border-slate-700/30 text-slate-500 hover:text-slate-300 hover:border-slate-600/50'">
             {{ t('sig_bg_' + i) }}
           </button>
         </div>
       </div>
 
       <!-- ── Colori ────────────────────────────────────────────────────── -->
-      <div class="space-y-2">
-        <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+      <div class="space-y-2" role="group" aria-labelledby="sig-colors-label">
+        <div id="sig-colors-label" class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
           {{ t('sig_colors') }}
-        </label>
+        </div>
 
         <!-- Nickname -->
         <div class="flex items-center gap-3">
@@ -305,27 +305,27 @@ const downloadPng = () => {
       </div>
 
       <!-- ── Elementi visibili ──────────────────────────────────────────── -->
-      <div>
-        <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">
+      <div role="group" aria-labelledby="sig-visibility-label">
+        <div id="sig-visibility-label" class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">
           {{ t('sig_visibility') }}
-        </label>
+        </div>
         <div class="space-y-2">
           <!-- Info giocatore -->
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-[9px] text-slate-600 w-20 flex-shrink-0">{{ t('sig_player_info') }}</span>
             <button @click="showUniverse = !showUniverse"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showUniverse ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showUniverse ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-ogame-surface border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_universe') }}
             </button>
             <button @click="showClass = !showClass"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showClass ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showClass ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-ogame-surface border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_class') }}
             </button>
             <button @click="showEco = !showEco"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showEco ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showEco ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-ogame-surface border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_eco') }}
             </button>
           </div>
@@ -334,18 +334,18 @@ const downloadPng = () => {
             <span class="text-[9px] text-slate-600 w-20 flex-shrink-0">{{ t('sig_stats') }}</span>
             <button @click="showMine = !showMine"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showMine ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showMine ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-ogame-surface border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_mine') }}
             </button>
             <button @click="showLfBonus = !showLfBonus"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showLfBonus ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showLfBonus ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-ogame-surface border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_lf') }}
             </button>
             <button v-if="isCollector"
                     @click="showCollBonus = !showCollBonus"
                     class="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all border"
-                    :class="showCollBonus ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-[#0a101e] border-slate-700/20 text-slate-600 line-through'">
+                    :class="showCollBonus ? 'bg-sky-500/20 border-sky-500/40 text-sky-300' : 'bg-ogame-surface border-slate-700/20 text-slate-600 line-through'">
               {{ t('sig_show_coll') }}
             </button>
           </div>
@@ -355,14 +355,14 @@ const downloadPng = () => {
       <!-- BBCode forum -->
       <div v-if="sigId">
         <div class="flex items-center justify-between mb-1.5">
-          <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+          <label for="sig-bbcode" class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
             {{ t('sig_bbcode_label') }}
           </label>
           <span class="text-[9px] text-emerald-400/55 font-mono">{{ t('sig_auto_update_note') }}</span>
         </div>
         <div class="flex gap-2">
-          <input readonly :value="forumBBCode"
-                 class="flex-1 bg-[#0a101e] border border-slate-700/30 rounded-xl px-3 py-2 text-xs font-mono text-slate-300 min-w-0 focus:outline-none select-all cursor-text"
+          <input id="sig-bbcode" readonly :value="forumBBCode"
+                 class="flex-1 bg-ogame-surface border border-slate-700/30 rounded-xl px-3 py-2 text-xs font-mono text-slate-300 min-w-0 focus:outline-none select-all cursor-text"
                  @click="$event.target.select()"/>
           <button @click="copyBBCode"
                   class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold uppercase tracking-wider transition-all"

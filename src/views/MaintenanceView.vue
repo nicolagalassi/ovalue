@@ -60,7 +60,7 @@ const messageLines = computed(() => t('maintenance_message').split('\n'));
 <style scoped>
 .maintenance-root {
   min-height: 100vh;
-  background-color: #070c18;
+  background-color: theme('colors.ogame.bg');
   background-image:
     radial-gradient(ellipse at 25% 0%,   rgba(15, 40, 90, 0.70) 0px, transparent 55%),
     radial-gradient(ellipse at 90% 8%,   rgba(35, 18, 80, 0.45) 0px, transparent 45%),
@@ -132,7 +132,7 @@ const messageLines = computed(() => t('maintenance_message').split('\n'));
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #fbbf24;
+  background: theme('colors.amber.400');
   animation: pulse 1.8s ease-in-out infinite;
   flex-shrink: 0;
 }
@@ -146,7 +146,7 @@ const messageLines = computed(() => t('maintenance_message').split('\n'));
 .title {
   font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 900;
-  color: #e2e8f0;
+  color: theme('colors.ogame.text');
   letter-spacing: -0.03em;
   line-height: 1.1;
   margin: 0 0 1.25rem;
@@ -155,7 +155,7 @@ const messageLines = computed(() => t('maintenance_message').split('\n'));
 /* Message */
 .message {
   font-size: 1rem;
-  color: #94a3b8;
+  color: theme('colors.slate.400');
   line-height: 1.7;
   margin: 0 0 2.5rem;
 }
@@ -187,13 +187,13 @@ const messageLines = computed(() => t('maintenance_message').split('\n'));
 /* Quote */
 .quote {
   font-size: 0.875rem;
-  color: #64748b;
+  color: theme('colors.slate.500');
   font-style: italic;
   line-height: 1.7;
   margin: 0 0 2.5rem;
 }
 .quote span {
-  color: #475569;
+  color: theme('colors.slate.600');
 }
 
 /* Links */
@@ -208,18 +208,18 @@ const messageLines = computed(() => t('maintenance_message').split('\n'));
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #475569;
+  color: theme('colors.slate.600');
   text-decoration: none;
   transition: color 0.2s;
   font-weight: 500;
 }
-.link:hover { color: #94a3b8; }
-.link.kofi:hover { color: #fbbf24; }
+.link:hover { color: theme('colors.slate.400'); }
+.link.kofi:hover { color: theme('colors.amber.400'); }
 .icon {
   width: 13px;
   height: 13px;
 }
 .sep {
-  color: #2d3748;
+  color: theme('colors.ogame.border');
 }
 </style>

@@ -4,6 +4,7 @@ import { useLanguage } from './composables/useLanguage';
 import { useProfiles } from './composables/useProfiles';
 import Header from './components/Header.vue';
 import MaintenanceView from './views/MaintenanceView.vue';
+import AppToast from './components/AppToast.vue';
 
 // ── MANUTENZIONE ─────────────────────────────────────────────────────────────
 // Imposta su true per mostrare la pagina di manutenzione a tutti gli utenti.
@@ -57,4 +58,6 @@ function closeBanner() {
       <router-view />
     </main>
   </div>
+
+  <AppToast />
 </template>

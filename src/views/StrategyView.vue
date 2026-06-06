@@ -4,8 +4,10 @@ import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useStrategy } from '../composables/useStrategy';
+import { useToast } from '../composables/useToast';
 
 const { t } = useLanguage();
+const { show: showToast } = useToast();
 const { activeProfile, saveProfiles } = useProfiles();
 const { formatNum, calcLFResearchBonus } = useOgameFormulas();
 const { runPlanner, computeEuroCost, buildInitialState, simulateDailyProduction } = useStrategy();
@@ -166,11 +168,11 @@ const effectiveLf = (p, idx) => {
     return (!c || c === 'inherit') ? (p.lifeform || 'humans') : c;
 };
 const lfBorderColor = (eff) => {
-    if (eff === 'humans')  return 'border-l-blue-400';
-    if (eff === 'rocktal') return 'border-l-orange-500';
-    if (eff === 'mecha')   return 'border-l-teal-400';
-    if (eff === 'kaelesh') return 'border-l-purple-400';
-    return 'border-l-slate-600';
+    if (eff === 'humans')  return 'border-blue-400/30 hover:border-blue-400/50';
+    if (eff === 'rocktal') return 'border-orange-500/30 hover:border-orange-500/50';
+    if (eff === 'mecha')   return 'border-teal-400/30 hover:border-teal-400/50';
+    if (eff === 'kaelesh') return 'border-purple-400/30 hover:border-purple-400/50';
+    return 'border-slate-700/20 hover:border-slate-600/40';
 };
 const lfBadgeClass = (eff) => {
     if (eff === 'humans')  return 'text-blue-400 bg-blue-500/10';
@@ -411,7 +413,7 @@ const importToPackQueue = () => {
     });
 
     saveProfiles();
-    alert(t('strategy_imported_to_pack'));
+    showToast(t('strategy_imported_to_pack'), 'success');
 };
 
 // ───── Riassunto per pianeta degli upgrade ──────────────────────────────
@@ -467,27 +469,27 @@ const typeSummary = computed(() => {
   <div class="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-12">
     <!-- Page Header -->
     <div class="mb-10 text-center relative">
-        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase">
             {{ t('strategy_title') }}
         </h1>
         <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-emerald-500 to-emerald-400 mx-auto rounded-full opacity-70"></div>
     </div>
 
     <!-- Intro -->
-    <div class="card-glass mb-8 border-l-4 border-l-emerald-500/40 bg-emerald-500/[0.03] relative overflow-hidden">
-        <button @click="showIntro = !showIntro" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-emerald-400">
+    <div class="card-glass mb-8 bg-emerald-500/[0.03] relative overflow-hidden">
+        <button @click="showIntro = !showIntro" :aria-expanded="showIntro" aria-controls="strategy-intro-content" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-emerald-400">
             <div class="flex items-center gap-2">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <span class="text-xs font-black uppercase tracking-widest">{{ t('strategy_title') }}</span>
             </div>
             <svg class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': showIntro }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </button>
-        <div class="p-6 md:flex md:flex-row md:items-center md:gap-6 relative z-10" :class="showIntro ? 'block' : 'hidden md:flex'">
+        <div id="strategy-intro-content" class="p-6 md:flex md:flex-row md:items-center md:gap-6 relative z-10" :class="showIntro ? 'block' : 'hidden md:flex'">
             <div class="hidden md:block p-4 rounded-2xl bg-emerald-500/[0.08] text-emerald-400 flex-shrink-0">
                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3zm12-3c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3z"/></svg>
             </div>
             <div class="flex-grow">
-                <p class="text-sm text-gray-300 leading-relaxed font-medium">{{ t('strategy_intro') }}</p>
+                <p class="text-sm text-slate-300 leading-relaxed font-medium">{{ t('strategy_intro') }}</p>
             </div>
         </div>
     </div>
@@ -502,7 +504,7 @@ const typeSummary = computed(() => {
 
     <template v-else>
         <!-- ────── INPUT ────── -->
-        <div class="card-glass p-5 mb-6 border-l-2 border-l-emerald-500/40">
+        <div class="card-glass p-5 mb-6">
             <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2.5 uppercase tracking-wider">
                 <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
                 {{ t('strategy_input_title') }}
@@ -511,15 +513,15 @@ const typeSummary = computed(() => {
             <!-- Riga 1: statistiche + target + step + LF -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 items-start">
                 <!-- Produzione attuale -->
-                <div class="col-span-2 md:col-span-1 bg-[#0a101e] rounded-xl p-4 border border-slate-700/15">
+                <div class="col-span-2 md:col-span-1 bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
                     <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_current_prod') }}</div>
                     <div class="text-2xl font-black text-slate-200 font-mono">{{ formatNum(currentProd) }}</div>
                     <div class="text-[10px] text-slate-600 mt-1">{{ t('lbl_dm') }} / {{ t('strategy_per_day') }}</div>
                 </div>
                 <!-- Target + preset -->
-                <div class="col-span-2 md:col-span-1 bg-[#0a101e] rounded-xl p-4 border border-emerald-500/25">
-                    <label class="block text-[10px] text-emerald-400 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_target') }}</label>
-                    <input type="text" v-model="formTarget" @focus="$event.target.select()"
+                <div class="col-span-2 md:col-span-1 bg-ogame-surface rounded-xl p-4 border border-emerald-500/25">
+                    <label for="strat-target" class="block text-[10px] text-emerald-400 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_target') }}</label>
+                    <input id="strat-target" type="text" v-model="formTarget" @focus="$event.target.select()"
                            class="input-glass w-full px-3 py-2 text-right font-mono text-emerald-300 text-lg bg-black/40">
                     <div v-if="profileDailyProd > 0" class="flex gap-1 mt-2">
                         <button v-for="m in [1.5, 2, 3, 5]" :key="m"
@@ -533,14 +535,14 @@ const typeSummary = computed(() => {
                     </div>
                 </div>
                 <!-- Step massimi -->
-                <div class="bg-[#0a101e] rounded-xl p-4 border border-slate-700/15">
-                    <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_max_steps') }}</label>
-                    <input type="number" v-model.number="maxSteps" @focus="$event.target.select()" min="1" max="2000"
+                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
+                    <label for="strat-maxsteps" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_max_steps') }}</label>
+                    <input id="strat-maxsteps" type="number" v-model.number="maxSteps" @focus="$event.target.select()" min="1" max="2000"
                            class="input-glass w-full px-3 py-2 text-right font-mono">
                     <div class="text-[10px] text-slate-600 mt-1">{{ t('strategy_max_steps_desc') }}</div>
                 </div>
                 <!-- Bonus LF Research -->
-                <div class="bg-[#0a101e] rounded-xl p-4 border transition-colors"
+                <div class="bg-ogame-surface rounded-xl p-4 border transition-colors"
                      :class="hasLfResearchData ? 'border-purple-500/25' : 'border-slate-700/15'">
                     <div class="text-[10px] uppercase tracking-wider font-semibold mb-1"
                          :class="hasLfResearchData ? 'text-purple-400/80' : 'text-slate-500'">
@@ -561,7 +563,7 @@ const typeSummary = computed(() => {
             <!-- Riga 2: categorie / cap / pack mode / classe -->
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-5 pt-4 border-t border-slate-700/20 items-start">
                 <!-- Categorie upgrade -->
-                <div class="bg-[#0a101e] rounded-xl p-4 border border-slate-700/15">
+                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
                     <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">{{ t('strategy_categories') }}</div>
                     <div class="flex flex-col gap-2.5">
                         <label class="flex items-center gap-2 cursor-pointer">
@@ -596,35 +598,35 @@ const typeSummary = computed(() => {
                     </div>
                 </div>
                 <!-- Cap livello -->
-                <div class="bg-[#0a101e] rounded-xl p-4 border border-slate-700/15">
+                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
                     <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">
                         {{ t('strategy_caps') }} <span class="text-slate-700 normal-case font-normal text-[9px]">({{ t('strategy_caps_hint') }})</span>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[9px] text-sky-500/70 uppercase font-semibold mb-1.5 truncate">Min.</label>
+                        <label class="block">
+                            <span class="block text-[10px] text-sky-500/70 uppercase font-semibold mb-1.5 truncate">Min.</span>
                             <input type="number" v-model.number="capMine" min="0"
                                    class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-[9px] text-violet-400/70 uppercase font-semibold mb-1.5 truncate">Plasma</label>
+                        </label>
+                        <label class="block">
+                            <span class="block text-[10px] text-violet-400/70 uppercase font-semibold mb-1.5 truncate">Plasma</span>
                             <input type="number" v-model.number="capPlasma" min="0"
                                    class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-[9px] text-orange-400/70 uppercase font-semibold mb-1.5 truncate">LF</label>
+                        </label>
+                        <label class="block">
+                            <span class="block text-[10px] text-orange-400/70 uppercase font-semibold mb-1.5 truncate">LF</span>
                             <input type="number" v-model.number="capLf" min="0"
                                    class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-[9px] text-emerald-500/70 uppercase font-semibold mb-1.5 truncate">Ric.LF</label>
+                        </label>
+                        <label class="block">
+                            <span class="block text-[10px] text-emerald-500/70 uppercase font-semibold mb-1.5 truncate">Ric.LF</span>
                             <input type="number" v-model.number="capLfResearch" min="0"
                                    class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
-                        </div>
+                        </label>
                     </div>
                 </div>
                 <!-- Valore pacchetto -->
-                <div class="bg-[#0a101e] rounded-xl p-4 border border-slate-700/15">
+                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
                     <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">{{ t('strategy_pack_mode') }}</div>
                     <div class="flex gap-1 bg-black/30 p-1 rounded-xl border border-slate-700/20">
                         <button @click="packMode = 'dynamic'"
@@ -639,14 +641,14 @@ const typeSummary = computed(() => {
                         </button>
                     </div>
                     <div v-if="packMode === 'dynamic'" class="mt-2 flex items-center gap-2">
-                        <label class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold whitespace-nowrap">{{ t('strategy_pack_batch') }}</label>
-                        <input type="number" v-model.number="packBatch" min="1" max="500" @focus="$event.target.select()"
+                        <label for="strat-pack-batch" class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold whitespace-nowrap">{{ t('strategy_pack_batch') }}</label>
+                        <input id="strat-pack-batch" type="number" v-model.number="packBatch" min="1" max="500" @focus="$event.target.select()"
                                class="input-glass w-full px-2 py-1 text-center font-mono text-sm">
                     </div>
                     <p v-else class="text-[9px] text-slate-700 mt-2 leading-tight">{{ t('strategy_pack_fixed_desc') }}</p>
                 </div>
                 <!-- Classe giocatore -->
-                <div class="bg-[#0a101e] rounded-xl p-4 border border-slate-700/15">
+                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
                     <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">{{ t('lbl_player_class') }}</div>
                     <div class="flex gap-1 bg-black/30 p-1 rounded-xl border border-slate-700/20">
                         <button @click="playerClassOverride = 'inherit'"
@@ -690,14 +692,14 @@ const typeSummary = computed(() => {
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                     <div v-for="(p, idx) in planets" :key="idx"
-                         class="bg-[#0a101e] rounded-xl border border-slate-700/20 border-l-2 p-3 transition-colors"
+                         class="bg-ogame-surface rounded-xl border p-3 transition-colors"
                          :class="lfBorderColor(effectiveLf(p, idx))">
                         <!-- Nome pianeta + badge LF attiva -->
                         <div class="flex items-start justify-between gap-1 mb-1.5">
                             <span class="text-[11px] font-semibold text-slate-200 truncate leading-tight" :title="p.name">
                                 {{ p.name || `#${idx+1}` }}
                             </span>
-                            <span class="text-[8px] font-bold px-1 py-0.5 rounded tracking-wider uppercase flex-shrink-0 leading-tight"
+                            <span class="text-[10px] font-bold px-1 py-0.5 rounded tracking-wider uppercase flex-shrink-0 leading-tight"
                                   :class="lfBadgeClass(effectiveLf(p, idx))">
                                 {{ t('opt_' + effectiveLf(p, idx)) }}
                             </span>
@@ -746,25 +748,25 @@ const typeSummary = computed(() => {
         <div v-if="result" class="space-y-6">
 
             <!-- Sommario top -->
-            <div class="card-glass p-5 border-l-2 border-l-emerald-500/40">
+            <div class="card-glass p-5">
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <div class="bg-[#0a101e] rounded-xl p-3 border border-slate-700/15 text-center">
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_initial') }}</div>
                         <div class="text-lg font-black text-slate-200 font-mono">{{ formatNum(result.initialProd) }}</div>
                     </div>
-                    <div class="bg-[#0a101e] rounded-xl p-3 border border-emerald-500/25 text-center">
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-emerald-500/25 text-center">
                         <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_final') }}</div>
                         <div class="text-lg font-black text-emerald-300 font-mono">{{ formatNum(result.finalProd) }}</div>
                     </div>
-                    <div class="bg-[#0a101e] rounded-xl p-3 border border-slate-700/15 text-center">
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_packs') }}</div>
                         <div class="text-lg font-black text-amber-300 font-mono">{{ formatNum(result.cumulativePacks) }}</div>
                     </div>
-                    <div class="bg-[#0a101e] rounded-xl p-3 border border-slate-700/15 text-center">
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_mo') }}</div>
                         <div class="text-lg font-black text-purple-300 font-mono">{{ formatNum(result.euro.totalMO) }}</div>
                     </div>
-                    <div class="bg-[#0a101e] rounded-xl p-3 border border-slate-700/15 text-center">
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_euro') }}</div>
                         <div class="text-lg font-black text-green-300 font-mono">€{{ formatNum(result.euro.totalEuro) }}</div>
                     </div>
@@ -775,7 +777,7 @@ const typeSummary = computed(() => {
                     <!-- Sconto shop -->
                     <div>
                         <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_shop_discount') }}</div>
-                        <div class="flex gap-1 bg-[#070c18]/70 p-1 rounded-xl border border-slate-700/20">
+                        <div class="flex gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
                             <button @click="shopDiscount = 0; recomputeEuro()"
                                     class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
                                     :class="shopDiscount === 0 ? 'bg-slate-700/70 text-slate-100' : 'text-slate-600 hover:text-slate-400'">
@@ -796,7 +798,7 @@ const typeSummary = computed(() => {
                     <!-- Bonus MO evento -->
                     <div>
                         <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_event_bonus') }}</div>
-                        <div class="grid grid-cols-4 sm:grid-cols-7 gap-1 bg-[#070c18]/70 p-1 rounded-xl border border-slate-700/20">
+                        <div class="grid grid-cols-4 sm:grid-cols-7 gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
                             <button v-for="b in [0, 30, 40, 50, 60, 100, 130]" :key="b"
                                     @click="moBonus = b; recomputeEuro()"
                                     class="py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 text-center"
@@ -822,7 +824,7 @@ const typeSummary = computed(() => {
             </div>
 
             <!-- Riepilogo contributi per categoria -->
-            <div v-if="typeSummary" class="card-glass p-5 border-l-2 border-l-emerald-500/40">
+            <div v-if="typeSummary" class="card-glass p-5">
                 <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2.5 uppercase tracking-wider">
                     <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
                     {{ t('strategy_contrib_title') }}
@@ -875,14 +877,14 @@ const typeSummary = computed(() => {
             </div>
 
             <!-- Riepilogo per pianeta -->
-            <div class="card-glass p-5 border-l-2 border-l-sky-500/40">
+            <div class="card-glass p-5">
                 <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2.5 uppercase tracking-wider">
                     <span class="w-[2px] h-4 bg-sky-400/60 rounded-full flex-shrink-0"></span>
                     {{ t('strategy_summary_planet') }}
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     <div v-for="row in perPlanetSummary.planets" :key="row.idx"
-                         class="bg-[#0a101e] rounded-lg border border-slate-700/20 px-3 py-2 flex items-center justify-between text-[12px]">
+                         class="bg-ogame-surface rounded-lg border border-slate-700/20 px-3 py-2 flex items-center justify-between text-[12px]">
                         <span class="font-mono text-slate-300 truncate">{{ row.name }}</span>
                         <div class="flex gap-2 flex-shrink-0">
                             <span v-if="row.metalMine" class="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 font-mono text-[10px]">M+{{ row.metalMine }}</span>
@@ -890,11 +892,11 @@ const typeSummary = computed(() => {
                             <span v-if="row.lfHuman" class="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 font-mono text-[10px]">FAE+{{ row.lfHuman }}</span>
                         </div>
                     </div>
-                    <div v-if="perPlanetSummary.plasma" class="bg-[#0a101e] rounded-lg border border-violet-500/30 px-3 py-2 flex items-center justify-between text-[12px]">
+                    <div v-if="perPlanetSummary.plasma" class="bg-ogame-surface rounded-lg border border-violet-500/30 px-3 py-2 flex items-center justify-between text-[12px]">
                         <span class="font-mono text-violet-300">{{ t('plasma_technology') }}</span>
                         <span class="px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30 font-mono text-[10px]">+{{ perPlanetSummary.plasma }}</span>
                     </div>
-                    <div v-if="perPlanetSummary.lfResearch" class="bg-[#0a101e] rounded-lg border border-emerald-500/30 px-3 py-2 flex items-center justify-between text-[12px]">
+                    <div v-if="perPlanetSummary.lfResearch" class="bg-ogame-surface rounded-lg border border-emerald-500/30 px-3 py-2 flex items-center justify-between text-[12px]">
                         <span class="font-mono text-emerald-300">{{ t('strategy_lf_research') }}</span>
                         <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[10px]">+{{ perPlanetSummary.lfResearch }}</span>
                     </div>
@@ -902,14 +904,14 @@ const typeSummary = computed(() => {
             </div>
 
             <!-- Roadmap step-by-step -->
-            <div class="overflow-hidden rounded-xl border border-slate-700/25 bg-[#0d1525]">
-                <div class="px-5 py-3 border-b border-slate-700/25 flex justify-between items-center bg-[#0a101e]">
+            <div class="overflow-hidden rounded-xl border border-slate-700/25 bg-ogame-panel">
+                <div class="px-5 py-3 border-b border-slate-700/25 flex justify-between items-center bg-ogame-surface">
                     <div class="flex items-center gap-2.5">
                         <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
                         <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">{{ t('strategy_roadmap') }}</h3>
                     </div>
                     <span class="px-2 py-0.5 rounded bg-white/[0.04] text-[10px] font-mono text-slate-500 border border-slate-700/20">
-                        {{ groupedSteps.length }} blocchi
+                        {{ groupedSteps.length }} {{ t('lbl_blocks') }}
                         <span v-if="groupedSteps.length !== result.steps.length" class="text-slate-700">({{ result.steps.length }} step)</span>
                     </span>
                 </div>
@@ -917,7 +919,7 @@ const typeSummary = computed(() => {
                 <!-- Desktop table -->
                 <div class="hidden md:block overflow-x-auto custom-scrollbar">
                     <table class="w-full text-xs">
-                        <thead class="bg-[#0a101e] text-slate-500 uppercase text-[9px] tracking-wider">
+                        <thead class="bg-ogame-surface text-slate-500 uppercase text-[9px] tracking-wider">
                             <tr>
                                 <th class="px-3 py-2 text-left font-semibold">#</th>
                                 <th class="px-3 py-2 text-left font-semibold">{{ t('strategy_th_type') }}</th>
@@ -953,7 +955,7 @@ const typeSummary = computed(() => {
                                 </td>
                                 <td class="px-3 py-2 font-mono text-slate-400">
                                     <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5 flex items-center gap-1">
-                                        <span class="px-1 rounded bg-slate-700/50 text-slate-500 font-mono font-bold text-[8px]">T{{ parseInt(s.researchId) % 100 }}</span>
+                                        <span class="px-1 rounded bg-slate-700/50 text-slate-500 font-mono font-bold text-[10px]">T{{ parseInt(s.researchId) % 100 }}</span>
                                         {{ s.researchName }}
                                     </div>
                                     {{ s.planetName || '—' }}
@@ -974,7 +976,7 @@ const typeSummary = computed(() => {
                 <div class="md:hidden p-3 space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
                     <div v-for="s in groupedSteps" :key="s.n"
                          class="rounded-lg border p-3"
-                         :class="s.count > 1 ? 'bg-emerald-500/[0.03] border-emerald-500/20' : 'bg-[#0a101e] border-slate-700/20'">
+                         :class="s.count > 1 ? 'bg-emerald-500/[0.03] border-emerald-500/20' : 'bg-ogame-surface border-slate-700/20'">
                         <div class="flex items-center justify-between mb-2">
                             <div class="flex items-center gap-1.5">
                                 <span class="text-[10px] font-mono text-slate-600">#{{ s.n }}</span>
@@ -1015,4 +1017,8 @@ const typeSummary = computed(() => {
 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.2); border-radius: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
 </style>

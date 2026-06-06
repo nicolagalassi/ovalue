@@ -3,7 +3,7 @@
 
     <!-- Loading skeleton -->
     <div v-if="loading && items.length === 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      <div v-for="n in 3" :key="n" class="bg-[#0d1525] border border-slate-700/25 rounded-xl p-4 space-y-3">
+      <div v-for="n in 3" :key="n" class="bg-ogame-panel border border-slate-700/25 rounded-xl p-4 space-y-3">
         <div class="skeleton h-3.5 w-16 rounded"></div>
         <div class="skeleton h-3 w-full rounded"></div>
         <div class="skeleton h-3 w-2/3 rounded"></div>
@@ -33,12 +33,12 @@
             :href="item.link"
             target="_blank"
             rel="noopener noreferrer"
-            class="news-card group relative rounded-xl overflow-hidden block bg-[#0d1525] transition-all duration-300 hover:-translate-y-0.5"
+            class="news-card group relative rounded-xl overflow-hidden block bg-ogame-panel transition-all duration-300 hover:-translate-y-0.5"
             :class="cardBorder(item)"
             :style="{ '--index': index }"
           >
             <!-- Category color top bar -->
-            <div class="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-400"
+            <div class="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                  :class="accentLine(item)"></div>
 
             <div class="p-4 flex flex-col gap-2 min-h-[110px]">
@@ -72,7 +72,7 @@
 
       <!-- Empty state -->
       <div v-if="visibleItems.length === 0"
-           class="py-8 flex flex-col items-center gap-3 border border-slate-700/20 rounded-xl bg-[#0d1525]/50">
+           class="py-8 flex flex-col items-center gap-3 border border-slate-700/20 rounded-xl bg-ogame-panel/50">
         <svg class="w-7 h-7 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.143 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
         </svg>

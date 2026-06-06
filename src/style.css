@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 body {
-    background-color: #070c18;
+    background-color: theme('colors.ogame.bg');
     background-image:
         radial-gradient(ellipse at 25% 0%,   rgba(15, 40, 90, 0.70)  0px, transparent 55%),
         radial-gradient(ellipse at 90% 8%,   rgba(35, 18, 80, 0.45)  0px, transparent 45%),
         radial-gradient(ellipse at 5%  88%,  rgba(8,  22, 58, 0.45)  0px, transparent 48%),
         radial-gradient(ellipse at 98% 82%,  rgba(22,  8, 60, 0.35)  0px, transparent 42%);
     background-attachment: fixed;
-    color: #e2e8f0;
+    color: theme('colors.ogame.text');
     min-height: 100vh;
 }
 
@@ -20,8 +20,8 @@ body::before {
     position: fixed;
     inset: 0;
     background-image:
-        radial-gradient(circle, rgba(255,255,255,0.032) 1px, transparent 1px),
-        radial-gradient(circle, rgba(255,255,255,0.018) 1px, transparent 1px);
+        radial-gradient(circle, rgba(255,255,255,0.018) 1px, transparent 1px),
+        radial-gradient(circle, rgba(255,255,255,0.010) 1px, transparent 1px);
     background-size: 88px 88px, 53px 53px;
     background-position: 0 0, 28px 42px;
     pointer-events: none;
@@ -35,12 +35,16 @@ body::before {
 
 /* Input Styles */
 .input-glass {
-    @apply bg-[#0a1020]/70 border border-slate-700/40 rounded-lg text-slate-100 placeholder-slate-600 focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 focus:bg-[#0d1525]/80 transition-all duration-200 shadow-inner;
+    @apply border border-slate-700/40 rounded-lg text-slate-100 placeholder-slate-600 focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 transition-all duration-200 shadow-inner;
+    background-color: rgb(10 16 30 / 0.7); /* ogame-surface @70% */
+}
+.input-glass:focus {
+    background-color: rgb(13 21 37 / 0.8); /* ogame-panel @80% */
 }
 
 /* Card Styles */
 .card-glass {
-    @apply bg-[#0d1525]/80 backdrop-blur-xl border border-slate-700/25 shadow-[0_4px_24px_rgba(0,0,0,0.4)] rounded-xl;
+    @apply bg-ogame-panel/90 border border-slate-700/25 shadow-[0_4px_24px_rgba(0,0,0,0.4)] rounded-xl;
     position: relative;
 }
 
@@ -60,8 +64,8 @@ select {
 }
 
 select option {
-    background-color: #0d1525;
-    color: #e2e8f0;
+    background-color: theme('colors.ogame.panel');
+    color: theme('colors.ogame.text');
 }
 
 /* ── HUD Section Label ─────────────────────────────────────────────────────

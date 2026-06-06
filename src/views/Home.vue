@@ -68,13 +68,13 @@ const expirationChips = computed(() => {
     <div class="flex-grow flex flex-col">
 
       <!-- ── HERO ──────────────────────────────────────────────────────────── -->
-      <div class="relative px-4 md:px-8 pt-8 md:pt-10 pb-4 flex flex-col items-center text-center overflow-hidden">
+      <div class="relative px-4 md:px-8 pt-4 md:pt-5 pb-3 flex flex-col items-center text-center overflow-hidden">
         <div class="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(14,40,90,0.4),transparent)] pointer-events-none"></div>
 
         <div class="hero-content relative z-10">
 
           <!-- Tagline + profile chips in a compact pill bar -->
-          <p class="text-sm text-slate-400 mb-4 leading-relaxed">
+          <p class="text-sm text-slate-400 mb-4 leading-relaxed max-w-lg mx-auto text-balance">
             {{ t('index_desc') }}
           </p>
 
@@ -82,7 +82,7 @@ const expirationChips = computed(() => {
             <div v-if="activeProfile.production?.daily" class="profile-chip">
               <span class="chip-dot bg-amber-400/60"></span>
               <span class="text-amber-300/80 font-medium">{{ formatNum(activeProfile.production.daily) }}</span>
-              <span class="text-slate-500">met/d</span>
+              <span class="text-slate-500">{{ t('lbl_met_day') }}</span>
             </div>
             <router-link v-for="chip in expirationChips" :key="chip.name" to="/expirations"
               class="profile-chip cursor-pointer transition-colors"
@@ -99,26 +99,22 @@ const expirationChips = computed(() => {
       </div>
 
       <!-- ── TOOL CARDS ──────────────────────────────────────────────────── -->
-      <div class="px-4 md:px-6 pb-4 md:pb-6 flex-grow flex items-center">
+      <div class="px-4 md:px-6 pt-2 pb-6 md:pb-8">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-6xl mx-auto">
 
           <!-- Production Core -->
-          <router-link to="/metal" class="tool-card card-1 group relative rounded-2xl overflow-hidden block bg-[#0d1525] hover:bg-[#0f1a30] transition-colors duration-300">
-            <div class="corner-tl absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-sky-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-sky-400/60"></div>
-            <div class="corner-tr absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-sky-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-sky-400/60"></div>
-            <div class="corner-bl absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-sky-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-sky-400/60"></div>
-            <div class="corner-br absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-sky-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-sky-400/60"></div>
+          <router-link to="/metal" class="tool-card card-1 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-mine transition-colors duration-300">
             <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
             <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
-              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-sky-950/60 border border-sky-500/25 flex items-center justify-center group-hover:border-sky-400/50 group-hover:bg-sky-950/80 group-hover:shadow-[0_0_30px_rgba(56,189,248,0.12)] transition-all duration-400">
+              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-sky-950/60 border border-sky-500/25 flex items-center justify-center group-hover:border-sky-400/50 group-hover:bg-sky-950/80 group-hover:shadow-[0_0_30px_rgba(56,189,248,0.12)] transition-all duration-300">
                 <svg class="w-10 h-10 md:w-12 md:h-12 text-sky-400/70 group-hover:text-sky-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
               </div>
               <div class="flex-grow">
                 <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-sky-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_metal_title') }}</h2>
                 <p class="text-sm text-slate-500 leading-snug px-2">{{ t('card_metal_desc') }}</p>
                 <div v-if="activeProfile?.production?.daily" class="mt-3 text-sm text-sky-400/70 font-medium">
-                  {{ formatNum(activeProfile.production.daily) }} <span class="text-slate-600 font-normal">met/d</span>
+                  {{ formatNum(activeProfile.production.daily) }} <span class="text-slate-600 font-normal">{{ t('lbl_met_day') }}</span>
                 </div>
               </div>
               <span class="text-xs font-semibold text-slate-600 group-hover:text-sky-400 uppercase tracking-widest transition-colors flex items-center gap-1">
@@ -128,22 +124,18 @@ const expirationChips = computed(() => {
           </router-link>
 
           <!-- Pack Exchange -->
-          <router-link to="/pack" class="tool-card card-2 group relative rounded-2xl overflow-hidden block bg-[#0d1525] hover:bg-[#130f08] transition-colors duration-300">
-            <div class="corner-tl absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-amber-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-amber-400/60"></div>
-            <div class="corner-tr absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-amber-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-amber-400/60"></div>
-            <div class="corner-bl absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-amber-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-amber-400/60"></div>
-            <div class="corner-br absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-amber-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-amber-400/60"></div>
+          <router-link to="/pack" class="tool-card card-2 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-pack transition-colors duration-300">
             <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
             <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
-              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-amber-950/60 border border-amber-500/25 flex items-center justify-center group-hover:border-amber-400/50 group-hover:bg-amber-950/80 group-hover:shadow-[0_0_30px_rgba(251,191,36,0.12)] transition-all duration-400">
+              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-amber-950/60 border border-amber-500/25 flex items-center justify-center group-hover:border-amber-400/50 group-hover:bg-amber-950/80 group-hover:shadow-[0_0_30px_rgba(251,191,36,0.12)] transition-all duration-300">
                 <svg class="w-10 h-10 md:w-12 md:h-12 text-amber-400/70 group-hover:text-amber-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
               <div class="flex-grow">
                 <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-amber-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_pack_title') }}</h2>
                 <p class="text-sm text-slate-500 leading-snug px-2">{{ t('card_pack_desc') }}</p>
                 <div v-if="activeProfile?.packExchange?.queue?.length" class="mt-3 text-sm text-amber-400/70 font-medium">
-                  {{ activeProfile.packExchange.queue.length }} <span class="text-slate-600 font-normal">in coda</span>
+                  {{ activeProfile.packExchange.queue.length }} <span class="text-slate-600 font-normal">{{ t('lbl_in_queue') }}</span>
                 </div>
               </div>
               <span class="text-xs font-semibold text-slate-600 group-hover:text-amber-400 uppercase tracking-widest transition-colors flex items-center gap-1">
@@ -153,22 +145,18 @@ const expirationChips = computed(() => {
           </router-link>
 
           <!-- Shopping List -->
-          <router-link to="/shopping" class="tool-card card-3 group relative rounded-2xl overflow-hidden block bg-[#0d1525] hover:bg-[#0e0c1a] transition-colors duration-300">
-            <div class="corner-tl absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-violet-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-violet-400/60"></div>
-            <div class="corner-tr absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-violet-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-violet-400/60"></div>
-            <div class="corner-bl absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-violet-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-violet-400/60"></div>
-            <div class="corner-br absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-violet-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-violet-400/60"></div>
+          <router-link to="/shopping" class="tool-card card-3 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-shopping transition-colors duration-300">
             <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
             <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
-              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-violet-950/60 border border-violet-500/25 flex items-center justify-center group-hover:border-violet-400/50 group-hover:bg-violet-950/80 group-hover:shadow-[0_0_30px_rgba(139,92,246,0.12)] transition-all duration-400">
+              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-violet-950/60 border border-violet-500/25 flex items-center justify-center group-hover:border-violet-400/50 group-hover:bg-violet-950/80 group-hover:shadow-[0_0_30px_rgba(139,92,246,0.12)] transition-all duration-300">
                 <svg class="w-10 h-10 md:w-12 md:h-12 text-violet-400/70 group-hover:text-violet-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
               </div>
               <div class="flex-grow">
                 <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-violet-300 transition-colors uppercase tracking-tight mb-2">{{ t('shopping_title') }}</h2>
                 <p class="text-sm text-slate-500 leading-snug px-2">{{ t('card_shopping_desc') }}</p>
                 <div v-if="activeProfile?.shoppingList?.cart?.length" class="mt-3 text-sm text-violet-400/70 font-medium">
-                  {{ activeProfile.shoppingList.cart.length }} <span class="text-slate-600 font-normal">nel carrello</span>
+                  {{ activeProfile.shoppingList.cart.length }} <span class="text-slate-600 font-normal">{{ t('lbl_in_cart') }}</span>
                 </div>
               </div>
               <span class="text-xs font-semibold text-slate-600 group-hover:text-violet-400 uppercase tracking-widest transition-colors flex items-center gap-1">
@@ -178,15 +166,11 @@ const expirationChips = computed(() => {
           </router-link>
 
           <!-- Production Planner -->
-          <router-link to="/strategy" class="tool-card card-4 group relative rounded-2xl overflow-hidden block bg-[#0d1525] hover:bg-[#091209] transition-colors duration-300">
-            <div class="corner-tl absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
-            <div class="corner-tr absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
-            <div class="corner-bl absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
-            <div class="corner-br absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-emerald-500/25 transition-all duration-300 group-hover:w-7 group-hover:h-7 group-hover:border-emerald-400/60"></div>
+          <router-link to="/strategy" class="tool-card card-4 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-strategy transition-colors duration-300">
             <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
             <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
-              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-emerald-950/60 border border-emerald-500/25 flex items-center justify-center group-hover:border-emerald-400/50 group-hover:bg-emerald-950/80 group-hover:shadow-[0_0_30px_rgba(52,211,153,0.12)] transition-all duration-400">
+              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-emerald-950/60 border border-emerald-500/25 flex items-center justify-center group-hover:border-emerald-400/50 group-hover:bg-emerald-950/80 group-hover:shadow-[0_0_30px_rgba(52,211,153,0.12)] transition-all duration-300">
                 <svg class="w-10 h-10 md:w-12 md:h-12 text-emerald-400/70 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
               </div>
               <div class="flex-grow">
@@ -213,10 +197,9 @@ const expirationChips = computed(() => {
 
           <!-- OStats -->
           <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer"
-             class="ext-card group relative rounded-xl overflow-hidden block bg-[#0d1525]">
-            <div class="corner-tl absolute top-0 left-0 w-4 h-4 border-t border-l border-slate-600/30 transition-all duration-300 group-hover:w-5 group-hover:h-5 group-hover:border-sky-500/40"></div>
-            <div class="corner-br absolute bottom-0 right-0 w-4 h-4 border-b border-r border-slate-600/30 transition-all duration-300 group-hover:w-5 group-hover:h-5 group-hover:border-sky-500/40"></div>
-            <div class="border border-slate-700/25 hover:border-slate-600/50 rounded-xl transition-all duration-250 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
+             class="ext-card group relative rounded-xl overflow-hidden block bg-ogame-panel">
+            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/35 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400"></div>
+            <div class="border border-slate-700/25 hover:border-sky-500/25 rounded-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
               <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-slate-800/60 border border-slate-700/40 p-2">
                 <img src="/Immagini%20Ogame/ostats-logo-v3.png" :alt="t('card_ostats_title')" class="h-full w-full object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
               </div>
@@ -230,10 +213,9 @@ const expirationChips = computed(() => {
 
           <!-- OGame Utilities -->
           <a href="https://www.ogameutilities.it/index.html" target="_blank" rel="noopener noreferrer"
-             class="ext-card group relative rounded-xl overflow-hidden block bg-[#0d1525]">
-            <div class="corner-tl absolute top-0 left-0 w-4 h-4 border-t border-l border-slate-600/30 transition-all duration-300 group-hover:w-5 group-hover:h-5 group-hover:border-violet-500/40"></div>
-            <div class="corner-br absolute bottom-0 right-0 w-4 h-4 border-b border-r border-slate-600/30 transition-all duration-300 group-hover:w-5 group-hover:h-5 group-hover:border-violet-500/40"></div>
-            <div class="border border-slate-700/25 hover:border-slate-600/50 rounded-xl transition-all duration-250 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
+             class="ext-card group relative rounded-xl overflow-hidden block bg-ogame-panel">
+            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/35 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400"></div>
+            <div class="border border-slate-700/25 hover:border-violet-500/25 rounded-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
               <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-slate-800/60 border border-slate-700/40 p-2">
                 <img src="/Immagini%20Ogame/ogame%20util.ico" :alt="t('card_ou_title')" class="h-full w-full object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
               </div>
@@ -247,10 +229,9 @@ const expirationChips = computed(() => {
 
           <!-- Segnala un problema -->
           <router-link to="/settings"
-             class="ext-card group relative rounded-xl overflow-hidden block bg-[#0d1525]">
-            <div class="corner-tl absolute top-0 left-0 w-4 h-4 border-t border-l border-slate-600/30 transition-all duration-300 group-hover:w-5 group-hover:h-5 group-hover:border-rose-500/40"></div>
-            <div class="corner-br absolute bottom-0 right-0 w-4 h-4 border-b border-r border-slate-600/30 transition-all duration-300 group-hover:w-5 group-hover:h-5 group-hover:border-rose-500/40"></div>
-            <div class="border border-slate-700/25 hover:border-rose-500/25 rounded-xl transition-all duration-250 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
+             class="ext-card group relative rounded-xl overflow-hidden block bg-ogame-panel">
+            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rose-500/35 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400"></div>
+            <div class="border border-slate-700/25 hover:border-rose-500/25 rounded-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
               <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-rose-950/40 border border-rose-700/20 group-hover:border-rose-600/40 transition-colors">
                 <svg class="w-5 h-5 text-rose-500/70 group-hover:text-rose-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
               </div>
@@ -271,6 +252,8 @@ const expirationChips = computed(() => {
         <!-- Toggle header -->
         <button
           @click="showNewsFeed = !showNewsFeed"
+          :aria-expanded="showNewsFeed"
+          aria-controls="news-feed-panel"
           class="news-toggle group w-full flex items-center gap-3 py-3 transition-colors"
           :class="showNewsFeed ? 'text-slate-300' : 'text-slate-600 hover:text-slate-400'"
         >
@@ -285,14 +268,14 @@ const expirationChips = computed(() => {
 
         <!-- News content — animato -->
         <Transition
-          enter-active-class="transition-all duration-400 ease-out overflow-hidden"
+          enter-active-class="transition-all duration-300 ease-out overflow-hidden"
           enter-from-class="opacity-0 max-h-0"
           enter-to-class="opacity-100 max-h-[2000px]"
-          leave-active-class="transition-all duration-250 ease-in overflow-hidden"
+          leave-active-class="transition-all duration-200 ease-in overflow-hidden"
           leave-from-class="opacity-100 max-h-[2000px]"
           leave-to-class="opacity-0 max-h-0"
         >
-          <div v-if="showNewsFeed" class="pt-3">
+          <div v-if="showNewsFeed" id="news-feed-panel" class="pt-3">
             <NewsFeed />
           </div>
         </Transition>
@@ -343,5 +326,16 @@ const expirationChips = computed(() => {
 .card-3 { animation: cardIn 0.5s ease-out 0.4s both; }
 .card-4 { animation: cardIn 0.5s ease-out 0.5s both; }
 .tool-card { cursor: pointer; }
-.tool-card:focus-visible { outline: 1px solid rgba(96,165,250,0.4); outline-offset: 2px; }
+.tool-card:focus-visible { outline: 2px solid rgba(96,165,250,0.9); outline-offset: 3px; }
+
+/* ── Focus visible ───────────────────────────────────────────────── */
+.profile-chip:focus-visible { outline: 2px solid rgba(96,165,250,0.9); outline-offset: 2px; border-radius: 999px; }
+.news-toggle:focus-visible { outline: 2px solid rgba(96,165,250,0.9); outline-offset: 2px; border-radius: 4px; }
+
+/* ── Reduced motion ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .hero-content { animation: none; }
+  .card-1, .card-2, .card-3, .card-4 { animation: none; }
+  .chip-dot { animation: none !important; }
+}
 </style>

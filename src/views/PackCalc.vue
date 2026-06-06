@@ -288,9 +288,52 @@ const euroOptimization = computed(() => {
     return { totalCost: optimalResult.totalCost, packList: optimalResult.packList, totalPurchasedMO };
 });
 
-const resetFields = () => { 
+const resetFields = () => {
     queue.value = []; inputs.metal = 0; inputs.crystal = 0; inputs.deuterium = 0; stock.metal = 0; stock.crystal = 0; stock.deuterium = 0;
     settings.shopDiscount = 0; settings.moBonus = 0; settings.smartRounding = false;
+};
+
+// --- SHARE / COPY ---
+const resultCopied = ref(false);
+
+const copyShareText = async () => {
+    const n = (v) => new Intl.NumberFormat('it-IT').format(Math.floor(v));
+    const c = calculation.value;
+    const eo = euroOptimization.value;
+    const lines = [];
+
+    lines.push(`📦 Pack Calc · OValue`);
+    lines.push('');
+
+    if (queue.value.length > 0) {
+        lines.push(`**${t('lbl_queue_list')}** (${queue.value.length})`);
+        for (const item of queue.value) {
+            const name = t(item.key);
+            const levelPart = item.cat === 'fleet'
+                ? `×${n(item.amount)}`
+                : `${t('lbl_level_abbr')} ${item.level}${item.amount > 1 ? ` ×${item.amount}` : ''}`;
+            const resParts = [];
+            if (item.m > 0) resParts.push(`M ${n(item.m)}`);
+            if (item.c > 0) resParts.push(`C ${n(item.c)}`);
+            if (item.d > 0) resParts.push(`D ${n(item.d)}`);
+            lines.push(`▸ ${name}  ${levelPart}  ${resParts.join(' · ')}`);
+        }
+        lines.push('');
+    }
+
+    lines.push(`${t('lbl_pack_val')}: **${n(settings.packValue)}** M`);
+    lines.push(`${t('lbl_packs_needed')}: **${n(c.packsNeeded)}**  ·  ${t('lbl_mo_needed')}: **${n(c.totalMO)}** ${t('lbl_dm')}`);
+
+    if (eo.totalCost > 0) {
+        const breakdown = eo.packList.map(p => `${p.count}×${p.pack.cost}€`).join(' + ');
+        lines.push(`${t('lbl_total')}: **${eo.totalCost}€** (${breakdown})`);
+    }
+
+    try {
+        await navigator.clipboard.writeText(lines.join('\n'));
+        resultCopied.value = true;
+        setTimeout(() => { resultCopied.value = false; }, 2000);
+    } catch { /* clipboard non disponibile */ }
 };
 </script>
 
@@ -298,17 +341,17 @@ const resetFields = () => {
   <div class="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-12">
     <!-- Page Header -->
     <div class="mb-10 text-center relative">
-        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase">
             {{ t('pack_calc_title') }}
         </h1>
         <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-amber-500 to-amber-400 mx-auto rounded-full opacity-70"></div>
     </div>
 
     <!-- Intro Section -->
-    <div class="card-glass mb-8 border-l-4 border-l-amber-500/40 bg-amber-500/[0.03]">
+    <div class="card-glass mb-8 bg-amber-500/[0.03]">
 
         <!-- Mobile: collapsed header -->
-        <button @click="showIntro = !showIntro" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-amber-400">
+        <button @click="showIntro = !showIntro" :aria-expanded="showIntro" aria-controls="pack-intro-content" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-amber-400">
             <div class="flex items-center gap-2">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <span class="text-xs font-black uppercase tracking-widest">{{ t('pack_calc_title') }}</span>
@@ -317,12 +360,12 @@ const resetFields = () => {
         </button>
 
         <!-- Collapsible body on mobile, always visible on desktop -->
-        <div class="p-6 flex items-start gap-4" :class="showIntro ? 'block' : 'hidden md:flex'">
+        <div id="pack-intro-content" class="p-6 flex items-start gap-4" :class="showIntro ? 'block' : 'hidden md:flex'">
             <div class="hidden md:block p-3 rounded-xl bg-amber-500/[0.08] text-amber-400 flex-shrink-0">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <div>
-                <p class="text-sm text-gray-300 leading-relaxed font-medium">{{ t('pack_calc_intro') }}</p>
+                <p class="text-sm text-slate-300 leading-relaxed font-medium">{{ t('pack_calc_intro') }}</p>
             </div>
         </div>
     </div>
@@ -331,10 +374,34 @@ const resetFields = () => {
         
         <div class="lg:col-span-2 space-y-8">
 
-            <!-- Impostazioni Forme di Vita -->
-            <div class="card-glass p-6 border-l-2 border-l-amber-500/40 bg-amber-500/[0.02]">
+            <!-- [→] Pack Value — punto di partenza -->
+            <div class="card-glass p-5 bg-amber-500/[0.03] border border-amber-500/20">
+                <div class="flex items-center gap-2.5 mb-4">
+                    <div class="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-400/40 flex-shrink-0">
+                        <svg class="w-2.5 h-2.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </div>
+                    <label for="pack-val" class="text-[11px] font-black text-amber-400 uppercase tracking-widest font-mono">{{ t('lbl_pack_val') }}</label>
+                </div>
+                <div class="relative">
+                    <input id="pack-val" type="text" v-model="formPackVal" @focus="$event.target.select()"
+                           class="input-glass w-full px-4 py-3 text-white font-black text-center text-2xl border-amber-500/40 focus:border-amber-400 bg-black/60 shadow-inner pr-14">
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-400 font-bold font-mono bg-amber-500/[0.12] px-2 py-1 rounded">MET</div>
+                </div>
+                <p class="text-[10px] uppercase font-bold text-amber-400/50 mt-2 text-center">
+                    <span v-if="isAutoLoaded" class="text-green-400 flex items-center justify-center gap-1">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        {{ t('pack_source_auto') }}
+                    </span>
+                    <span v-else>{{ t('pack_source_manual') }}</span>
+                </p>
+            </div>
+
+            <!-- [1] Impostazioni Forme di Vita -->
+            <div class="card-glass p-6 bg-amber-500/[0.02]">
                 <div class="flex items-center gap-2.5 mb-5">
-                    <span class="w-[2px] h-4 bg-amber-400/60 rounded-full flex-shrink-0"></span>
+                    <span class="w-5 h-5 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-[9px] font-black text-amber-400 flex-shrink-0">1</span>
                     <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">{{ t('lf_settings_title') }}</h3>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -345,12 +412,12 @@ const resetFields = () => {
                                 <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-7h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
                             </div>
                             <div>
-                                <label class="block text-[11px] uppercase font-black text-amber-400 tracking-wider leading-none">{{ t('lbl_min_level_settings') }}</label>
+                                <label for="pc-min-level" class="block text-[11px] uppercase font-black text-amber-400 tracking-wider leading-none">{{ t('lbl_min_level_settings') }}</label>
                                 <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_min_desc_settings') }}</span>
                             </div>
                         </div>
                         <div class="relative">
-                            <input type="number" v-model.number="settings.minLevel" @focus="$event.target.select()" placeholder="0" min="0" class="input-glass w-full px-3 py-2 text-sm font-mono border-amber-500/25 focus:border-amber-400 bg-black/20 pr-10">
+                            <input id="pc-min-level" type="number" v-model.number="settings.minLevel" @focus="$event.target.select()" placeholder="0" min="0" class="input-glass w-full px-3 py-2 text-sm font-mono border-amber-500/25 focus:border-amber-400 bg-black/20 pr-10">
                             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-amber-400/50">LVL</span>
                         </div>
                         <p class="text-[10px] text-amber-400/60 mt-1 italic">–{{ Math.min(50, settings.minLevel * 0.5).toFixed(1) }}% {{ t('lbl_bonus_mines_only') }}</p>
@@ -363,12 +430,12 @@ const resetFields = () => {
                                 <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.288a2 2 0 01-2.071 0l-.628-.288a6 6 0 00-3.86-.517l-2.387.477a2 2 0 00-1.022.547V21a1 1 0 001.25.97l2.427-.607a6 6 0 013.623.504l.107.054a2 2 0 001.764 0l.107-.054a6 6 0 013.623-.504l2.427.607A1 1 0 0021 21v-5.572z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                             </div>
                             <div>
-                                <label class="block text-[11px] uppercase font-semibold text-sky-400 tracking-wider leading-none">{{ t('lbl_lf_rsr_lab') }}</label>
+                                <label for="pc-lf-lab" class="block text-[11px] uppercase font-semibold text-sky-400 tracking-wider leading-none">{{ t('lbl_lf_rsr_lab') }}</label>
                                 <span class="text-[10px] text-gray-500 font-medium">{{ t('lbl_lf_rsr_lab_desc') }}</span>
                             </div>
                         </div>
                         <div class="relative">
-                            <input type="number" v-model.number="settings.lfRsrLabLevel" @focus="$event.target.select()" placeholder="0" min="0" max="100" class="input-glass w-full px-3 py-2 text-sm font-mono border-sky-500/25 focus:border-sky-500/50 bg-black/20 pr-10">
+                            <input id="pc-lf-lab" type="number" v-model.number="settings.lfRsrLabLevel" @focus="$event.target.select()" placeholder="0" min="0" max="100" class="input-glass w-full px-3 py-2 text-sm font-mono border-sky-500/25 focus:border-sky-500/50 bg-black/20 pr-10">
                             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-sky-500/50">LVL</span>
                         </div>
                         <p class="text-[10px] text-sky-400/60 mt-1 italic">–{{ Math.min(25, settings.lfRsrLabLevel * 0.25).toFixed(2) }}% {{ t('lbl_bonus_lf_res_only') }}</p>
@@ -376,53 +443,53 @@ const resetFields = () => {
                 </div>
             </div>
 
-            <div class="card-glass p-6 relative overflow-hidden group border-l-2 border-l-emerald-500/50">
+            <div class="card-glass p-6 relative overflow-hidden group">
                 <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2.5 uppercase tracking-wider">
-                    <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
+                    <span class="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-[9px] font-black text-emerald-400 flex-shrink-0">2</span>
                     {{ t('builder_title') }}
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
                     <div class="md:col-span-1">
-                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_category') }}</label>
-                        <select v-model="builder.cat" class="input-glass w-full px-2 py-2 text-sm bg-black/40">
-                            <option value="resources" class="bg-[#0d1525] text-white">{{ t('cat_resources') }}</option>
-                            <option value="facilities" class="bg-[#0d1525] text-white">{{ t('cat_facilities') }}</option>
-                            <option value="research" class="bg-[#0d1525] text-white">{{ t('cat_research') }}</option>
-                            <option value="fleet" class="bg-[#0d1525] text-white">{{ t('cat_fleet') }}</option>
+                        <label for="pc-builder-cat" class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_category') }}</label>
+                        <select id="pc-builder-cat" v-model="builder.cat" class="input-glass w-full px-2 py-2 text-sm bg-black/40">
+                            <option value="resources" class="bg-ogame-panel text-white">{{ t('cat_resources') }}</option>
+                            <option value="facilities" class="bg-ogame-panel text-white">{{ t('cat_facilities') }}</option>
+                            <option value="research" class="bg-ogame-panel text-white">{{ t('cat_research') }}</option>
+                            <option value="fleet" class="bg-ogame-panel text-white">{{ t('cat_fleet') }}</option>
                             
                             <!-- LifeForms -->
-                            <option value="lf_humans" class="bg-[#0d1525] text-blue-300 font-bold">{{ t('cat_lf_humans') }} — {{ t('cat_lf_buildings') }}</option>
-                            <option value="lf_humans_res" class="bg-[#0d1525] text-blue-300">{{ t('cat_lf_humans') }} — {{ t('cat_research') }}</option>
+                            <option value="lf_humans" class="bg-ogame-panel text-blue-300 font-bold">{{ t('cat_lf_humans') }} — {{ t('cat_lf_buildings') }}</option>
+                            <option value="lf_humans_res" class="bg-ogame-panel text-blue-300">{{ t('cat_lf_humans') }} — {{ t('cat_research') }}</option>
 
-                            <option value="lf_rocktal" class="bg-[#0d1525] text-orange-400 font-bold">{{ t('cat_lf_rocktal') }} — {{ t('cat_lf_buildings') }}</option>
-                            <option value="lf_rocktal_res" class="bg-[#0d1525] text-orange-400">{{ t('cat_lf_rocktal') }} — {{ t('cat_research') }}</option>
+                            <option value="lf_rocktal" class="bg-ogame-panel text-orange-400 font-bold">{{ t('cat_lf_rocktal') }} — {{ t('cat_lf_buildings') }}</option>
+                            <option value="lf_rocktal_res" class="bg-ogame-panel text-orange-400">{{ t('cat_lf_rocktal') }} — {{ t('cat_research') }}</option>
 
-                            <option value="lf_mecha" class="bg-[#0d1525] text-gray-300 font-bold">{{ t('cat_lf_mecha') }} — {{ t('cat_lf_buildings') }}</option>
-                            <option value="lf_mecha_res" class="bg-[#0d1525] text-gray-300">{{ t('cat_lf_mecha') }} — {{ t('cat_research') }}</option>
+                            <option value="lf_mecha" class="bg-ogame-panel text-gray-300 font-bold">{{ t('cat_lf_mecha') }} — {{ t('cat_lf_buildings') }}</option>
+                            <option value="lf_mecha_res" class="bg-ogame-panel text-gray-300">{{ t('cat_lf_mecha') }} — {{ t('cat_research') }}</option>
 
-                            <option value="lf_kaelesh" class="bg-[#0d1525] text-purple-400 font-bold">{{ t('cat_lf_kaelesh') }} — {{ t('cat_lf_buildings') }}</option>
-                            <option value="lf_kaelesh_res" class="bg-[#0d1525] text-purple-400">{{ t('cat_lf_kaelesh') }} — {{ t('cat_research') }}</option>
+                            <option value="lf_kaelesh" class="bg-ogame-panel text-purple-400 font-bold">{{ t('cat_lf_kaelesh') }} — {{ t('cat_lf_buildings') }}</option>
+                            <option value="lf_kaelesh_res" class="bg-ogame-panel text-purple-400">{{ t('cat_lf_kaelesh') }} — {{ t('cat_research') }}</option>
                         </select>
                     </div>
                     <div class="md:col-span-1">
-                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_element') }}</label>
-                        <select v-model="builder.item" class="input-glass w-full px-2 py-2 text-sm bg-black/40">
-                            <option v-for="(val, key) in currentItems" :key="key" :value="key" class="bg-[#0d1525] text-white">{{ t(key) }}</option>
+                        <label for="pc-builder-item" class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_element') }}</label>
+                        <select id="pc-builder-item" v-model="builder.item" class="input-glass w-full px-2 py-2 text-sm bg-black/40">
+                            <option v-for="(val, key) in currentItems" :key="key" :value="key" class="bg-ogame-panel text-white">{{ t(key) }}</option>
                         </select>
                     </div>
                     <div class="md:col-span-1" v-if="builder.cat !== 'fleet'">
-                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1 lg:truncate" :title="t('lbl_target_level')">{{ t('lbl_target_level') }}</label>
-                        <input type="number" v-model.number="builder.level" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono">
+                        <label for="pc-builder-level" class="block text-[10px] uppercase font-bold text-gray-400 mb-1 lg:truncate" :title="t('lbl_target_level')">{{ t('lbl_target_level') }}</label>
+                        <input id="pc-builder-level" type="number" v-model.number="builder.level" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono">
                     </div>
                     <div class="md:col-span-1" v-if="builder.cat !== 'fleet'">
-                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1 lg:truncate" :title="t('lbl_start_level')">{{ t('lbl_start_level') }}</label>
-                        <input type="number" v-model.number="builder.startLevel" @focus="$event.target.select()" min="0" class="input-glass w-full px-2 py-2 text-sm font-mono">
+                        <label for="pc-builder-start" class="block text-[10px] uppercase font-bold text-gray-400 mb-1 lg:truncate" :title="t('lbl_start_level')">{{ t('lbl_start_level') }}</label>
+                        <input id="pc-builder-start" type="number" v-model.number="builder.startLevel" @focus="$event.target.select()" min="0" class="input-glass w-full px-2 py-2 text-sm font-mono">
                     </div>
                     <div class="md:col-span-1 relative">
-                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ builder.cat === 'fleet' ? t('lbl_quantity') : t('lbl_planets') }}</label>
+                        <label for="pc-builder-mult" class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ builder.cat === 'fleet' ? t('lbl_quantity') : t('lbl_planets') }}</label>
                         <div class="flex items-center">
                             <span v-if="builder.cat !== 'fleet'" class="absolute left-3 text-gray-500 text-sm font-bold">x</span>
-                            <input type="number" v-model.number="builder.mult" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono" :class="{'pl-6': builder.cat !== 'fleet'}">
+                            <input id="pc-builder-mult" type="number" v-model.number="builder.mult" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono" :class="{'pl-6': builder.cat !== 'fleet'}">
                         </div>
                     </div>
                 </div>
@@ -434,12 +501,12 @@ const resetFields = () => {
                 </div>            </div>
 
             <!-- Lista Costruzioni -->
-            <div class="overflow-hidden rounded-xl border border-slate-700/25 bg-[#0d1525]">
+            <div class="overflow-hidden rounded-xl border border-slate-700/25 bg-ogame-panel">
 
                 <!-- Header -->
-                <div class="px-5 py-3 border-b border-slate-700/25 flex justify-between items-center bg-[#0a101e]">
+                <div class="px-5 py-3 border-b border-slate-700/25 flex justify-between items-center bg-ogame-surface">
                     <div class="flex items-center gap-2.5">
-                        <span class="w-[2px] h-4 bg-sky-400/60 rounded-full flex-shrink-0"></span>
+                        <span class="w-5 h-5 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-[9px] font-black text-sky-400 flex-shrink-0">3</span>
                         <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">{{ t('lbl_queue_list') }}</h3>
                     </div>
                     <div class="flex items-center gap-3">
@@ -463,13 +530,10 @@ const resetFields = () => {
                     <!-- Items grid -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div v-for="(item, index) in queue" :key="index"
-                             class="group/item relative rounded-xl bg-[#0a101e] border border-slate-700/20 hover:border-slate-600/40 transition-all duration-200 overflow-hidden">
+                             class="group/item relative rounded-xl bg-ogame-surface border transition-all duration-200 overflow-hidden"
+                             :class="item.cat === 'fleet' ? 'border-sky-500/20 hover:border-sky-500/40' : 'border-amber-500/15 hover:border-amber-500/35'">
 
-                            <!-- Left accent bar -->
-                            <div class="absolute inset-y-0 left-0 w-[2px] rounded-l-xl"
-                                 :class="item.cat === 'fleet' ? 'bg-sky-500/60' : 'bg-amber-500/60'"></div>
-
-                            <div class="pl-4 pr-3 py-3">
+                            <div class="pl-3 pr-3 py-3">
                                 <!-- Name + remove -->
                                 <div class="flex justify-between items-start gap-2 mb-2.5">
                                     <div class="min-w-0">
@@ -491,7 +555,7 @@ const resetFields = () => {
                                 </div>
 
                                 <!-- Resources -->
-                                <div class="space-y-1.5 bg-[#070c18]/50 rounded-lg p-2.5 border border-slate-700/15">
+                                <div class="space-y-1.5 bg-ogame-bg/50 rounded-lg p-2.5 border border-slate-700/15">
                                     <div class="flex justify-between items-center">
                                         <span class="flex items-center gap-1.5 text-[11px] text-slate-500">
                                             <span class="w-1.5 h-1.5 rounded-full bg-slate-500 flex-shrink-0"></span>
@@ -520,11 +584,11 @@ const resetFields = () => {
                 </div>
             </div>
 
-            <div class="card-glass p-6 border-l-2 border-l-sky-500/40">
+            <div class="card-glass p-6">
 
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2.5">
-                        <span class="w-[2px] h-4 bg-sky-400/60 rounded-full flex-shrink-0"></span>
+                        <span class="w-5 h-5 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-[9px] font-black text-sky-400 flex-shrink-0">4</span>
                         {{ t('lbl_costs') }} / {{ t('lbl_stock') }}
                     </h3>
                     <span class="text-[10px] bg-sky-900/20 text-sky-400/70 px-2 py-1 rounded border border-sky-500/15">{{ t('lbl_stock') }}</span>
@@ -532,7 +596,7 @@ const resetFields = () => {
                 
                 <div class="flex flex-col gap-4 mt-6">
                     <!-- Metal -->
-                    <div class="bg-[#0a101e] rounded-xl p-3 md:p-4 border border-slate-700/20 relative overflow-hidden group">
+                    <div class="bg-ogame-surface rounded-xl p-3 md:p-4 border border-slate-700/20 relative overflow-hidden group">
                         <div class="absolute inset-0 bg-gradient-to-r from-gray-500/0 via-gray-500/5 to-gray-500/0 opacity-0 group-hover:opacity-100 transition duration-500"></div>
                         <div class="flex items-center justify-between mb-3 relative z-10">
                             <div class="flex items-center gap-2">
@@ -544,18 +608,18 @@ const resetFields = () => {
                         </div>
                         <div class="flex flex-col sm:grid sm:grid-cols-2 gap-2.5 sm:gap-4 relative z-10">
                             <div>
-                                <label class="block text-[10px] font-semibold text-slate-500 mb-1.5">{{ t('lbl_cost_list') }}</label>
-                                <input type="text" v-model="formMet" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-gray-200 text-[13px] md:text-sm bg-black/40">
+                                <label for="pc-cost-met" class="block text-[10px] font-semibold text-slate-500 mb-1.5">{{ t('lbl_cost_list') }}</label>
+                                <input id="pc-cost-met" type="text" v-model="formMet" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-gray-200 text-[13px] md:text-sm bg-black/40">
                             </div>
                             <div>
-                                <label class="block text-[10px] font-semibold text-emerald-500/60 mb-1.5">{{ t('lbl_stock_avail') }}</label>
-                                <input type="text" v-model="stockMet" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-emerald-300/70 border-emerald-900/20 focus:border-emerald-500/50 text-[13px] md:text-sm bg-black/40">
+                                <label for="pc-stock-met" class="block text-[10px] font-semibold text-emerald-500/60 mb-1.5">{{ t('lbl_stock_avail') }}</label>
+                                <input id="pc-stock-met" type="text" v-model="stockMet" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-emerald-300/70 border-emerald-900/20 focus:border-emerald-500/50 text-[13px] md:text-sm bg-black/40">
                             </div>
                         </div>
                     </div>
 
                     <!-- Crystal -->
-                    <div class="bg-[#0a101e] rounded-xl p-3 md:p-4 border border-slate-700/20 relative overflow-hidden group">
+                    <div class="bg-ogame-surface rounded-xl p-3 md:p-4 border border-slate-700/20 relative overflow-hidden group">
                         <div class="absolute inset-0 bg-gradient-to-r from-sky-500/0 via-sky-500/5 to-sky-500/0 opacity-0 group-hover:opacity-100 transition duration-500"></div>
                         <div class="flex items-center justify-between mb-3 relative z-10">
                             <div class="flex items-center gap-2">
@@ -568,18 +632,18 @@ const resetFields = () => {
                         </div>
                         <div class="flex flex-col sm:grid sm:grid-cols-2 gap-2.5 sm:gap-4 relative z-10">
                             <div>
-                                <label class="block text-[10px] font-semibold text-slate-500 mb-1.5">{{ t('lbl_cost_list') }}</label>
-                                <input type="text" v-model="formCry" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-sky-200 text-[13px] md:text-sm bg-black/40">
+                                <label for="pc-cost-cry" class="block text-[10px] font-semibold text-slate-500 mb-1.5">{{ t('lbl_cost_list') }}</label>
+                                <input id="pc-cost-cry" type="text" v-model="formCry" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-sky-200 text-[13px] md:text-sm bg-black/40">
                             </div>
                             <div>
-                                <label class="block text-[10px] font-semibold text-emerald-500/60 mb-1.5">{{ t('lbl_stock_avail') }}</label>
-                                <input type="text" v-model="stockCry" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-emerald-300/70 border-emerald-900/20 focus:border-emerald-500/50 text-[13px] md:text-sm bg-black/40">
+                                <label for="pc-stock-cry" class="block text-[10px] font-semibold text-emerald-500/60 mb-1.5">{{ t('lbl_stock_avail') }}</label>
+                                <input id="pc-stock-cry" type="text" v-model="stockCry" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-emerald-300/70 border-emerald-900/20 focus:border-emerald-500/50 text-[13px] md:text-sm bg-black/40">
                             </div>
                         </div>
                     </div>
 
                     <!-- Deuterium -->
-                    <div class="bg-[#0a101e] rounded-xl p-3 md:p-4 border border-slate-700/20 relative overflow-hidden group">
+                    <div class="bg-ogame-surface rounded-xl p-3 md:p-4 border border-slate-700/20 relative overflow-hidden group">
                         <div class="absolute inset-0 bg-gradient-to-r from-emerald-500/0 via-emerald-500/5 to-emerald-500/0 opacity-0 group-hover:opacity-100 transition duration-500"></div>
                         <div class="flex items-center justify-between mb-3 relative z-10">
                             <div class="flex items-center gap-2">
@@ -592,12 +656,12 @@ const resetFields = () => {
                         </div>
                         <div class="flex flex-col sm:grid sm:grid-cols-2 gap-2.5 sm:gap-4 relative z-10">
                             <div>
-                                <label class="block text-[10px] font-semibold text-slate-500 mb-1.5">{{ t('lbl_cost_list') }}</label>
-                                <input type="text" v-model="formDeu" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-emerald-200 text-[13px] md:text-sm bg-black/40">
+                                <label for="pc-cost-deu" class="block text-[10px] font-semibold text-slate-500 mb-1.5">{{ t('lbl_cost_list') }}</label>
+                                <input id="pc-cost-deu" type="text" v-model="formDeu" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-emerald-200 text-[13px] md:text-sm bg-black/40">
                             </div>
                             <div>
-                                <label class="block text-[10px] font-semibold text-emerald-500/60 mb-1.5">{{ t('lbl_stock_avail') }}</label>
-                                <input type="text" v-model="stockDeu" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-emerald-300/70 border-emerald-900/20 focus:border-emerald-500/50 text-[13px] md:text-sm bg-black/40">
+                                <label for="pc-stock-deu" class="block text-[10px] font-semibold text-emerald-500/60 mb-1.5">{{ t('lbl_stock_avail') }}</label>
+                                <input id="pc-stock-deu" type="text" v-model="stockDeu" @focus="$event.target.select()" class="input-glass w-full py-1.5 md:py-2 px-3 text-right font-mono text-emerald-300/70 border-emerald-900/20 focus:border-emerald-500/50 text-[13px] md:text-sm bg-black/40">
                             </div>
                         </div>
                     </div>
@@ -608,24 +672,7 @@ const resetFields = () => {
 
         <div class="lg:col-span-1 space-y-6">
             
-            <!-- Pack Value (Moved to Top for Visibility) -->
-            <div class="card-glass p-6 border-l-2 border-l-amber-500/50 bg-amber-500/[0.02] relative overflow-hidden">
-                <h3 class="text-[10px] font-black text-amber-400/80 uppercase mb-3 flex items-center gap-2 font-mono tracking-widest">
-                    <span class="w-[2px] h-3 bg-amber-400/60 rounded-full flex-shrink-0"></span>
-                    {{ t('lbl_pack_val') }}
-                </h3>
-                <div class="relative z-10">
-                    <input type="text" v-model="formPackVal" @focus="$event.target.select()" class="input-glass w-full p-4 text-white font-black text-center text-3xl border-amber-500/40 focus:border-amber-400 bg-black/60 shadow-inner">
-                    <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-400 font-bold font-mono bg-amber-500/[0.12] px-2 py-1 rounded">MET</div>
-                </div>
-                <p class="text-[10px] uppercase font-bold text-gray-400 mt-3 text-center">
-                    <span v-if="isAutoLoaded" class="text-green-400 flex items-center justify-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>{{ t('pack_source_auto') }}</span>
-                    <span v-else>{{ t('pack_source_manual') }}</span>
-                </p>
-                <div class="absolute inset-0 bg-amber-500/[0.03] pointer-events-none"></div>
-            </div>
-
-            <div class="card-glass p-8 flex flex-col justify-center min-h-[220px] relative overflow-hidden border-t-2 border-t-amber-500/50">
+            <div class="card-glass p-8 flex flex-col justify-center min-h-[220px] relative overflow-hidden">
                 <div class="text-center mb-8 relative z-10">
                     <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-black font-mono">{{ t('lbl_msu_needed') }}</div>
                     <div class="text-3xl font-mono font-bold text-white/80 break-all">{{ formatNum(calculation.totalMSU) }}</div>
@@ -633,13 +680,30 @@ const resetFields = () => {
                 <div class="w-full h-px bg-white/[0.06] mb-8"></div>
                 <div class="text-center relative z-10">
                     <div class="text-[10px] text-amber-400/80 uppercase tracking-wider mb-3 font-black font-mono">{{ t('lbl_packs_needed') }}</div>
-                    <div class="text-6xl font-black font-mono text-white drop-shadow-[0_0_25px_rgba(245,158,11,0.5)]">{{ formatNum(calculation.packsNeeded) }}</div>
+                    <div class="text-6xl font-black font-mono text-amber-400">{{ formatNum(calculation.packsNeeded) }}</div>
                 </div>
-                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-amber-500/10 blur-[50px] rounded-full"></div>
+                <Transition name="fade">
+                  <div v-if="calculation.packsNeeded > 0"
+                       class="mt-8 pt-5 border-t border-white/[0.06] relative z-10 flex justify-center">
+                    <button @click="copyShareText"
+                            class="flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all duration-200"
+                            :class="resultCopied
+                              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                              : 'bg-white/[0.04] hover:bg-amber-500/10 border border-white/[0.06] hover:border-amber-500/20 text-slate-500 hover:text-amber-400'">
+                      <svg v-if="!resultCopied" class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                      </svg>
+                      <svg v-else class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                      {{ resultCopied ? t('copied') : t('btn_copy') }}
+                    </button>
+                  </div>
+                </Transition>
             </div>
 
             <!-- Tassi di scambio -->
-            <div class="card-glass p-5 border-l-2 border-l-slate-500/40">
+            <div class="card-glass p-5">
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                         <span class="w-[2px] h-4 bg-slate-400/50 rounded-full flex-shrink-0"></span>
@@ -657,7 +721,7 @@ const resetFields = () => {
                     <div class="text-center text-[9px] text-emerald-400/70 uppercase font-semibold">{{ t('res_deuterium') }}</div>
                 </div>
                 <div class="flex items-center gap-1.5">
-                    <input type="number" value="3" readonly class="w-full bg-[#0a101e] border border-slate-700/20 rounded-lg p-2 text-center text-slate-600 font-mono font-bold focus:outline-none cursor-not-allowed text-sm">
+                    <input type="number" value="3" readonly class="w-full bg-ogame-surface border border-slate-700/20 rounded-lg p-2 text-center text-slate-600 font-mono font-bold focus:outline-none cursor-not-allowed text-sm">
                     <span class="text-slate-700 font-light flex-shrink-0">:</span>
                     <input type="number" v-model.number="settings.rateCry" @focus="$event.target.select()" class="input-glass w-full p-2 text-center text-sky-400 font-mono font-bold text-sm">
                     <span class="text-slate-700 font-light flex-shrink-0">:</span>
@@ -667,7 +731,7 @@ const resetFields = () => {
 
             <!-- Piano di Acquisto / Scambio -->
             <div v-if="tradePlan && (tradePlan.tradeMetToCry > 0 || tradePlan.tradeMetToDeut > 0)"
-                 class="card-glass p-5 border-l-2 border-l-sky-500/40">
+                 class="card-glass p-5">
 
                 <h3 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
                     <span class="w-[2px] h-4 bg-sky-400/60 rounded-full flex-shrink-0"></span>
@@ -675,7 +739,7 @@ const resetFields = () => {
                 </h3>
 
                 <!-- Step 1: Totale -->
-                <div class="bg-[#0a101e] rounded-xl border border-slate-700/20 px-4 py-3 mb-3">
+                <div class="bg-ogame-surface rounded-xl border border-slate-700/20 px-4 py-3 mb-3">
                     <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-1">{{ t('lbl_trade_total') }}</div>
                     <div class="flex items-baseline gap-2">
                         <span class="text-lg font-black font-mono text-slate-100">{{ formatNum(tradePlan.totalMetalRequired) }}</span>
@@ -688,7 +752,7 @@ const resetFields = () => {
                 <div class="space-y-1.5">
 
                     <!-- Tieni come metallo -->
-                    <div class="flex items-center justify-between bg-[#0a101e] rounded-lg px-3 py-2.5 border border-slate-700/15">
+                    <div class="flex items-center justify-between bg-ogame-surface rounded-lg px-3 py-2.5 border border-slate-700/15">
                         <div class="flex items-center gap-2">
                             <span class="w-2 h-2 rounded-full bg-slate-500 flex-shrink-0"></span>
                             <span class="text-[11px] text-slate-400">{{ t('lbl_trade_keep_metal') }} <span class="text-slate-200 font-medium">{{ t('res_metal') }}</span></span>
@@ -698,7 +762,7 @@ const resetFields = () => {
 
                     <!-- Converti in Cristallo -->
                     <div v-if="tradePlan.tradeMetToCry > 0"
-                         class="flex items-center justify-between bg-[#0a101e] rounded-lg px-3 py-2.5 border border-sky-500/15">
+                         class="flex items-center justify-between bg-ogame-surface rounded-lg px-3 py-2.5 border border-sky-500/15">
                         <div class="flex items-center gap-2">
                             <span class="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0"></span>
                             <span class="text-[11px] text-slate-400">{{ t('lbl_trade_convert') }} <span class="text-sky-300 font-medium">{{ t('res_crystal') }}</span></span>
@@ -708,7 +772,7 @@ const resetFields = () => {
 
                     <!-- Converti in Deuterio -->
                     <div v-if="tradePlan.tradeMetToDeut > 0"
-                         class="flex items-center justify-between bg-[#0a101e] rounded-lg px-3 py-2.5 border border-emerald-500/15">
+                         class="flex items-center justify-between bg-ogame-surface rounded-lg px-3 py-2.5 border border-emerald-500/15">
                         <div class="flex items-center gap-2">
                             <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
                             <span class="text-[11px] text-slate-400">{{ t('lbl_trade_convert') }} <span class="text-emerald-300 font-medium">{{ t('res_deuterium') }}</span></span>
@@ -720,7 +784,7 @@ const resetFields = () => {
             </div>
 
             <!-- ── COSTO MATERIA OSCURA ────────────────────────────────── -->
-            <div class="card-glass p-5 border-l-2 border-l-violet-500/40">
+            <div class="card-glass p-5">
 
                 <h3 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2.5 mb-5">
                     <span class="w-[2px] h-4 bg-violet-400/60 rounded-full flex-shrink-0"></span>
@@ -730,7 +794,7 @@ const resetFields = () => {
                 <!-- Sconto Shop -->
                 <div class="mb-4">
                     <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_shop_discount') }}</div>
-                    <div class="flex gap-1 bg-[#070c18]/70 p-1 rounded-xl border border-slate-700/20">
+                    <div class="flex gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
                         <button @click="settings.shopDiscount = 0"
                                 class="flex-1 py-2 text-[11px] font-semibold rounded-lg transition-all duration-150"
                                 :class="settings.shopDiscount === 0
@@ -758,7 +822,7 @@ const resetFields = () => {
                 <!-- Evento Bonus MO -->
                 <div class="mb-4">
                     <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_event_bonus') }}</div>
-                    <div class="grid grid-cols-4 gap-1 bg-[#070c18]/70 p-1 rounded-xl border border-slate-700/20">
+                    <div class="grid grid-cols-4 gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
                         <button v-for="b in [0, 30, 40, 50, 60, 100, 130]" :key="b"
                                 @click="settings.moBonus = b"
                                 class="py-2 text-[11px] font-semibold rounded-lg transition-all duration-150 text-center"
@@ -772,7 +836,7 @@ const resetFields = () => {
                 </div>
 
                 <!-- Bonus metodo di pagamento -->
-                <label class="flex items-center gap-3 p-3 rounded-xl bg-[#070c18]/60 border border-slate-700/20 cursor-pointer group hover:border-slate-600/40 transition-all mb-5">
+                <label class="flex items-center gap-3 p-3 rounded-xl bg-ogame-bg/60 border border-slate-700/20 cursor-pointer group hover:border-slate-600/40 transition-all mb-5">
                     <input type="checkbox" v-model="settings.paymentBonus" class="w-4 h-4 accent-violet-500 flex-shrink-0 cursor-pointer rounded">
                     <div class="flex-grow min-w-0">
                         <div class="text-[11px] font-medium text-slate-300 group-hover:text-slate-100 transition-colors leading-tight">{{ t('lbl_payment_bonus') }}</div>
@@ -782,7 +846,7 @@ const resetFields = () => {
                 </label>
 
                 <!-- Totale MO -->
-                <div class="rounded-2xl bg-[#070c18]/80 border border-violet-500/15 px-5 py-5 text-center">
+                <div class="rounded-2xl bg-ogame-bg/80 border border-violet-500/15 px-5 py-5 text-center">
                     <div class="text-[9px] text-violet-400/50 uppercase tracking-[0.2em] font-semibold mb-2">{{ t('lbl_mo_needed') }}</div>
                     <div class="text-5xl font-black font-mono text-slate-100 leading-none">{{ formatNum(calculation.totalMO) }}</div>
                     <div class="text-[9px] text-violet-400/30 uppercase tracking-widest mt-2 font-mono">{{ dmLabel }}</div>
@@ -791,7 +855,7 @@ const resetFields = () => {
             </div>
 
             <!-- ── OTTIMIZZAZIONE EURO ──────────────────────────────────── -->
-            <div class="card-glass p-5 border-l-2 border-l-emerald-500/40">
+            <div class="card-glass p-5">
 
                 <div class="flex items-center justify-between mb-5">
                     <h3 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2.5">
@@ -818,11 +882,11 @@ const resetFields = () => {
                     </div>
 
                     <div v-for="(item, index) in euroOptimization.packList" :key="index"
-                         class="flex items-center gap-3 px-3 py-3 bg-[#0a101e] rounded-xl border border-slate-700/15 hover:border-slate-600/30 transition-colors">
+                         class="flex items-center gap-3 px-3 py-3 bg-ogame-surface rounded-xl border border-slate-700/15 hover:border-slate-600/30 transition-colors">
                         <!-- Badge pack -->
                         <div class="w-11 h-11 rounded-xl bg-emerald-500/[0.07] border border-emerald-500/20 flex flex-col items-center justify-center flex-shrink-0">
                             <span class="text-[11px] font-black text-emerald-400 leading-none">{{ item.pack.cost }}</span>
-                            <span class="text-[8px] text-emerald-700 leading-none mt-0.5 font-mono">EUR</span>
+                            <span class="text-[10px] text-emerald-700 leading-none mt-0.5 font-mono">EUR</span>
                         </div>
                         <!-- Info -->
                         <div class="flex-grow min-w-0">
@@ -841,7 +905,7 @@ const resetFields = () => {
                 </div>
 
                 <!-- Totale euro -->
-                <div class="rounded-2xl bg-[#070c18]/80 border border-emerald-500/15 px-5 py-4 mb-4">
+                <div class="rounded-2xl bg-ogame-bg/80 border border-emerald-500/15 px-5 py-4 mb-4">
                     <div class="flex items-center justify-between">
                         <div>
                             <div class="text-[9px] text-emerald-400/50 uppercase tracking-[0.2em] font-semibold">{{ t('lbl_total') }}</div>
@@ -854,7 +918,7 @@ const resetFields = () => {
                 </div>
 
                 <!-- Bilancio MO -->
-                <div class="rounded-xl bg-[#0a101e] border border-slate-700/15 overflow-hidden">
+                <div class="rounded-xl bg-ogame-surface border border-slate-700/15 overflow-hidden">
                     <div class="flex justify-between items-center px-4 py-2.5 text-[11px] font-mono text-slate-600 border-b border-slate-700/10">
                         <span>{{ t('lbl_mo_needed') }}</span>
                         <span>–{{ formatNum(calculation.totalMO) }}</span>
@@ -878,3 +942,12 @@ const resetFields = () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .fade-enter-active, .fade-leave-active { transition: none; }
+}
+</style>

@@ -1,12 +1,14 @@
 <script setup>
-import { ref, reactive, computed, watch, onBeforeUnmount, onMounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { SHOP_ITEMS } from '../data/ogame_db';
 
-/** 
- * Shopping List V4.2 - "Definitive 3-Column" Layout
- * Focus: Dedicated sticky sidebars for events and cart, dynamic bubbling, mobile accessibility.
+/**
+ * Shopping List V5 - "Event Spotlight" Layout
+ * Tre colonne (eventi/categorie · catalogo · carrello sticky).
+ * Quando un evento è attivo: banner con conteggio, card correlate in evidenza
+ * smeraldo, card non correlate attenuate, pallino sulle categorie coinvolte.
  */
 
 const { t } = useLanguage();
@@ -53,6 +55,26 @@ const SHOP_ITEM_IMAGES = {
 const shopImgUrl = (f) => f ? `${SHOP_IMG}/${encodeURIComponent(f)}` : null;
 const shopItemImageSrc = (k) => shopImgUrl(SHOP_ITEM_IMAGES[k]);
 
+// ───── Glifi SVG per item senza immagine ─────────────────────────────────
+// Per gli item del catalogo che non hanno un'immagine OGame (es. utility
+// in-game) si disegna una tile con glifo vettoriale tintato, coerente col
+// resto del sistema: niente placeholder rotti né sole scritte.
+const ITEM_GLYPHS = {
+    ingame_merchant: {
+        paths: ['M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3'],
+        tint: 'text-amber-300 bg-amber-500/10 border-amber-400/20'
+    },
+    ingame_relocate: {
+        paths: ['M12 19l9 2-9-18-9 18 9-2zm0 0v-8'],
+        tint: 'text-sky-300 bg-sky-500/10 border-sky-400/20'
+    },
+    _default: {
+        paths: ['M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
+        tint: 'text-slate-400 bg-slate-500/10 border-slate-500/20'
+    }
+};
+const itemGlyph = (k) => ITEM_GLYPHS[k] || ITEM_GLYPHS._default;
+
 // State
 const shopCart = ref([]);
 const cartDrawerOpen = ref(false);
@@ -60,7 +82,6 @@ const clearCartConfirmOpen = ref(false);
 const activeCategory = ref(SHOP_ITEMS.categories[0].id);
 const activeDiscountEvent = ref('none');
 const isMounted = ref(false);
-const cartJustAdded = ref(false);
 const lastAddedId = ref(null);
 
 // Sync with active profile
@@ -98,7 +119,7 @@ const setupObserver = () => {
             if (e.isIntersecting) activeCategory.value = e.target.id.replace('cat-section-', '');
         });
     }, { rootMargin: '-60px 0px -70% 0px', threshold: 0 });
-    
+
     visibleCategories.value.forEach(cat => {
         const el = document.getElementById(`cat-section-${cat.id}`);
         if (el) observer.observe(el);
@@ -112,21 +133,23 @@ onMounted(() => {
 
 watch(activeDiscountEvent, () => nextTick(setupObserver));
 
-// Events
+// ───── Eventi sconto ──────────────────────────────────────────────────────
+// Icone vettoriali coerenti (outline 24×24) al posto delle emoji di
+// piattaforma: stesso peso visivo su ogni OS.
 const DISCOUNT_EVENTS = [
-    { id: 'none',         label: 'shop_event_none',         icon: '✕' },
-    { id: 'discount',     label: 'shop_event_discount',     icon: '🏷️' },
-    { id: 'discount_20',  label: 'shop_event_discount_20',  icon: '🔥' },
-    { id: 'boosters',     label: 'shop_event_boosters',     icon: '⚡' },
-    { id: 'resources',    label: 'shop_event_resources',    icon: '📦' },
-    { id: 'classes',      label: 'shop_event_classes',      icon: '🎓' },
-    { id: 'platinum',     label: 'shop_event_platinum',     icon: '💎' },
-    { id: 'construction', label: 'shop_event_construction', icon: '🏗️' },
-    { id: 'cashback',     label: 'shop_event_cashback',     icon: '💰' },
-    { id: 'merchant',     label: 'shop_event_merchant',     icon: '🛒' },
-    { id: 'relocate',     label: 'shop_event_relocate',     icon: '🚀' },
-    { id: 'slots',        label: 'shop_event_slots',        icon: '🔓' },
-    { id: 'expedition',   label: 'shop_event_expedition',   icon: '🌌' },
+    { id: 'none',         label: 'shop_event_none',         paths: ['M6 18L18 6M6 6l12 12'] },
+    { id: 'discount',     label: 'shop_event_discount',     paths: ['M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'] },
+    { id: 'discount_20',  label: 'shop_event_discount_20',  paths: ['M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.657 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z', 'M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z'] },
+    { id: 'boosters',     label: 'shop_event_boosters',     paths: ['M13 10V3L4 14h7v7l9-11h-7z'] },
+    { id: 'resources',    label: 'shop_event_resources',    paths: ['M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'] },
+    { id: 'classes',      label: 'shop_event_classes',      paths: ['M12 14l9-5-9-5-9 5 9 5z', 'M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222'] },
+    { id: 'platinum',     label: 'shop_event_platinum',     paths: ['M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z'] },
+    { id: 'construction', label: 'shop_event_construction', paths: ['M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z', 'M15 12a3 3 0 11-6 0 3 3 0 016 0z'] },
+    { id: 'cashback',     label: 'shop_event_cashback',     paths: ['M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z'] },
+    { id: 'merchant',     label: 'shop_event_merchant',     paths: ['M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3'] },
+    { id: 'relocate',     label: 'shop_event_relocate',     paths: ['M12 19l9 2-9-18-9 18 9-2zm0 0v-8'] },
+    { id: 'slots',        label: 'shop_event_slots',        paths: ['M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z'] },
+    { id: 'expedition',   label: 'shop_event_expedition',   paths: ['M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z'] },
 ];
 
 const getEventInfo = (eventId) => DISCOUNT_EVENTS.find(e => e.id === eventId);
@@ -154,6 +177,16 @@ const isItemDiscounted = (itemKey, tier, eventId) => {
 const isItemHighlighted = (itemKey, costs) => {
     if (activeDiscountEvent.value === 'none') return false;
     return Object.keys(costs).some(tier => isItemDiscounted(itemKey, tier, activeDiscountEvent.value));
+};
+
+// "Correlato all'evento" è più ampio di "scontato": l'evento Costruzioni non
+// applica sconti ma rende disponibile la categoria → i suoi item vanno
+// comunque messi in evidenza.
+const isItemEventRelated = (itemKey, costs) => {
+    if (activeDiscountEvent.value === 'none') return false;
+    if (isItemHighlighted(itemKey, costs)) return true;
+    if (activeDiscountEvent.value === 'construction' && SHOP_ITEMS.items[itemKey]?.cat === 'construction') return true;
+    return false;
 };
 
 const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
@@ -211,6 +244,10 @@ for (const [key, val] of Object.entries(SHOP_ITEMS.items)) {
     }
 }
 
+const stepQty = (key, delta) => {
+    itemQuantities[key] = Math.max(1, (parseInt(itemQuantities[key]) || 1) + delta);
+};
+
 const formatNum = (n) => new Intl.NumberFormat('it-IT').format(Math.floor(n));
 
 // Catalog Filtering & Sorting
@@ -227,7 +264,7 @@ const fullCatalog = computed(() => {
     return visibleCategories.value.map(cat => {
         let blocks = [];
         const pair = (id) => ({ key: id, val: SHOP_ITEMS.items[id] });
-        
+
         if (cat.id === 'boosters') {
             blocks = [
                 { blockKey: 'boost-res', titleKey: 'shop_boosters_sub_res', items: ['booster_metal','booster_crystal','booster_deut'].map(pair) },
@@ -246,11 +283,11 @@ const fullCatalog = computed(() => {
             blocks = [{ blockKey: 'flat', titleKey: null, items: Object.entries(flat).map(([k, v]) => ({ key: k, val: v })) }];
         }
 
-        // Apply bubbling: items with active discounts go first
+        // Bubbling: gli item correlati all'evento attivo salgono in testa al blocco
         blocks = blocks.map(b => {
             const sortedItems = [...b.items].sort((a, b) => {
-                const aH = isItemHighlighted(a.key, a.val.costs);
-                const bH = isItemHighlighted(b.key, b.val.costs);
+                const aH = isItemEventRelated(a.key, a.val.costs);
+                const bH = isItemEventRelated(b.key, b.val.costs);
                 if (aH && !bH) return -1;
                 if (!aH && bH) return 1;
                 return 0;
@@ -262,13 +299,38 @@ const fullCatalog = computed(() => {
     });
 });
 
+// ───── Evidenza evento: conteggi e dimming ────────────────────────────────
+// Numero di item correlati all'evento attivo (per il banner) e mappa delle
+// categorie che ne contengono (per il pallino nella nav).
+const eventRelatedCount = computed(() => {
+    if (activeDiscountEvent.value === 'none') return 0;
+    let n = 0;
+    fullCatalog.value.forEach(cat => cat.blocks.forEach(b => b.items.forEach(it => {
+        if (isItemEventRelated(it.key, it.val.costs)) n++;
+    })));
+    return n;
+});
+const categoryHasEventItems = computed(() => {
+    const map = {};
+    if (activeDiscountEvent.value === 'none') return map;
+    fullCatalog.value.forEach(cat => {
+        map[cat.id] = cat.blocks.some(b => b.items.some(it => isItemEventRelated(it.key, it.val.costs)));
+    });
+    return map;
+});
+// Attenua le card non correlate solo se l'evento ha bersagli puntuali
+// (il cashback vale su tutto → nessun dimming).
+const shouldDimUnrelated = computed(() =>
+    activeDiscountEvent.value !== 'none' && eventRelatedCount.value > 0
+);
+
 // Cart Logic
 const addToShopCart = (id, tier, duration, baseCost) => {
     const mult = Math.max(1, itemQuantities[id] || 1);
     const event = activeDiscountEvent.value;
     const cost = getCalculatedCost(id, tier, duration, baseCost);
     const cbPerUnit = event === 'cashback' ? Math.floor(cost * 0.2) : 0;
-    
+
     const existing = shopCart.value.find(i => i.id === id && i.tier === tier && i.duration === duration && i.event === event);
     if (existing) {
         existing.mult += mult;
@@ -277,13 +339,28 @@ const addToShopCart = (id, tier, duration, baseCost) => {
     } else {
         shopCart.value.push({ id, tier, duration, mult, unitCost: cost, cost: cost * mult, cashback: cbPerUnit * mult, event, tKey: id });
     }
-    
+
     itemQuantities[id] = 1;
     lastAddedId.value = id;
-    cartJustAdded.value = true;
-    setTimeout(() => { cartJustAdded.value = false; lastAddedId.value = null; }, 1200);
+    setTimeout(() => { lastAddedId.value = null; }, 1200);
 };
 
+// Modifica quantità direttamente dal carrello: ricalcola costo e cashback
+// dal prezzo unitario (fallback per carrelli salvati senza unitCost).
+const stepCartQty = (item, delta) => {
+    const unit = item.unitCost ?? Math.round(item.cost / Math.max(1, item.mult));
+    const newMult = item.mult + delta;
+    if (newMult <= 0) { removeCartItem(item); return; }
+    item.mult = newMult;
+    item.unitCost = unit;
+    item.cost = unit * newMult;
+    item.cashback = (item.event === 'cashback' ? Math.floor(unit * 0.2) : 0) * newMult;
+};
+
+const removeCartItem = (item) => {
+    const idx = shopCart.value.indexOf(item);
+    if (idx >= 0) shopCart.value.splice(idx, 1);
+};
 const removeShopCart = (idx) => shopCart.value.splice(idx, 1);
 const clearCart = () => { shopCart.value = []; };
 const requestClearCart = () => { clearCartConfirmOpen.value = true; };
@@ -292,6 +369,7 @@ const doClearCart = () => { clearCart(); clearCartConfirmOpen.value = false; };
 const totalShopCartMO = computed(() => shopCart.value.reduce((s, i) => s + i.cost, 0));
 const totalShopCartCashback = computed(() => shopCart.value.reduce((s, i) => s + (i.cashback || 0), 0));
 const cartTotalQty = computed(() => shopCart.value.reduce((s, i) => s + i.mult, 0));
+const reversedCart = computed(() => [...shopCart.value].reverse());
 
 // Tiers & Labels
 const TIER_DISPLAY_ORDER = ['platinum', 'gold', 'silver', 'bronze', 'none'];
@@ -324,6 +402,14 @@ const getTierBadgeClass = (tier) => {
     if (tier === 'bronze')   return 'bg-orange-400/15 text-orange-300 border-orange-400/25';
     return 'bg-ogame-accent/10 text-ogame-accent border-ogame-accent/25';
 };
+const getTierDotClass = (tier) => {
+    if (tier === 'platinum') return 'bg-violet-400';
+    if (tier === 'gold')     return 'bg-amber-400';
+    if (tier === 'silver')   return 'bg-slate-400';
+    if (tier === 'bronze')   return 'bg-orange-400';
+    return 'bg-ogame-accent';
+};
+
 // Swipe delete logic
 const swipeState = reactive({ idx: null, startX: 0, currentXP: 0 });
 const tsStart = (e, idx) => { swipeState.idx = idx; swipeState.startX = e.touches[0].clientX; swipeState.currentXP = 0; };
@@ -337,16 +423,16 @@ const getSwipeStyle = (idx) => {
 
 <template>
   <div class="shop-v4-root items-start">
-    
+
     <!-- ════ SIDEBAR LEFT (Sticky) ════ -->
     <aside class="shop-sidebar-left hidden lg:flex flex-col">
       <div class="sidebar-scrollable custom-scrollbar">
-        
+
         <!-- Events Section -->
         <div class="sidebar-section">
           <label class="section-label">
             <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            Evento Attivo
+            {{ t('lbl_active_events') }}
           </label>
           <div class="event-nav space-y-1 mt-3">
             <button
@@ -356,7 +442,9 @@ const getSwipeStyle = (idx) => {
               class="event-btn"
               :class="{ 'event-active': activeDiscountEvent === evt.id }"
             >
-              <span class="btn-icon">{{ evt.icon }}</span>
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <path v-for="(p, i) in evt.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+              </svg>
               <span class="btn-label">{{ t(evt.label) }}</span>
             </button>
           </div>
@@ -366,7 +454,7 @@ const getSwipeStyle = (idx) => {
 
         <!-- Categories Section -->
         <div class="sidebar-section">
-          <label class="section-label">Sezioni</label>
+          <label class="section-label">{{ t('lbl_categories') }}</label>
           <div class="cat-nav space-y-1 mt-3">
             <button
               v-for="cat in visibleCategories" :key="cat.id"
@@ -375,7 +463,10 @@ const getSwipeStyle = (idx) => {
               class="cat-btn"
               :class="{ 'cat-active': activeCategory === cat.id }"
             >
-              {{ t(cat.name) }}
+              <span class="flex-1 text-left truncate">{{ t(cat.name) }}</span>
+              <span v-if="categoryHasEventItems[cat.id]"
+                    class="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"
+                    :title="t(getEventInfo(activeDiscountEvent)?.label)"></span>
             </button>
           </div>
         </div>
@@ -384,7 +475,7 @@ const getSwipeStyle = (idx) => {
 
     <!-- ════ MAIN CONTENT ════ -->
     <main class="shop-main-content">
-      
+
       <!-- Mobile Event & Category Bar (Horizontal Scroll) -->
       <div class="lg:hidden px-4 pt-6 pb-2">
         <div class="flex flex-col gap-4">
@@ -401,7 +492,9 @@ const getSwipeStyle = (idx) => {
                   class="mobile-evt-btn shrink-0"
                   :class="{ 'mobile-evt-active': activeDiscountEvent === evt.id }"
                 >
-                  <span class="text-lg">{{ evt.icon }}</span>
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path v-for="(p, i) in evt.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                  </svg>
                   <span class="text-[10px] font-bold whitespace-nowrap">{{ t(evt.label) }}</span>
                 </button>
               </div>
@@ -417,10 +510,11 @@ const getSwipeStyle = (idx) => {
                 <button
                   v-for="cat in visibleCategories" :key="cat.id"
                   @click="scrollToCategory(cat.id)"
-                  class="shrink-0 py-2.5 px-4 flex items-center justify-center rounded-xl border transition-all text-[11px] font-bold whitespace-nowrap"
+                  class="shrink-0 py-2.5 px-4 flex items-center justify-center gap-1.5 rounded-xl border transition-all text-[11px] font-bold whitespace-nowrap"
                   :class="activeCategory === cat.id ? 'bg-ogame-accent/15 border-ogame-accent/40 text-ogame-accent shadow-[0_10px_20px_-5px_rgba(0,240,255,0.15)]' : 'bg-white/5 border-white/5 text-slate-400 hover:text-slate-200'"
                 >
                   {{ t(cat.name) }}
+                  <span v-if="categoryHasEventItems[cat.id]" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                 </button>
               </div>
             </div>
@@ -431,6 +525,28 @@ const getSwipeStyle = (idx) => {
       <div class="catalog-header px-4 md:px-10 pt-8 pb-4">
         <h1 class="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white">{{ t('shopping_title') }}</h1>
         <div class="mt-2 h-[2px] w-16 bg-gradient-to-r from-purple-500 to-transparent rounded-full"></div>
+      </div>
+
+      <!-- Banner evento attivo -->
+      <div v-if="activeDiscountEvent !== 'none'" class="px-4 md:px-10 mt-2">
+        <div class="event-banner flex items-center gap-3 md:gap-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] px-4 py-3">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-300 flex-shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path v-for="(p, i) in getEventInfo(activeDiscountEvent).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-bold text-emerald-200 leading-tight truncate">{{ t(getEventInfo(activeDiscountEvent).label) }}</div>
+            <div class="text-[11px] text-emerald-400/70 mt-0.5">
+              <template v-if="activeDiscountEvent === 'cashback'">{{ t('shop_event_cashback_note') }}</template>
+              <template v-else-if="eventRelatedCount > 0">{{ eventRelatedCount }} {{ t('shop_items_on_sale') }}</template>
+            </div>
+          </div>
+          <button @click="activeDiscountEvent = 'none'"
+                  class="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-emerald-300/70 hover:text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors flex-shrink-0">
+            {{ t('shop_event_clear') }}
+          </button>
+        </div>
       </div>
 
       <!-- Catalog Grid -->
@@ -457,34 +573,50 @@ const getSwipeStyle = (idx) => {
                   v-for="entry in block.items" :key="entry.key"
                   class="product-card relative flex flex-col overflow-hidden rounded-xl bg-ogame-panel border border-slate-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
                   :class="{
-                    'card-highlight': isItemHighlighted(entry.key, entry.val.costs),
+                    'card-highlight': isItemEventRelated(entry.key, entry.val.costs),
+                    'card-muted': shouldDimUnrelated && !isItemEventRelated(entry.key, entry.val.costs),
                     'just-added': lastAddedId === entry.key
                   }"
                 >
-                  <!-- Image -->
+                  <!-- Image / Glyph -->
                   <div class="relative flex items-center justify-center h-[80px] md:h-[108px] bg-black/30 border-b border-slate-700/15 overflow-hidden group">
                     <img
+                      v-if="shopItemImageSrc(entry.key)"
                       :src="shopItemImageSrc(entry.key)"
                       :alt="t(entry.key)"
                       class="h-[80%] w-[80%] object-contain drop-shadow-lg transition-transform duration-500 group-hover:scale-110"
                       loading="lazy"
                     />
-                    <div v-if="isItemHighlighted(entry.key, entry.val.costs) && getBestDiscountPctForCard(entry.key, entry.val.costs) > 0"
-                         class="absolute top-1.5 right-1.5 bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded-md leading-none shadow-sm">
-                      –{{ getBestDiscountPctForCard(entry.key, entry.val.costs) }}%
+                    <div v-else
+                         class="glyph-tile w-14 h-14 md:w-16 md:h-16 rounded-2xl border flex items-center justify-center transition-transform duration-500 group-hover:scale-110"
+                         :class="itemGlyph(entry.key).tint">
+                      <svg class="w-7 h-7 md:w-8 md:h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path v-for="(p, i) in itemGlyph(entry.key).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                      </svg>
+                    </div>
+                    <div v-if="isItemEventRelated(entry.key, entry.val.costs)"
+                         class="absolute top-1.5 right-1.5 flex items-center gap-1 bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded-md leading-none shadow-sm">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path v-for="(p, i) in getEventInfo(activeDiscountEvent).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                      </svg>
+                      <template v-if="getBestDiscountPctForCard(entry.key, entry.val.costs) > 0">–{{ getBestDiscountPctForCard(entry.key, entry.val.costs) }}%</template>
                     </div>
                   </div>
 
-                  <!-- Name -->
+                  <!-- Name + Qty stepper -->
                   <div class="px-3 pt-3 pb-1.5">
                     <h4 class="text-xs font-black uppercase tracking-wider text-slate-300 leading-snug line-clamp-2 min-h-[2.5em]">{{ t(entry.key) }}</h4>
                   </div>
 
-                  <!-- Quantity -->
                   <div class="px-3 pb-2">
-                    <div class="inline-flex items-center gap-1.5 bg-black/40 rounded-lg border border-slate-700/20 px-2 py-1">
-                      <span class="text-[9px] font-bold text-slate-600 uppercase">Qtà</span>
-                      <input type="number" v-model.number="itemQuantities[entry.key]" min="1" class="qty-input" />
+                    <div class="inline-flex items-center gap-0.5 bg-black/40 rounded-lg border border-slate-700/20 p-0.5">
+                      <button @click="stepQty(entry.key, -1)" :aria-label="t('shop_label_qty') + ' −1'"
+                              class="qty-step" :disabled="(itemQuantities[entry.key] || 1) <= 1">−</button>
+                      <input type="number" v-model.number="itemQuantities[entry.key]" min="1"
+                             :id="'qty-' + entry.key" :name="'qty-' + entry.key"
+                             :aria-label="t('shop_label_qty') + ' ' + t(entry.key)" class="qty-input" />
+                      <button @click="stepQty(entry.key, 1)" :aria-label="t('shop_label_qty') + ' +1'"
+                              class="qty-step">+</button>
                     </div>
                   </div>
 
@@ -505,11 +637,13 @@ const getSwipeStyle = (idx) => {
                       <!-- Add-to-cart button -->
                       <button
                         @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])"
-                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all duration-150"
+                        class="tier-row group/tier w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all duration-150"
                         :class="[getTierColorClass(tierName), isItemDiscounted(entry.key, tierName, activeDiscountEvent) ? 'btn-discounted' : '']"
+                        :aria-label="t('shop_btn_add_cart') + ': ' + t(entry.key) + (tierName !== 'none' ? ' ' + getTierDisplayName(entry.key, tierName) : '')"
                       >
                         <div class="flex items-center gap-1.5 min-w-0 flex-1 pr-1">
                           <template v-if="tierName !== 'none'">
+                            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="getTierDotClass(tierName)"></span>
                             <span class="text-[11px] font-black uppercase tracking-wide truncate">{{ getTierDisplayName(entry.key, tierName) }}</span>
                             <span v-if="getTierSuffix(entry.key, tierName)"
                                   class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-black border flex-shrink-0"
@@ -519,14 +653,17 @@ const getSwipeStyle = (idx) => {
                           </template>
                           <svg v-else class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 5v14m7-7H5"/></svg>
                         </div>
-                        <div class="flex flex-col items-end leading-none flex-shrink-0">
-                          <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]"
-                                class="text-[10px] line-through opacity-35 font-mono mb-0.5">
-                            {{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}
-                          </span>
-                          <span class="text-sm font-black font-mono leading-none">
-                            {{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}<span class="text-[9px] opacity-50 font-bold ml-0.5">MO</span>
-                          </span>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                          <div class="flex flex-col items-end leading-none">
+                            <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]"
+                                  class="text-[10px] line-through opacity-35 font-mono mb-0.5">
+                              {{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}
+                            </span>
+                            <span class="text-sm font-black font-mono leading-none">
+                              {{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}<span class="text-[9px] opacity-50 font-bold ml-0.5">MO</span>
+                            </span>
+                          </div>
+                          <svg class="tier-add-icon w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"/></svg>
                         </div>
                       </button>
 
@@ -545,46 +682,74 @@ const getSwipeStyle = (idx) => {
       <div class="cart-sticky-container custom-scrollbar">
         <div class="panel-header flex items-center justify-between mb-6">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-ogame-accent/10 flex items-center justify-center text-ogame-accent border border-ogame-accent/20 shadow-[0_0_15px_rgba(0,240,255,0.08)]">
+            <div class="relative w-10 h-10 rounded-xl bg-ogame-accent/10 flex items-center justify-center text-ogame-accent border border-ogame-accent/20 shadow-[0_0_15px_rgba(0,240,255,0.08)]">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+              <span v-if="cartTotalQty > 0" class="absolute -top-1.5 -right-1.5 bg-ogame-accent text-black text-[9px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{{ cartTotalQty }}</span>
             </div>
             <span class="text-xs font-black uppercase tracking-[0.2em] text-white">{{ t('shopping_cart_title') }}</span>
           </div>
-          <button @click="requestClearCart" class="text-[10px] font-bold text-red-500/40 hover:text-red-400 transition-colors uppercase tracking-tighter" v-if="shopCart.length > 0">Reset</button>
+          <button @click="requestClearCart" class="text-[10px] font-bold text-red-500/40 hover:text-red-400 transition-colors uppercase tracking-tighter" v-if="shopCart.length > 0">{{ t('shop_cart_clear') }}</button>
         </div>
-        
+
         <div class="cart-scroll-area space-y-2">
-          <div v-for="(item, idx) in [...shopCart].reverse()" :key="idx"
-               class="group flex items-start justify-between gap-3 p-3 rounded-xl bg-ogame-surface border border-slate-700/30 hover:border-slate-600/50 transition-all">
+          <div v-for="item in reversedCart" :key="item.id + item.tier + item.duration + item.event"
+               class="group cart-row flex items-start gap-2.5 p-2.5 rounded-xl bg-ogame-surface border border-slate-700/30 hover:border-slate-600/50 transition-all">
+            <!-- Thumb -->
+            <div class="w-10 h-10 rounded-lg bg-black/40 border border-slate-700/25 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <img v-if="shopItemImageSrc(item.tKey)" :src="shopItemImageSrc(item.tKey)" :alt="t(item.tKey)" class="w-[85%] h-[85%] object-contain" loading="lazy" />
+              <svg v-else class="w-5 h-5" :class="itemGlyph(item.tKey).tint.split(' ')[0]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path v-for="(p, i) in itemGlyph(item.tKey).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+              </svg>
+            </div>
+
             <div class="flex-1 min-w-0">
-              <div class="text-xs font-bold text-slate-100 truncate leading-snug">{{ item.mult }}× {{ t(item.tKey) }}</div>
-              <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
-                <span v-if="item.tier !== 'none'" class="text-[10px] font-black uppercase px-1.5 py-px rounded border"
+              <div class="text-xs font-bold text-slate-100 truncate leading-snug">{{ t(item.tKey) }}</div>
+              <div class="flex flex-wrap items-center gap-1 mt-1">
+                <span v-if="item.tier !== 'none'" class="inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-px rounded border"
                       :class="getTierBadgeClass(item.tier)">
-                  {{ getTierDisplayName(item.tKey, item.tier) }}
-                  <span v-if="getTierSuffix(item.tKey, item.tier)" class="ml-0.5 opacity-80">{{ getTierSuffix(item.tKey, item.tier) }}</span>
+                  <span class="w-1 h-1 rounded-full" :class="getTierDotClass(item.tier)"></span>
+                  {{ getTierDisplayName(item.tKey, item.tier) }}{{ getTierSuffix(item.tKey, item.tier) ? ' ' + getTierSuffix(item.tKey, item.tier) : '' }}
                 </span>
                 <span v-if="item.duration !== 'base'"
-                      class="text-[10px] font-black text-ogame-accent uppercase px-1.5 py-px bg-ogame-accent/10 border border-ogame-accent/20 rounded">{{ item.duration }}</span>
+                      class="text-[9px] font-black text-ogame-accent uppercase px-1.5 py-px bg-ogame-accent/10 border border-ogame-accent/20 rounded">{{ item.duration }}</span>
                 <span v-if="item.event && item.event !== 'none'"
-                      class="text-[10px] font-black text-emerald-300 uppercase px-1.5 py-px bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center gap-1">
-                  {{ getEventInfo(item.event)?.icon }} {{ t(getEventInfo(item.event)?.label) }}
+                      class="inline-flex items-center text-emerald-300 px-1 py-px bg-emerald-500/10 border border-emerald-500/20 rounded"
+                      :title="t(getEventInfo(item.event)?.label)">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path v-for="(p, i) in (getEventInfo(item.event)?.paths || [])" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                  </svg>
                 </span>
               </div>
+              <!-- Qty stepper -->
+              <div class="inline-flex items-center gap-0.5 bg-black/40 rounded-md border border-slate-700/25 p-px mt-1.5">
+                <button @click="stepCartQty(item, -1)" class="cart-qty-step" :aria-label="t('shop_label_qty') + ' −1'">−</button>
+                <span class="text-[10px] font-black font-mono text-slate-200 min-w-[18px] text-center">{{ item.mult }}</span>
+                <button @click="stepCartQty(item, 1)" class="cart-qty-step" :aria-label="t('shop_label_qty') + ' +1'">+</button>
+              </div>
             </div>
+
             <div class="flex flex-col items-end gap-1 flex-shrink-0">
-              <span class="text-sm font-mono font-black text-ogame-accent">{{ formatNum(item.cost) }}</span>
-              <button @click="removeShopCart(shopCart.length - 1 - idx)"
-                      class="text-[9px] text-red-500/50 hover:text-red-400 opacity-0 group-hover:opacity-100 uppercase font-black transition-all">✕</button>
+              <span class="text-xs font-mono font-black text-ogame-accent">{{ formatNum(item.cost) }}</span>
+              <span v-if="item.mult > 1" class="text-[9px] text-slate-600 font-mono">{{ formatNum(item.unitCost ?? Math.round(item.cost / item.mult)) }} {{ t('shop_list_each') }}</span>
+              <button @click="removeCartItem(item)" :aria-label="t('btn_delete')"
+                      class="text-red-500/50 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-0.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
             </div>
           </div>
-          <div v-if="shopCart.length === 0" class="flex flex-col items-center justify-center py-12 opacity-20 filter grayscale">
-            <svg class="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-            <span class="text-[10px] uppercase font-black tracking-widest">{{ t('shopping_cart_empty') }}</span>
+
+          <div v-if="shopCart.length === 0" class="flex flex-col items-center justify-center py-12 text-center px-4">
+            <svg class="w-12 h-12 mb-3 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+            <span class="text-[10px] uppercase font-black tracking-widest text-slate-600">{{ t('shopping_cart_empty') }}</span>
+            <span class="text-[10px] text-slate-700 mt-1.5 normal-case leading-relaxed">{{ t('shop_cart_empty_catalog_hint') }}</span>
           </div>
         </div>
 
         <div v-if="shopCart.length > 0" class="panel-total mt-10 pt-6 border-t border-white/10">
+          <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mb-3 px-2.5 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+            <span class="text-[9px] font-black uppercase text-green-500">{{ t('shopping_cashback') }}</span>
+            <span class="text-[11px] font-black text-green-400 font-mono">+{{ formatNum(totalShopCartCashback) }}</span>
+          </div>
           <div class="flex items-center justify-between mb-4">
             <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{{ t('shopping_total_mo') }}</span>
             <span class="text-2xl font-black text-white glow-white">{{ formatNum(totalShopCartMO) }}</span>
@@ -648,40 +813,63 @@ const getSwipeStyle = (idx) => {
               </div>
 
               <!-- Item container -->
-              <div class="relative bg-ogame-panel flex items-center justify-between gap-4 p-4 md:p-5 border border-slate-700/30 hover:border-ogame-accent/30 w-full transition-colors"
+              <div class="relative bg-ogame-panel flex items-center gap-3 md:gap-4 p-4 md:p-5 border border-slate-700/30 hover:border-ogame-accent/30 w-full transition-colors"
                    @touchstart="tsStart($event, idx)"
                    @touchmove="tsMove($event, idx)"
                    @touchend="tsEnd(idx)"
                    :style="getSwipeStyle(idx)">
-                <div v-if="item.event && item.event !== 'none'" class="absolute top-0 left-0 w-1 h-full bg-emerald-500/50 rounded-l"></div>
-                <div class="flex-1 min-w-[50%]">
-                  <div class="text-sm font-bold text-slate-100 line-clamp-1 pr-2 leading-snug">{{ item.mult }}× {{ t(item.tKey) }}</div>
+                <!-- Thumb -->
+                <div class="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-black/40 border border-slate-700/25 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <img v-if="shopItemImageSrc(item.tKey)" :src="shopItemImageSrc(item.tKey)" :alt="t(item.tKey)" class="w-[85%] h-[85%] object-contain" loading="lazy" />
+                  <svg v-else class="w-6 h-6" :class="itemGlyph(item.tKey).tint.split(' ')[0]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path v-for="(p, i) in itemGlyph(item.tKey).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                  </svg>
+                </div>
+
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-bold text-slate-100 line-clamp-1 pr-2 leading-snug">{{ t(item.tKey) }}</div>
                   <div class="flex flex-wrap gap-1.5 mt-2">
                     <span v-if="item.tier !== 'none'"
                           class="text-[10px] font-black uppercase px-2 py-0.5 rounded border flex items-center gap-1"
                           :class="getTierBadgeClass(item.tier)">
+                      <span class="w-1 h-1 rounded-full" :class="getTierDotClass(item.tier)"></span>
                       {{ getTierDisplayName(item.tKey, item.tier) }}
                       <span v-if="getTierSuffix(item.tKey, item.tier)" class="opacity-80">{{ getTierSuffix(item.tKey, item.tier) }}</span>
                     </span>
                     <span v-if="item.duration !== 'base'"
                           class="text-[10px] font-black text-ogame-accent uppercase px-2 py-0.5 bg-ogame-accent/10 border border-ogame-accent/20 rounded">{{ item.duration }}</span>
                     <span v-if="item.event && item.event !== 'none'"
-                          class="text-[10px] font-black text-emerald-300 uppercase px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center gap-1">
-                      {{ getEventInfo(item.event)?.icon }} {{ t(getEventInfo(item.event)?.label) }}
+                          class="text-[10px] font-black text-emerald-300 uppercase px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded inline-flex items-center gap-1">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path v-for="(p, i) in (getEventInfo(item.event)?.paths || [])" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                      </svg>
+                      {{ t(getEventInfo(item.event)?.label) }}
                     </span>
+                  </div>
+                  <!-- Qty stepper -->
+                  <div class="inline-flex items-center gap-0.5 bg-black/40 rounded-md border border-slate-700/25 p-px mt-2">
+                    <button @click="stepCartQty(item, -1)" class="cart-qty-step" :aria-label="t('shop_label_qty') + ' −1'">−</button>
+                    <span class="text-[11px] font-black font-mono text-slate-200 min-w-[22px] text-center">{{ item.mult }}</span>
+                    <button @click="stepCartQty(item, 1)" class="cart-qty-step" :aria-label="t('shop_label_qty') + ' +1'">+</button>
                   </div>
                 </div>
                 <div class="flex flex-col items-end gap-1 flex-shrink-0">
                   <span class="text-base md:text-lg font-black text-ogame-accent font-mono tracking-tighter">{{ formatNum(item.cost) }}</span>
-                  <span class="text-[10px] text-slate-500 font-mono">{{ formatNum(item.unitCost) }} / ud</span>
+                  <span class="text-[10px] text-slate-500 font-mono">{{ formatNum(item.unitCost ?? Math.round(item.cost / Math.max(1, item.mult))) }} {{ t('shop_list_each') }}</span>
                 </div>
               </div>
+            </div>
+
+            <div v-if="shopCart.length === 0" class="flex flex-col items-center justify-center py-16 text-center px-6">
+              <svg class="w-14 h-14 mb-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+              <span class="text-[11px] uppercase font-black tracking-widest text-slate-600">{{ t('shopping_cart_empty') }}</span>
+              <span class="text-[11px] text-slate-700 mt-2 leading-relaxed">{{ t('shop_cart_empty_catalog_hint') }}</span>
             </div>
           </div>
           <div class="p-6 md:p-10 border-t border-white/10 bg-black/80">
              <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mb-4 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
                 <span class="text-[10px] font-black uppercase text-green-500 flex items-center gap-1.5">
-                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"></path></svg>
                    {{ t('shopping_cashback') }}
                 </span>
                 <span class="text-xs font-black text-green-400 font-mono tracking-tight">+ {{ formatNum(totalShopCartCashback) }} MO</span>
@@ -771,14 +959,27 @@ const getSwipeStyle = (idx) => {
 
 /* ─── PRODUCT CARDS ─── */
 .card-highlight {
-  border-color: rgba(34, 197, 94, 0.25) !important;
-  background-color: rgba(34, 197, 94, 0.025);
+  border-color: rgba(52, 211, 153, 0.40) !important;
+  background-color: rgba(52, 211, 153, 0.035);
+}
+.card-muted {
+  opacity: 0.5;
+  filter: saturate(0.55);
+  transition: opacity 0.2s, filter 0.2s;
+}
+.card-muted:hover, .card-muted:focus-within {
+  opacity: 1;
+  filter: none;
 }
 .just-added { animation: flashAdd 0.8s ease-out; }
 @keyframes flashAdd {
   0%   { border-color: rgba(0, 240, 255, 0.55); box-shadow: 0 0 10px rgba(6,182,212,0.25); }
   100% { border-color: rgba(51, 65, 85, 0.2); box-shadow: none; }
 }
+
+/* Icona "+" sui tier row: appare all'hover come affordance di aggiunta */
+.tier-add-icon { opacity: 0; transition: opacity 0.15s; }
+.tier-row:hover .tier-add-icon, .tier-row:focus-visible .tier-add-icon { opacity: 0.7; }
 
 /* ─── SIDEBAR ELEMENTS ─── */
 .section-label {
@@ -797,6 +998,7 @@ const getSwipeStyle = (idx) => {
   width: 100%;
   display: flex;
   align-items: center;
+  gap: 8px;
   text-align: left;
   padding: 8px 10px;
   border-radius: 6px;
@@ -839,7 +1041,44 @@ const getSwipeStyle = (idx) => {
   width: 30px;
   text-align: center;
   outline: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
+.qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.qty-step {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: theme('colors.slate.400');
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  transition: all 0.15s;
+}
+.qty-step:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: #fff; }
+.qty-step:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.cart-qty-step {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: theme('colors.slate.400');
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  transition: all 0.15s;
+}
+.cart-qty-step:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
 .btn-discounted {
   border-color: rgba(34, 197, 94, 0.35) !important;
   background-color: rgba(34, 197, 94, 0.06) !important;
@@ -879,6 +1118,7 @@ const getSwipeStyle = (idx) => {
 
 @media (prefers-reduced-motion: reduce) {
   .just-added { animation: none; }
+  .card-muted { transition: none; }
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
@@ -15,6 +15,9 @@ const { runPlanner, computeEuroCost, buildInitialState, simulateDailyProduction 
 const showIntro = ref(false);
 const isComputing = ref(false);
 const result = ref(null);
+const progress = ref(null);        // { step, maxSteps, currentProd, initialProd, target } dal worker
+const doneSteps = ref(new Set());  // blocchi spuntati come "fatto" nella roadmap
+const typeFilter = ref('all');     // filtro tipo nella roadmap
 
 // Form
 const target = ref(0);             // Δ goal in metallo/giorno
@@ -36,6 +39,7 @@ const _saveConfig = () => {
             packBatch: packBatch.value,
             playerClassOverride: playerClassOverride.value,
             includeMines: includeMines.value,
+            includeCrawlerMines: includeCrawlerMines.value,
             includePlasma: includePlasma.value,
             includeLf: includeLf.value,
             includeLfResearch: includeLfResearch.value,
@@ -65,6 +69,7 @@ const formTarget = computed({
     }
 });
 const includeMines = ref(true);
+const includeCrawlerMines = ref(false);
 const includePlasma = ref(true);
 const includeLf = ref(true);
 const includeLfResearch = ref(false);
@@ -101,6 +106,7 @@ onMounted(() => {
         if (cfg.packBatch !== undefined)             packBatch.value = cfg.packBatch;
         if (cfg.playerClassOverride !== undefined)   playerClassOverride.value = cfg.playerClassOverride;
         if (cfg.includeMines !== undefined)          includeMines.value = cfg.includeMines;
+        if (cfg.includeCrawlerMines !== undefined)   includeCrawlerMines.value = cfg.includeCrawlerMines;
         if (cfg.includePlasma !== undefined)         includePlasma.value = cfg.includePlasma;
         if (cfg.includeLf !== undefined)             includeLf.value = cfg.includeLf;
         if (cfg.includeLfResearch !== undefined)     includeLfResearch.value = cfg.includeLfResearch;
@@ -115,7 +121,7 @@ onMounted(() => {
     } catch {}
 });
 watch(
-    [packMode, packBatch, playerClassOverride, includeMines, includePlasma, includeLf, includeLfResearch,
+    [packMode, packBatch, playerClassOverride, includeMines, includeCrawlerMines, includePlasma, includeLf, includeLfResearch,
      lfResearchTierGroups, capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
     _saveConfig
 );
@@ -275,42 +281,91 @@ const groupedSteps = computed(() => {
 });
 
 // ───── Esecuzione planner ───────────────────────────────────────────────
-const computePlan = async () => {
-    if (!activeProfile.value) return;
-    isComputing.value = true;
-    result.value = null;
+// Il calcolo gira in un Web Worker: la UI resta fluida e mostra il progresso
+// reale. Se il worker non è disponibile (browser/ambiente particolare) si
+// ricade sul calcolo sincrono nel main thread.
+let plannerWorker = null;
 
-    await new Promise(r => setTimeout(r, 30));
+const buildPlannerOptions = () => ({
+    target: parseInt(target.value) || 0,
+    maxSteps: parseInt(maxSteps.value) || 80,
+    includeMines: includeMines.value,
+    includeCrawlerMines: includeCrawlerMines.value,
+    includePlasma: includePlasma.value,
+    includeLf: includeLf.value,
+    includeLfResearch: includeLfResearch.value,
+    lfResearchTierGroups: [...lfResearchTierGroups.value],
+    packMode: packMode.value,
+    packBatch: packBatch.value,
+    caps: {
+        metalMine:  capMine.value      > 0 ? capMine.value      : Infinity,
+        plasma:     capPlasma.value    > 0 ? capPlasma.value    : Infinity,
+        lfBuilding: capLf.value        > 0 ? capLf.value        : Infinity,
+        lfResearch: capLfResearch.value > 0 ? capLfResearch.value : Infinity,
+    }
+});
 
+const finalizePlan = (planRes, initialState) => {
+    const euro = computeEuroCost(planRes.cumulativePacks, {
+        ...initialState.shop,
+        shopDiscount: shopDiscount.value,
+        moBonus: moBonus.value,
+    });
+    result.value = {
+        ...planRes, euro,
+        lfChoiceSnapshot: [...lfChoice.value],
+        targetSnapshot: parseInt(target.value) || 0
+    };
+    doneSteps.value = new Set();
+    typeFilter.value = 'all';
+    isComputing.value = false;
+    progress.value = null;
+};
+
+const runPlannerSync = (initialState, options) => {
     try {
-        const initialState = applyOverrides(buildInitialState(activeProfile.value, lfChoice.value));
-        const planRes = runPlanner(initialState, {
-            target: parseInt(target.value) || 0,
-            maxSteps: parseInt(maxSteps.value) || 80,
-            includeMines: includeMines.value,
-            includePlasma: includePlasma.value,
-            includeLf: includeLf.value,
-            includeLfResearch: includeLfResearch.value,
-            lfResearchTierGroups: lfResearchTierGroups.value,
-            packMode: packMode.value,
-            packBatch: packBatch.value,
-            caps: {
-                metalMine:  capMine.value      > 0 ? capMine.value      : Infinity,
-                plasma:     capPlasma.value    > 0 ? capPlasma.value    : Infinity,
-                lfBuilding: capLf.value        > 0 ? capLf.value        : Infinity,
-                lfResearch: capLfResearch.value > 0 ? capLfResearch.value : Infinity,
-            }
-        });
-        const euro = computeEuroCost(planRes.cumulativePacks, {
-            ...initialState.shop,
-            shopDiscount: shopDiscount.value,
-            moBonus: moBonus.value,
-        });
-        result.value = { ...planRes, euro, lfChoiceSnapshot: [...lfChoice.value] };
-    } finally {
+        finalizePlan(runPlanner(initialState, options), initialState);
+    } catch {
         isComputing.value = false;
+        progress.value = null;
     }
 };
+
+const computePlan = () => {
+    if (!activeProfile.value || isComputing.value) return;
+    isComputing.value = true;
+    result.value = null;
+    progress.value = null;
+
+    const initialState = applyOverrides(buildInitialState(activeProfile.value, lfChoice.value));
+    const options = buildPlannerOptions();
+
+    try {
+        plannerWorker?.terminate();
+        plannerWorker = new Worker(new URL('../workers/planner.worker.js', import.meta.url), { type: 'module' });
+        plannerWorker.onmessage = ({ data }) => {
+            if (data.type === 'progress')   progress.value = data.progress;
+            else if (data.type === 'done')  finalizePlan(data.result, initialState);
+            else                            runPlannerSync(initialState, options);
+        };
+        plannerWorker.onerror = (e) => {
+            e.preventDefault();
+            runPlannerSync(initialState, options);
+        };
+        plannerWorker.postMessage({ initialState, options });
+    } catch {
+        runPlannerSync(initialState, options);
+    }
+};
+
+onUnmounted(() => plannerWorker?.terminate());
+
+// Percentuale di avanzamento verso il target durante il calcolo.
+const computePct = computed(() => {
+    const p = progress.value;
+    if (!p || p.target <= p.initialProd) return 0;
+    return Math.min(100, Math.round((p.currentProd - p.initialProd) / (p.target - p.initialProd) * 100));
+});
 
 // ───── Etichette/colore per tipo di step ────────────────────────────────
 const LF_RESEARCH_SPECIES = {
@@ -323,6 +378,8 @@ const LF_RESEARCH_SPECIES = {
 const stepTypeLabel = (s) => {
     const type = typeof s === 'string' ? s : s.type;
     if (type === 'metal_mine') return t('strategy_step_metal_mine');
+    if (type === 'crystal_mine') return t('strategy_step_crystal_mine');
+    if (type === 'deuterium_synthesizer') return t('strategy_step_deut_mine');
     if (type === 'plasma_technology') return t('strategy_step_plasma');
     if (type === 'lf_magma') return t('strategy_step_lf_magma');
     if (type === 'lf_human') return t('strategy_step_lf_human');
@@ -332,12 +389,59 @@ const stepTypeLabel = (s) => {
 const stepTypeColor = (s) => {
     const type = typeof s === 'string' ? s : s.type;
     if (type === 'metal_mine') return 'sky';
+    if (type === 'crystal_mine') return 'cyan';
+    if (type === 'deuterium_synthesizer') return 'indigo';
     if (type === 'plasma_technology') return 'violet';
     if (type === 'lf_magma') return 'orange';
     if (type === 'lf_human') return 'blue';
     if (type === 'lf_research') return LF_RESEARCH_SPECIES[s.species]?.color ?? 'emerald';
     return 'slate';
 };
+// Classi badge per colore tipo (mappa statica: Tailwind non vede classi dinamiche)
+const STEP_BADGE_CLASSES = {
+    sky:     'bg-sky-500/10 text-sky-300 border-sky-500/30',
+    cyan:    'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
+    indigo:  'bg-indigo-500/10 text-indigo-300 border-indigo-500/30',
+    violet:  'bg-violet-500/10 text-violet-300 border-violet-500/30',
+    orange:  'bg-orange-500/10 text-orange-300 border-orange-500/30',
+    blue:    'bg-blue-500/10 text-blue-300 border-blue-500/30',
+    teal:    'bg-teal-500/10 text-teal-300 border-teal-500/30',
+    purple:  'bg-purple-500/10 text-purple-300 border-purple-500/30',
+    emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+    slate:   'bg-slate-500/10 text-slate-300 border-slate-500/30',
+};
+const stepBadgeClass = (s) => STEP_BADGE_CLASSES[stepTypeColor(s)] || STEP_BADGE_CLASSES.slate;
+
+// ───── Roadmap: stato "fatto", filtro tipo, prossimo step ───────────────
+const toggleDone = (n) => {
+    const next = new Set(doneSteps.value);
+    next.has(n) ? next.delete(n) : next.add(n);
+    doneSteps.value = next;
+};
+const doneCount = computed(() => doneSteps.value.size);
+// Primo blocco non ancora spuntato (in ordine di piano, ignora il filtro)
+const nextStepN = computed(() => {
+    const blk = groupedSteps.value.find(b => !doneSteps.value.has(b.n));
+    return blk ? blk.n : null;
+});
+// Tipi presenti nel piano, per i chip filtro
+const presentTypes = computed(() => {
+    const seen = new Set();
+    return groupedSteps.value.filter(b => !seen.has(b.type) && seen.add(b.type)).map(b => b.type);
+});
+const filteredSteps = computed(() =>
+    typeFilter.value === 'all'
+        ? groupedSteps.value
+        : groupedSteps.value.filter(b => b.type === typeFilter.value)
+);
+// Avanzamento del piano verso il target per una riga della roadmap
+const rowProgressPct = computed(() => {
+    if (!result.value) return () => 0;
+    const start = result.value.initialProd;
+    const end = Math.max(result.value.targetSnapshot || 0, result.value.finalProd);
+    if (end <= start) return () => 100;
+    return (cumProd) => Math.min(100, Math.round((cumProd - start) / (end - start) * 100));
+});
 
 // ROI: tempo di recupero del costo in giorni = costMSU / deltaProd
 const formatROI = (costMSU, deltaProd) => {
@@ -381,6 +485,8 @@ const importToPackQueue = () => {
     result.value.steps.forEach(s => {
         let key, cat, item;
         if (s.type === 'metal_mine') { key = 'metal_mine'; cat = 'resources'; item = key; }
+        else if (s.type === 'crystal_mine') { key = 'crystal_mine'; cat = 'resources'; item = key; }
+        else if (s.type === 'deuterium_synthesizer') { key = 'deuterium_synthesizer'; cat = 'resources'; item = key; }
         else if (s.type === 'plasma_technology') { key = 'plasma_technology'; cat = 'research'; item = key; }
         else if (s.type === 'lf_magma') { key = '2006'; cat = 'lf_rocktal'; item = key; }
         else if (s.type === 'lf_human') { key = '1006'; cat = 'lf_humans'; item = key; }
@@ -424,10 +530,12 @@ const perPlanetSummary = computed(() => {
         if (s.planetIdx == null) return;
         const k = s.planetIdx;
         if (!map.has(k)) {
-            map.set(k, { idx: k, name: s.planetName, metalMine: 0, lfMagma: 0, lfHuman: 0 });
+            map.set(k, { idx: k, name: s.planetName, metalMine: 0, crystalMine: 0, deutMine: 0, lfMagma: 0, lfHuman: 0 });
         }
         const e = map.get(k);
         if (s.type === 'metal_mine') e.metalMine++;
+        else if (s.type === 'crystal_mine') e.crystalMine++;
+        else if (s.type === 'deuterium_synthesizer') e.deutMine++;
         else if (s.type === 'lf_magma') e.lfMagma++;
         else if (s.type === 'lf_human') e.lfHuman++;
     });
@@ -445,6 +553,7 @@ const typeSummary = computed(() => {
 
     const cats = {
         mine:       { delta: 0, count: 0, levels: 0 },
+        crawler:    { delta: 0, count: 0, levels: 0 },
         plasma:     { delta: 0, count: 0, levels: 0 },
         lf_build:   { delta: 0, count: 0, levels: 0 },
         lf_research:{ delta: 0, count: 0, levels: 0 },
@@ -453,6 +562,7 @@ const typeSummary = computed(() => {
     steps.forEach(s => {
         const lvls = (s.to || 0) - (s.from || 0);
         if (s.type === 'metal_mine')        { cats.mine.delta += s.deltaProd;        cats.mine.count++;        cats.mine.levels += lvls; }
+        else if (s.type === 'crystal_mine' || s.type === 'deuterium_synthesizer') { cats.crawler.delta += s.deltaProd; cats.crawler.count++; cats.crawler.levels += lvls; }
         else if (s.type === 'plasma_technology') { cats.plasma.delta += s.deltaProd; cats.plasma.count++;      cats.plasma.levels += lvls; }
         else if (s.type === 'lf_magma' || s.type === 'lf_human') { cats.lf_build.delta += s.deltaProd; cats.lf_build.count++; cats.lf_build.levels += lvls; }
         else if (s.type === 'lf_research')  { cats.lf_research.delta += s.deltaProd; cats.lf_research.count++; cats.lf_research.levels += lvls; }
@@ -569,6 +679,10 @@ const typeSummary = computed(() => {
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" v-model="includeMines" class="w-4 h-4 accent-sky-500 rounded flex-shrink-0">
                             <span class="text-[12px] text-slate-300">{{ t('lbl_mine_metal') }}</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" v-model="includeCrawlerMines" class="w-4 h-4 accent-cyan-500 rounded flex-shrink-0">
+                            <span class="text-[12px] text-slate-300">{{ t('strategy_crawler_mines') }}</span>
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" v-model="includePlasma" class="w-4 h-4 accent-violet-500 rounded flex-shrink-0">
@@ -735,6 +849,17 @@ const typeSummary = computed(() => {
                     {{ isComputing ? t('strategy_computing') : t('strategy_compute') }}
                 </button>
             </div>
+            <!-- Progresso calcolo (dal worker): % verso il target + step correnti -->
+            <div v-if="isComputing && progress" class="mt-3">
+                <div class="flex items-center justify-between text-[10px] font-mono mb-1">
+                    <span class="text-slate-500">{{ progress.step }} / {{ progress.maxSteps }} step</span>
+                    <span class="text-emerald-400">{{ formatNum(progress.currentProd) }} · {{ computePct }}%</span>
+                </div>
+                <div class="h-1.5 bg-black/40 rounded-full overflow-hidden border border-slate-700/20"
+                     role="progressbar" :aria-valuenow="computePct" aria-valuemin="0" aria-valuemax="100">
+                    <div class="h-full bg-emerald-500/70 rounded-full transition-all duration-200" :style="{ width: computePct + '%' }"></div>
+                </div>
+            </div>
             <div v-if="target <= profileDailyProd && target > 0" class="mt-2 text-right text-[11px] text-amber-400/80">
                 {{ t('strategy_target_too_low') }}
             </div>
@@ -836,6 +961,7 @@ const typeSummary = computed(() => {
                             <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border flex-shrink-0"
                                   :class="{
                                       'bg-sky-500/10 text-sky-300 border-sky-500/30':       cat.key === 'mine',
+                                      'bg-cyan-500/10 text-cyan-300 border-cyan-500/30':    cat.key === 'crawler',
                                       'bg-violet-500/10 text-violet-300 border-violet-500/30': cat.key === 'plasma',
                                       'bg-orange-500/10 text-orange-300 border-orange-500/30': cat.key === 'lf_build',
                                       'bg-emerald-500/10 text-emerald-300 border-emerald-500/30': cat.key === 'lf_research',
@@ -849,6 +975,7 @@ const typeSummary = computed(() => {
                                  :style="{ width: cat.pct + '%' }"
                                  :class="{
                                      'bg-sky-500/70':     cat.key === 'mine',
+                                     'bg-cyan-500/70':    cat.key === 'crawler',
                                      'bg-violet-500/70':  cat.key === 'plasma',
                                      'bg-orange-500/70':  cat.key === 'lf_build',
                                      'bg-emerald-500/70': cat.key === 'lf_research',
@@ -860,6 +987,7 @@ const typeSummary = computed(() => {
                             <span class="text-base font-black font-mono"
                                   :class="{
                                       'text-sky-300':     cat.key === 'mine',
+                                      'text-cyan-300':    cat.key === 'crawler',
                                       'text-violet-300':  cat.key === 'plasma',
                                       'text-orange-300':  cat.key === 'lf_build',
                                       'text-emerald-300': cat.key === 'lf_research',
@@ -888,6 +1016,8 @@ const typeSummary = computed(() => {
                         <span class="font-mono text-slate-300 truncate">{{ row.name }}</span>
                         <div class="flex gap-2 flex-shrink-0">
                             <span v-if="row.metalMine" class="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 font-mono text-[10px]">M+{{ row.metalMine }}</span>
+                            <span v-if="row.crystalMine" class="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono text-[10px]">C+{{ row.crystalMine }}</span>
+                            <span v-if="row.deutMine" class="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-mono text-[10px]">D+{{ row.deutMine }}</span>
                             <span v-if="row.lfMagma" class="px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30 font-mono text-[10px]">FM+{{ row.lfMagma }}</span>
                             <span v-if="row.lfHuman" class="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 font-mono text-[10px]">FAE+{{ row.lfHuman }}</span>
                         </div>
@@ -905,22 +1035,49 @@ const typeSummary = computed(() => {
 
             <!-- Roadmap step-by-step -->
             <div class="overflow-hidden rounded-xl border border-slate-700/25 bg-ogame-panel">
-                <div class="px-5 py-3 border-b border-slate-700/25 flex justify-between items-center bg-ogame-surface">
-                    <div class="flex items-center gap-2.5">
-                        <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
-                        <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">{{ t('strategy_roadmap') }}</h3>
+                <div class="px-5 py-3 border-b border-slate-700/25 bg-ogame-surface">
+                    <div class="flex justify-between items-center flex-wrap gap-2">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
+                            <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">{{ t('strategy_roadmap') }}</h3>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-[10px] font-mono text-emerald-300 border border-emerald-500/25">
+                                {{ doneCount }}/{{ groupedSteps.length }} {{ t('lbl_done') }}
+                            </span>
+                            <span class="px-2 py-0.5 rounded bg-white/[0.04] text-[10px] font-mono text-slate-500 border border-slate-700/20">
+                                {{ groupedSteps.length }} {{ t('lbl_blocks') }}
+                                <span v-if="groupedSteps.length !== result.steps.length" class="text-slate-700">({{ result.steps.length }} step)</span>
+                            </span>
+                        </div>
                     </div>
-                    <span class="px-2 py-0.5 rounded bg-white/[0.04] text-[10px] font-mono text-slate-500 border border-slate-700/20">
-                        {{ groupedSteps.length }} {{ t('lbl_blocks') }}
-                        <span v-if="groupedSteps.length !== result.steps.length" class="text-slate-700">({{ result.steps.length }} step)</span>
-                    </span>
+                    <!-- Avanzamento esecuzione del piano (blocchi spuntati) -->
+                    <div class="mt-2 h-1 bg-black/40 rounded-full overflow-hidden">
+                        <div class="h-full bg-emerald-500/60 rounded-full transition-all duration-300"
+                             :style="{ width: (groupedSteps.length ? Math.round(doneCount / groupedSteps.length * 100) : 0) + '%' }"></div>
+                    </div>
+                    <!-- Filtro per tipo -->
+                    <div v-if="presentTypes.length > 1" class="mt-2.5 flex items-center gap-1 flex-wrap">
+                        <button @click="typeFilter = 'all'"
+                                class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border transition-colors duration-150"
+                                :class="typeFilter === 'all' ? 'bg-slate-600/40 text-slate-100 border-slate-500/40' : 'bg-transparent text-slate-600 border-slate-700/30 hover:text-slate-400'">
+                            {{ t('lbl_all') }}
+                        </button>
+                        <button v-for="tp in presentTypes" :key="tp"
+                                @click="typeFilter = typeFilter === tp ? 'all' : tp"
+                                class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border transition-colors duration-150"
+                                :class="typeFilter === tp ? stepBadgeClass(tp) : 'bg-transparent text-slate-600 border-slate-700/30 hover:text-slate-400'">
+                            {{ stepTypeLabel(tp) }}
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Desktop table -->
-                <div class="hidden md:block overflow-x-auto custom-scrollbar">
+                <div class="hidden md:block overflow-x-auto overflow-y-auto max-h-[70vh] custom-scrollbar">
                     <table class="w-full text-xs">
-                        <thead class="bg-ogame-surface text-slate-500 uppercase text-[9px] tracking-wider">
+                        <thead class="sticky top-0 z-10 bg-ogame-surface text-slate-500 uppercase text-[9px] tracking-wider shadow-[0_1px_0_rgba(51,65,85,0.4)]">
                             <tr>
+                                <th class="px-3 py-2 text-center font-semibold w-8"><span class="sr-only">{{ t('lbl_done') }}</span>✓</th>
                                 <th class="px-3 py-2 text-left font-semibold">#</th>
                                 <th class="px-3 py-2 text-left font-semibold">{{ t('strategy_th_type') }}</th>
                                 <th class="px-3 py-2 text-left font-semibold">{{ t('strategy_th_planet') }}</th>
@@ -934,21 +1091,25 @@ const typeSummary = computed(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="s in groupedSteps" :key="s.n"
-                                class="border-t border-slate-700/15 hover:bg-white/[0.02]"
-                                :class="s.count > 1 ? 'bg-emerald-500/[0.02]' : ''">
-                                <td class="px-3 py-2 font-mono text-slate-600 text-[10px] whitespace-nowrap">{{ s.n }}</td>
+                            <tr v-for="s in filteredSteps" :key="s.n"
+                                class="border-t border-slate-700/15 hover:bg-white/[0.02] transition-colors duration-150 cursor-pointer"
+                                :class="[
+                                    doneSteps.has(s.n) ? 'opacity-40' : '',
+                                    s.n === nextStepN ? 'bg-emerald-500/[0.06]' : (s.count > 1 ? 'bg-emerald-500/[0.02]' : '')
+                                ]"
+                                @click="toggleDone(s.n)">
+                                <td class="px-3 py-2 text-center">
+                                    <input type="checkbox" :checked="doneSteps.has(s.n)" @click.stop="toggleDone(s.n)"
+                                           :aria-label="t('lbl_done') + ' #' + s.n"
+                                           class="w-3.5 h-3.5 accent-emerald-500 rounded cursor-pointer">
+                                </td>
+                                <td class="px-3 py-2 font-mono text-slate-600 text-[10px] whitespace-nowrap">
+                                    {{ s.n }}
+                                    <span v-if="s.n === nextStepN" class="ml-1 px-1 py-px rounded bg-emerald-500/15 text-emerald-300 text-[8px] font-bold uppercase tracking-wider">{{ t('lbl_next') }}</span>
+                                </td>
                                 <td class="px-3 py-2 whitespace-nowrap">
                                     <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
-                                          :class="{
-                                              'bg-sky-500/10 text-sky-300 border-sky-500/30':    stepTypeColor(s) === 'sky',
-                                              'bg-violet-500/10 text-violet-300 border-violet-500/30': stepTypeColor(s) === 'violet',
-                                              'bg-orange-500/10 text-orange-300 border-orange-500/30': stepTypeColor(s) === 'orange',
-                                              'bg-blue-500/10 text-blue-300 border-blue-500/30':   stepTypeColor(s) === 'blue',
-                                              'bg-teal-500/10 text-teal-300 border-teal-500/30':   stepTypeColor(s) === 'teal',
-                                              'bg-purple-500/10 text-purple-300 border-purple-500/30': stepTypeColor(s) === 'purple',
-                                              'bg-emerald-500/10 text-emerald-300 border-emerald-500/30': stepTypeColor(s) === 'emerald'
-                                          }">
+                                          :class="[stepBadgeClass(s), doneSteps.has(s.n) ? 'line-through' : '']">
                                         {{ stepTypeLabel(s) }}
                                     </span>
                                     <span v-if="s.count > 1" class="ml-1.5 text-[9px] text-slate-600 font-mono">×{{ s.count }}</span>
@@ -965,7 +1126,12 @@ const typeSummary = computed(() => {
                                 <td class="px-3 py-2 text-right font-mono text-amber-300/90">{{ s.packs }}</td>
                                 <td class="px-3 py-2 text-right font-mono text-emerald-300">+{{ formatNum(s.deltaProd) }}</td>
                                 <td class="px-3 py-2 text-right font-mono font-semibold" :class="roiColor(s.costMSU, s.deltaProd)">{{ formatROI(s.costMSU, s.deltaProd) }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-slate-200 font-bold">{{ formatNum(s.cumulativeProd) }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-slate-200 font-bold">
+                                    {{ formatNum(s.cumulativeProd) }}
+                                    <div class="mt-0.5 h-[3px] w-16 ml-auto bg-black/40 rounded-full overflow-hidden">
+                                        <div class="h-full bg-emerald-500/50 rounded-full" :style="{ width: rowProgressPct(s.cumulativeProd) + '%' }"></div>
+                                    </div>
+                                </td>
                                 <td class="px-3 py-2 text-right font-mono text-amber-400">{{ s.cumulativePacks }}</td>
                             </tr>
                         </tbody>
@@ -974,24 +1140,25 @@ const typeSummary = computed(() => {
 
                 <!-- Mobile cards -->
                 <div class="md:hidden p-3 space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    <div v-for="s in groupedSteps" :key="s.n"
-                         class="rounded-lg border p-3"
-                         :class="s.count > 1 ? 'bg-emerald-500/[0.03] border-emerald-500/20' : 'bg-ogame-surface border-slate-700/20'">
+                    <div v-for="s in filteredSteps" :key="s.n"
+                         class="rounded-lg border p-3 transition-opacity duration-150"
+                         :class="[
+                             doneSteps.has(s.n) ? 'opacity-40' : '',
+                             s.n === nextStepN
+                                 ? 'bg-emerald-500/[0.06] border-emerald-500/30'
+                                 : (s.count > 1 ? 'bg-emerald-500/[0.03] border-emerald-500/20' : 'bg-ogame-surface border-slate-700/20')
+                         ]">
                         <div class="flex items-center justify-between mb-2">
                             <div class="flex items-center gap-1.5">
+                                <input type="checkbox" :checked="doneSteps.has(s.n)" @change="toggleDone(s.n)"
+                                       :aria-label="t('lbl_done') + ' #' + s.n"
+                                       class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
                                 <span class="text-[10px] font-mono text-slate-600">#{{ s.n }}</span>
                                 <span v-if="s.count > 1" class="text-[9px] font-mono text-slate-700">×{{ s.count }}</span>
+                                <span v-if="s.n === nextStepN" class="px-1 py-px rounded bg-emerald-500/15 text-emerald-300 text-[8px] font-bold uppercase tracking-wider">{{ t('lbl_next') }}</span>
                             </div>
                             <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
-                                  :class="{
-                                      'bg-sky-500/10 text-sky-300 border-sky-500/30':    stepTypeColor(s) === 'sky',
-                                      'bg-violet-500/10 text-violet-300 border-violet-500/30': stepTypeColor(s) === 'violet',
-                                      'bg-orange-500/10 text-orange-300 border-orange-500/30': stepTypeColor(s) === 'orange',
-                                      'bg-blue-500/10 text-blue-300 border-blue-500/30':   stepTypeColor(s) === 'blue',
-                                      'bg-teal-500/10 text-teal-300 border-teal-500/30':   stepTypeColor(s) === 'teal',
-                                      'bg-purple-500/10 text-purple-300 border-purple-500/30': stepTypeColor(s) === 'purple',
-                                      'bg-emerald-500/10 text-emerald-300 border-emerald-500/30': stepTypeColor(s) === 'emerald'
-                                  }">{{ stepTypeLabel(s) }}</span>
+                                  :class="stepBadgeClass(s)">{{ stepTypeLabel(s) }}</span>
                         </div>
                         <div class="text-[12px] text-slate-400 mb-2">
                             <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5">{{ s.researchName }}</div>

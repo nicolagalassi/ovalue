@@ -19,7 +19,7 @@
 import { OGAME_DB } from '../data/ogame_db';
 import { useOgameFormulas } from './useOgameFormulas';
 
-const { calcPlanetMetalProduction, getBuildCostLF, calcLFResearchBonus } = useOgameFormulas();
+const { calcPlanetMetalProduction, getBuildCostLF, calcLFResearchBonus, calcPlanetLFContribution } = useOgameFormulas();
 
 // ───── Helpers di base ─────────────────────────────────────────────────────
 
@@ -101,6 +101,12 @@ const simulateDailyProduction = (state, precomp = null) => {
 //   revertMut(state, backup)   — ripristina state allo stato precedente
 // Questo evita JSON.parse/stringify per ogni valutazione, riducendo il tempo
 // di calcolo di 10-100x rispetto al clone-per-candidato.
+//
+// Ogni candidato dichiara inoltre uno `scope` che dice al planner quanto stato
+// invalida la sua applicazione, per la valutazione incrementale:
+//   'planet'      — cambia solo la produzione del pianeta planetIdx
+//   'global'      — cambia un setting account-wide (plasma): tutti i pianeti
+//   'lf_research' — cambia il bonus ricerche globale: tutti i pianeti + lfPct
 
 const buildCandidates = (state, options) => {
     const candidates = [];
@@ -115,11 +121,40 @@ const buildCandidates = (state, options) => {
             const cost = buildingCumulativeCost('metal_mine', lvl, lvl + 1, pack.minLevel);
             candidates.push({
                 type: 'metal_mine',
+                scope: 'planet',
                 planetIdx: idx,
                 from: lvl, to: lvl + 1,
                 cost,
                 applyMut:  (s) => { const v = s.planets[idx].metal; s.planets[idx].metal = lvl + 1; return v; },
                 revertMut: (s, v) => { s.planets[idx].metal = v; }
+            });
+        });
+    }
+
+    // 1b) Miniere Cristallo/Deuterio +1 — non producono metallo, ma alzano il
+    // cap crawler (somma livelli miniere × 8) e quindi il bonus % metallo dei
+    // crawler, finché questo è sotto il tetto del 50%. Il loro costo è pieno
+    // mentre il beneficio valutato è solo quello sul metallo: la produzione di
+    // cristallo/deuterio extra è un regalo non conteggiato (scelta conservativa).
+    if (options.includeCrawlerMines) {
+        const crawlerMineDefs = [
+            { type: 'crystal_mine',          field: 'crystal'   },
+            { type: 'deuterium_synthesizer', field: 'deuterium' }
+        ];
+        planets.forEach((p, idx) => {
+            crawlerMineDefs.forEach(({ type, field }) => {
+                const lvl = parseInt(p[field]) || 0;
+                if (lvl >= (caps?.metalMine ?? Infinity)) return;
+                const cost = buildingCumulativeCost(type, lvl, lvl + 1, pack.minLevel);
+                candidates.push({
+                    type,
+                    scope: 'planet',
+                    planetIdx: idx,
+                    from: lvl, to: lvl + 1,
+                    cost,
+                    applyMut:  (s) => { const v = s.planets[idx][field]; s.planets[idx][field] = lvl + 1; return v; },
+                    revertMut: (s, v) => { s.planets[idx][field] = v; }
+                });
             });
         });
     }
@@ -131,6 +166,7 @@ const buildCandidates = (state, options) => {
             const cost = buildingCumulativeCost('plasma_technology', lvl, lvl + 1, pack.minLevel);
             candidates.push({
                 type: 'plasma_technology',
+                scope: 'global',
                 from: lvl, to: lvl + 1,
                 cost,
                 applyMut:  (s) => { const v = s.settings.plasma; s.settings.plasma = lvl + 1; return v; },
@@ -149,6 +185,7 @@ const buildCandidates = (state, options) => {
                 const cost = lfBuildingCost('rocktal', 2006, lvl, lvl + 1, pack.lfRsrLabLevel);
                 candidates.push({
                     type: 'lf_magma',
+                    scope: 'planet',
                     planetIdx: idx,
                     from: lvl, to: lvl + 1,
                     cost,
@@ -161,6 +198,7 @@ const buildCandidates = (state, options) => {
                 const cost = lfBuildingCost('humans', 1006, lvl, lvl + 1, pack.lfRsrLabLevel);
                 candidates.push({
                     type: 'lf_human',
+                    scope: 'planet',
                     planetIdx: idx,
                     from: lvl, to: lvl + 1,
                     cost,
@@ -201,6 +239,7 @@ const buildCandidates = (state, options) => {
                     const cost = lfResearchCost(species, idStr, currentLevel, currentLevel + 1, pack.lfRsrLabLevel);
                     candidates.push({
                         type: 'lf_research',
+                        scope: 'lf_research',
                         species,
                         researchId: idStr,
                         researchName: itemData.name || idStr,
@@ -235,15 +274,29 @@ const buildCandidates = (state, options) => {
 };
 
 // ───── Greedy planner ─────────────────────────────────────────────────────
+// Valutazione incrementale: la produzione oraria di ogni pianeta e il
+// contributo per-pianeta al bonus ricerche LF sono tenuti in cache.
+//   - candidato scope 'planet'      → ricalcola solo quel pianeta: O(1)
+//   - candidato scope 'global'      → ricalcola tutti i pianeti: O(N), ma è 1 solo
+//   - candidato scope 'lf_research' → aggiorna il contributo del pianeta toccato
+//                                     e ricalcola la produzione: O(N + R_pianeta)
+// Risultati identici alla simulazione completa (il bonus LF globale è la somma
+// esatta dei contributi per-pianeta), ma con un costo per step di ordini di
+// grandezza inferiore.
+//
+// options.onProgress({ step, maxSteps, currentProd, initialProd, target }) viene
+// invocata periodicamente per aggiornare la UI (usata dal worker).
 export const runPlanner = (initialState, options = {}) => {
     const cfg = {
         maxSteps: 200,
         includeMines: true,
+        includeCrawlerMines: false,
         includePlasma: true,
         includeLf: true,
         includeLfResearch: false,
         minScoreThreshold: 0,
         packMode: 'dynamic',
+        onProgress: null,
         caps: { metalMine: Infinity, plasma: Infinity, lfBuilding: Infinity, lfResearch: Infinity },
         ...options
     };
@@ -251,7 +304,36 @@ export const runPlanner = (initialState, options = {}) => {
     const state = JSON.parse(JSON.stringify(initialState));
     const steps = [];
 
-    const initialProd = simulateDailyProduction(state);
+    // ─ Cache incrementali ─
+    const lfContribs = state.planets.map(p => calcPlanetLFContribution(p));
+    const sumLfPct = () => {
+        const t = { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
+        lfContribs.forEach(c => {
+            t.metal += c.metal; t.crystal += c.crystal;
+            t.deuterium += c.deuterium; t.collectorBonus += c.collectorBonus;
+        });
+        return {
+            metal: t.metal * 100, crystal: t.crystal * 100,
+            deuterium: t.deuterium * 100, collectorBonus: t.collectorBonus * 100
+        };
+    };
+    let lfPct = sumLfPct();
+
+    const planetHourly = (idx, pct = lfPct) =>
+        calcPlanetMetalProduction(state.planets[idx], state.settings, pct, {
+            lifeform: effectiveLifeform(state.planets[idx], state.lfChoice[idx]),
+            useMaxCrawlers: true
+        }).total;
+
+    let hourly = state.planets.map((_, i) => planetHourly(i));
+    let hourlySum = hourly.reduce((a, b) => a + b, 0);
+    const fullHourlySum = (pct = lfPct) => {
+        let s = 0;
+        for (let i = 0; i < state.planets.length; i++) s += planetHourly(i, pct);
+        return s;
+    };
+
+    const initialProd = Math.floor(hourlySum * 24);
     let currentProd = initialProd;
     let cumulativeMSU = 0;
     let cumulativePacks = 0;
@@ -276,6 +358,10 @@ export const runPlanner = (initialState, options = {}) => {
     for (let step = 0; step < cfg.maxSteps; step++) {
         if (currentProd >= target) { stoppedReason = 'target_reached'; break; }
 
+        if (typeof cfg.onProgress === 'function' && step % 20 === 0) {
+            cfg.onProgress({ step, maxSteps: cfg.maxSteps, currentProd, initialProd, target });
+        }
+
         // Aggiorna lo snapshot ogni packBatch pacchi (o ad ogni step se packBatch=1)
         if (cfg.packMode === 'dynamic' && cumulativePacks - lastSnapshotAt >= packBatch) {
             packValueSnapshot = currentProd;
@@ -288,19 +374,29 @@ export const runPlanner = (initialState, options = {}) => {
         const candidates = buildCandidates(state, cfg);
         if (candidates.length === 0) { stoppedReason = 'no_candidates'; break; }
 
-        // Precalcola il bonus LF una volta per step; lo invalida solo se
-        // il candidato scelto è lf_research (modifica lfResearch/lfActive).
-        const stepLfBonus = calcLFResearchBonus(state.planets);
-        const precomp = { lfBonus: stepLfBonus };
-
         let best = null;
         for (const cand of candidates) {
             const backup = cand.applyMut(state);
-            // lf_research invalida il bonus → simulazione piena; tutti gli altri usano la cache.
-            const newProd = simulateDailyProduction(
-                state,
-                cand.type === 'lf_research' ? null : precomp
-            );
+
+            let newProd, newPlanetTotal = null, newContrib = null;
+            if (cand.scope === 'planet') {
+                newPlanetTotal = planetHourly(cand.planetIdx);
+                newProd = Math.floor((hourlySum - hourly[cand.planetIdx] + newPlanetTotal) * 24);
+            } else if (cand.scope === 'lf_research') {
+                newContrib = calcPlanetLFContribution(state.planets[cand.planetIdx]);
+                const old = lfContribs[cand.planetIdx];
+                const pct = {
+                    metal:          lfPct.metal          + (newContrib.metal          - old.metal)          * 100,
+                    crystal:        lfPct.crystal        + (newContrib.crystal        - old.crystal)        * 100,
+                    deuterium:      lfPct.deuterium      + (newContrib.deuterium      - old.deuterium)      * 100,
+                    collectorBonus: lfPct.collectorBonus + (newContrib.collectorBonus - old.collectorBonus) * 100
+                };
+                newProd = Math.floor(fullHourlySum(pct) * 24);
+            } else {
+                // 'global' (plasma): cambia il totPerc di tutti i pianeti
+                newProd = Math.floor(fullHourlySum() * 24);
+            }
+
             cand.revertMut(state, backup);
 
             const deltaProd = newProd - currentProd;
@@ -309,8 +405,10 @@ export const runPlanner = (initialState, options = {}) => {
             if (costMSU <= 0) continue;
             const score = deltaProd / (costMSU / packValue);
 
-            if (!best || score > best.score) {
-                best = { cand, deltaProd, costMSU, score, newProd };
+            // A parità di score preferisci il costo minore: meno spreco di
+            // arrotondamento pacchetti, stessa resa.
+            if (!best || score > best.score || (score === best.score && costMSU < best.costMSU)) {
+                best = { cand, deltaProd, costMSU, score, newProd, newPlanetTotal, newContrib };
             }
         }
 
@@ -319,8 +417,20 @@ export const runPlanner = (initialState, options = {}) => {
             stoppedReason = 'score_below_threshold'; break;
         }
 
-        // Applica definitivamente (senza revert)
+        // Applica definitivamente (senza revert) e aggiorna le cache.
         best.cand.applyMut(state);
+        if (best.cand.scope === 'planet') {
+            hourlySum += best.newPlanetTotal - hourly[best.cand.planetIdx];
+            hourly[best.cand.planetIdx] = best.newPlanetTotal;
+        } else if (best.cand.scope === 'lf_research') {
+            lfContribs[best.cand.planetIdx] = best.newContrib;
+            lfPct = sumLfPct();
+            hourly = state.planets.map((_, i) => planetHourly(i));
+            hourlySum = hourly.reduce((a, b) => a + b, 0);
+        } else {
+            hourly = state.planets.map((_, i) => planetHourly(i));
+            hourlySum = hourly.reduce((a, b) => a + b, 0);
+        }
         cumulativeMSU += best.costMSU;
 
         const netMSU = Math.max(0, best.costMSU - creditMSU);

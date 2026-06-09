@@ -54,27 +54,17 @@ const expirationChips = computed(() => {
 <template>
   <div class="flex flex-col w-full flex-grow">
 
-    <!-- Beta banner -->
-    <div class="w-full bg-amber-900/20 border-b border-amber-700/15 px-4 py-2 flex items-center justify-center gap-2.5">
-      <div class="w-1.5 h-1.5 rounded-full bg-amber-500/60"></div>
-      <p class="text-[11px] text-amber-400/80 text-center">
-        <span class="font-semibold text-amber-300/90 uppercase tracking-wider">Beta</span>
-        <span class="mx-2 text-amber-700/60">—</span>
-        {{ t('banner_beta') }}
-      </p>
-    </div>
-
     <!-- Main -->
     <div class="flex-grow flex flex-col">
 
       <!-- ── HERO ──────────────────────────────────────────────────────────── -->
-      <div class="relative px-4 md:px-8 pt-4 md:pt-5 pb-3 flex flex-col items-center text-center overflow-hidden">
+      <div class="relative px-4 md:px-8 pt-5 md:pt-6 pb-3 flex flex-col items-center text-center overflow-hidden">
         <div class="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(14,40,90,0.4),transparent)] pointer-events-none"></div>
 
         <div class="hero-content relative z-10">
 
-          <!-- Tagline + profile chips in a compact pill bar -->
-          <p class="text-sm text-slate-400 mb-4 leading-relaxed max-w-lg mx-auto text-balance">
+          <!-- Tagline solo al primo accesso (nessun profilo): chi torna vede i suoi dati -->
+          <p v-if="!activeProfile" class="text-sm text-slate-400 mb-4 leading-relaxed max-w-lg mx-auto text-balance">
             {{ t('index_desc') }}
           </p>
 
@@ -106,9 +96,9 @@ const expirationChips = computed(() => {
           <router-link to="/metal" class="tool-card card-1 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-mine transition-colors duration-300">
             <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-            <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
-              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-sky-950/60 border border-sky-500/25 flex items-center justify-center group-hover:border-sky-400/50 group-hover:bg-sky-950/80 group-hover:shadow-[0_0_30px_rgba(56,189,248,0.12)] transition-all duration-300">
-                <svg class="w-10 h-10 md:w-12 md:h-12 text-sky-400/70 group-hover:text-sky-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+            <div class="py-8 md:py-10 px-6 flex flex-col items-center text-center gap-4">
+              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-sky-950/60 border border-sky-500/25 flex items-center justify-center group-hover:border-sky-400/50 group-hover:bg-sky-950/80 group-hover:shadow-[0_0_30px_rgba(56,189,248,0.12)] transition-all duration-300">
+                <svg class="w-8 h-8 md:w-10 md:h-10 text-sky-400/70 group-hover:text-sky-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
               </div>
               <div class="flex-grow">
                 <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-sky-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_metal_title') }}</h2>
@@ -127,9 +117,9 @@ const expirationChips = computed(() => {
           <router-link to="/pack" class="tool-card card-2 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-pack transition-colors duration-300">
             <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-            <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
-              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-amber-950/60 border border-amber-500/25 flex items-center justify-center group-hover:border-amber-400/50 group-hover:bg-amber-950/80 group-hover:shadow-[0_0_30px_rgba(251,191,36,0.12)] transition-all duration-300">
-                <svg class="w-10 h-10 md:w-12 md:h-12 text-amber-400/70 group-hover:text-amber-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div class="py-8 md:py-10 px-6 flex flex-col items-center text-center gap-4">
+              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-amber-950/60 border border-amber-500/25 flex items-center justify-center group-hover:border-amber-400/50 group-hover:bg-amber-950/80 group-hover:shadow-[0_0_30px_rgba(251,191,36,0.12)] transition-all duration-300">
+                <svg class="w-8 h-8 md:w-10 md:h-10 text-amber-400/70 group-hover:text-amber-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
               <div class="flex-grow">
                 <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-amber-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_pack_title') }}</h2>
@@ -148,9 +138,9 @@ const expirationChips = computed(() => {
           <router-link to="/shopping" class="tool-card card-3 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-shopping transition-colors duration-300">
             <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-            <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
-              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-violet-950/60 border border-violet-500/25 flex items-center justify-center group-hover:border-violet-400/50 group-hover:bg-violet-950/80 group-hover:shadow-[0_0_30px_rgba(139,92,246,0.12)] transition-all duration-300">
-                <svg class="w-10 h-10 md:w-12 md:h-12 text-violet-400/70 group-hover:text-violet-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            <div class="py-8 md:py-10 px-6 flex flex-col items-center text-center gap-4">
+              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-violet-950/60 border border-violet-500/25 flex items-center justify-center group-hover:border-violet-400/50 group-hover:bg-violet-950/80 group-hover:shadow-[0_0_30px_rgba(139,92,246,0.12)] transition-all duration-300">
+                <svg class="w-8 h-8 md:w-10 md:h-10 text-violet-400/70 group-hover:text-violet-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
               </div>
               <div class="flex-grow">
                 <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-violet-300 transition-colors uppercase tracking-tight mb-2">{{ t('shopping_title') }}</h2>
@@ -169,9 +159,9 @@ const expirationChips = computed(() => {
           <router-link to="/strategy" class="tool-card card-4 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-strategy transition-colors duration-300">
             <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-            <div class="py-10 md:py-14 px-6 flex flex-col items-center text-center gap-5">
-              <div class="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-emerald-950/60 border border-emerald-500/25 flex items-center justify-center group-hover:border-emerald-400/50 group-hover:bg-emerald-950/80 group-hover:shadow-[0_0_30px_rgba(52,211,153,0.12)] transition-all duration-300">
-                <svg class="w-10 h-10 md:w-12 md:h-12 text-emerald-400/70 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            <div class="py-8 md:py-10 px-6 flex flex-col items-center text-center gap-4">
+              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-emerald-950/60 border border-emerald-500/25 flex items-center justify-center group-hover:border-emerald-400/50 group-hover:bg-emerald-950/80 group-hover:shadow-[0_0_30px_rgba(52,211,153,0.12)] transition-all duration-300">
+                <svg class="w-8 h-8 md:w-10 md:h-10 text-emerald-400/70 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
               </div>
               <div class="flex-grow">
                 <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-emerald-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_strategy_title') }}</h2>
@@ -186,63 +176,36 @@ const expirationChips = computed(() => {
         </div>
       </div>
 
-      <!-- ── EXTERNAL LINKS ────────────────────────────────────────────────── -->
-      <div class="px-4 md:px-6 py-4 max-w-4xl mx-auto w-full">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="h-px flex-grow bg-gradient-to-r from-transparent to-slate-700/30"></div>
-          <span class="text-[10px] font-medium uppercase tracking-widest text-slate-600">{{ t('lbl_external_links') }}</span>
-          <div class="h-px flex-grow bg-gradient-to-l from-transparent to-slate-700/30"></div>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-
-          <!-- OStats -->
+      <!-- ── EXTERNAL LINKS — riga compatta ───────────────────────────────── -->
+      <div class="px-4 md:px-6 py-3 max-w-4xl mx-auto w-full">
+        <div class="flex items-center justify-center gap-2 flex-wrap">
           <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer"
-             class="ext-card group relative rounded-xl overflow-hidden block bg-ogame-panel">
-            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/35 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400"></div>
-            <div class="border border-slate-700/25 hover:border-sky-500/25 rounded-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
-              <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-slate-800/60 border border-slate-700/40 p-2">
-                <img src="/Immagini%20Ogame/ostats-logo-v3.png" :alt="t('card_ostats_title')" class="h-full w-full object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div class="min-w-0 flex-grow">
-                <h4 class="text-sm font-semibold text-slate-300 group-hover:text-slate-100 transition-colors tracking-tight">{{ t('card_ostats_title') }}</h4>
-                <p class="text-[11px] text-slate-600 leading-snug mt-0.5">{{ t('card_ostats_desc') }}</p>
-              </div>
-              <svg class="w-3.5 h-3.5 text-slate-700 group-hover:text-sky-400 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-            </div>
+             class="ext-link group">
+            <img src="/Immagini%20Ogame/ostats-logo-v3.png" :alt="''" aria-hidden="true" class="h-4 w-4 object-contain opacity-60 group-hover:opacity-100 transition-opacity" />
+            <span>{{ t('card_ostats_title') }}</span>
+            <svg class="w-3 h-3 text-slate-700 group-hover:text-slate-400 transition-colors" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
           </a>
-
-          <!-- OGame Utilities -->
           <a href="https://www.ogameutilities.it/index.html" target="_blank" rel="noopener noreferrer"
-             class="ext-card group relative rounded-xl overflow-hidden block bg-ogame-panel">
-            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/35 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400"></div>
-            <div class="border border-slate-700/25 hover:border-violet-500/25 rounded-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
-              <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-slate-800/60 border border-slate-700/40 p-2">
-                <img src="/Immagini%20Ogame/ogame%20util.ico" :alt="t('card_ou_title')" class="h-full w-full object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div class="min-w-0 flex-grow">
-                <h4 class="text-sm font-semibold text-slate-300 group-hover:text-slate-100 transition-colors tracking-tight">{{ t('card_ou_title') }}</h4>
-                <p class="text-[11px] text-slate-600 leading-snug mt-0.5">{{ t('card_ou_desc') }}</p>
-              </div>
-              <svg class="w-3.5 h-3.5 text-slate-700 group-hover:text-violet-400 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-            </div>
+             class="ext-link group">
+            <img src="/Immagini%20Ogame/ogame%20util.ico" :alt="''" aria-hidden="true" class="h-4 w-4 object-contain opacity-60 group-hover:opacity-100 transition-opacity" />
+            <span>{{ t('card_ou_title') }}</span>
+            <svg class="w-3 h-3 text-slate-700 group-hover:text-slate-400 transition-colors" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
           </a>
-
-          <!-- Segnala un problema -->
-          <router-link to="/settings"
-             class="ext-card group relative rounded-xl overflow-hidden block bg-ogame-panel">
-            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rose-500/35 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400"></div>
-            <div class="border border-slate-700/25 hover:border-rose-500/25 rounded-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center gap-4 px-5 py-4">
-              <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-rose-950/40 border border-rose-700/20 group-hover:border-rose-600/40 transition-colors">
-                <svg class="w-5 h-5 text-rose-500/70 group-hover:text-rose-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-              </div>
-              <div class="min-w-0 flex-grow">
-                <h4 class="text-sm font-semibold text-slate-300 group-hover:text-rose-300 transition-colors tracking-tight">{{ t('home_report_title') }}</h4>
-                <p class="text-[11px] text-slate-600 leading-snug mt-0.5">{{ t('home_report_desc') }}</p>
-              </div>
-              <svg class="w-3.5 h-3.5 text-slate-700 group-hover:text-rose-400 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            </div>
+          <router-link to="/settings" class="ext-link group">
+            <svg class="w-3.5 h-3.5 text-rose-500/60 group-hover:text-rose-400 transition-colors" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <span>{{ t('home_report_title') }}</span>
           </router-link>
-
+          <a href="https://ko-fi.com/galax95" target="_blank" rel="noopener noreferrer"
+             class="ext-link ext-link-kofi group" :title="t('support_banner_text')">
+            <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18 8h1a4 4 0 010 8h-1"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
+              <line x1="6" y1="1" x2="6" y2="4" stroke-linecap="round"/>
+              <line x1="10" y1="1" x2="10" y2="4" stroke-linecap="round"/>
+              <line x1="14" y1="1" x2="14" y2="4" stroke-linecap="round"/>
+            </svg>
+            <span>{{ t('support_banner_link') }}</span>
+          </a>
         </div>
       </div>
 
@@ -314,6 +277,40 @@ const expirationChips = computed(() => {
   height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* ── External links riga compatta ────────────────────────────────── */
+.ext-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(100, 116, 139, 0.15);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(148, 163, 184, 0.75);
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.ext-link:hover {
+  color: rgba(226, 232, 240, 0.95);
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+}
+.ext-link:focus-visible { outline: 2px solid rgba(96,165,250,0.9); outline-offset: 2px; }
+
+/* Pillola Ko-fi: tinta ambra calda, coerente col bottone tazzina dell'header */
+.ext-link-kofi {
+  border-color: rgba(251, 191, 36, 0.18);
+  background: rgba(251, 191, 36, 0.04);
+  color: rgba(252, 211, 77, 0.75);
+}
+.ext-link-kofi:hover {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.08);
+  color: rgba(253, 230, 138, 0.95);
 }
 
 /* ── Tool cards entrance ─────────────────────────────────────────── */

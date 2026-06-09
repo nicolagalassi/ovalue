@@ -142,7 +142,6 @@
     "settings_import_desc": "Incolla qui il codice JSON generato dallo script su OGame per aggiornare istantaneamente tutti i pianeti.",
     "settings_import_success": "✅ Importazione completata!",
     "settings_import_error": "❌ Errore: ",
-    "banner_beta": "Alcune funzionalità sono ancora in fase sperimentale — potrebbero verificarsi errori o comportamenti inattesi.",
     "btn_save": "Salva",
     "btn_load": "Carica",
     "btn_import_ogame": "Importa da OGame",

@@ -62,14 +62,17 @@ const navLinks = [
         </router-link>
       </nav>
 
-      <!-- Mobile: back button -->
-      <div v-if="$route.path !== '/'" class="md:hidden flex-grow">
-        <router-link to="/" class="inline-flex items-center gap-1.5 py-3 -my-3 text-slate-400 hover:text-slate-200 transition-colors text-xs font-medium">
-          <svg class="w-3.5 h-3.5" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-          Home
+      <!-- Mobile: home button (icona, stesso vocabolario degli altri hdr-btn) -->
+      <div class="md:hidden flex-grow">
+        <router-link
+          v-if="$route.path !== '/'"
+          to="/"
+          aria-label="Home"
+          class="hdr-btn w-10 h-10 inline-flex items-center justify-center rounded-md transition-all duration-200 bg-white/[0.03] border-white/[0.07] text-slate-500 hover:bg-white/[0.06] hover:border-white/10 hover:text-slate-300"
+        >
+          <svg class="w-4 h-4" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         </router-link>
       </div>
-      <div v-else class="md:hidden flex-grow"></div>
 
       <!-- Right controls -->
       <div class="flex items-center gap-1.5 flex-shrink-0">
@@ -241,6 +244,20 @@ const navLinks = [
               <span class="w-2 h-2 rounded-full flex-shrink-0" :class="link.dotColor"></span>
               {{ t(link.labelKey) }}
             </router-link>
+            <div class="border-t border-slate-700/20 mt-1.5 pt-1.5">
+              <a href="https://ko-fi.com/galax95" target="_blank" rel="noopener noreferrer"
+                 @click="isMobileMenuOpen = false"
+                 class="flex items-center gap-3 px-4 py-3.5 rounded-lg transition-colors text-sm font-semibold text-amber-400/70 active:bg-amber-500/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-400/30">
+                <svg class="w-4 h-4 flex-shrink-0" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M18 8h1a4 4 0 010 8h-1"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
+                  <line x1="6" y1="1" x2="6" y2="4" stroke-linecap="round"/>
+                  <line x1="10" y1="1" x2="10" y2="4" stroke-linecap="round"/>
+                  <line x1="14" y1="1" x2="14" y2="4" stroke-linecap="round"/>
+                </svg>
+                {{ t('support_banner_link') }}
+              </a>
+            </div>
           </nav>
         </div>
       </div>

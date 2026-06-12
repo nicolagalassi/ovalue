@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.5.2
+// @version      3.6.3
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -109,6 +109,7 @@
             badgeMissing: '✗ MANCANTE', badgeOk: '✓ LETTO',
             player: 'Giocatore', pclass: 'Classe', planets: 'Pianeti', plasma: 'Plasma',
             absent: 'assente', permanent: 'Permanente',
+            dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Pianeti Mancanti (${n})`,
             missingLf:      n => `⚠ Razze Mancanti (${n})`,
             activeLf:       n => `Razze Attive (${n})`,
@@ -126,6 +127,8 @@
             hintMissingPlanets:  url => `Visita la <a class="ov_empire_link" href="${url}" target="_blank">pagina Impero</a> per leggerli.`,
             hintMissingLf: 'Clicca su ciascun pianeta per registrare la specie.',
             export: '⬇ Esporta Dati OValue', reset: '🗑 Svuota Cache Universo', close: '✕',
+            refresh: '↻ Aggiorna Dati',
+            refreshing: '↻ Aggiornamento…',
             exportOk: '✅ Dati OValue copiati negli appunti!',
             resetConfirm: srv => `Svuotare la cache per "${srv}"?`,
             resetDone: 'Cache azzerata! Ricarica la pagina per ricominciare.'
@@ -135,6 +138,7 @@
             badgeMissing: '✗ MISSING', badgeOk: '✓ READ',
             player: 'Player', pclass: 'Class', planets: 'Planets', plasma: 'Plasma',
             absent: 'absent', permanent: 'Permanent',
+            dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Missing Planets (${n})`,
             missingLf:      n => `⚠ Missing Species (${n})`,
             activeLf:       n => `Active Species (${n})`,
@@ -152,6 +156,7 @@
             hintMissingPlanets: url => `Visit the <a class="ov_empire_link" href="${url}" target="_blank">Empire page</a> to collect them.`,
             hintMissingLf: 'Click each planet to register its species.',
             export: '⬇ Export OValue Data', reset: '🗑 Clear Universe Cache', close: '✕',
+            refresh: '↻ Refresh Data', refreshing: '↻ Refreshing…',
             exportOk: '✅ OValue data copied to clipboard!',
             resetConfirm: srv => `Clear cache for "${srv}"?`,
             resetDone: 'Cache cleared! Reload the page to start over.'
@@ -161,6 +166,7 @@
             badgeMissing: '✗ FEHLT', badgeOk: '✓ GELESEN',
             player: 'Spieler', pclass: 'Klasse', planets: 'Planeten', plasma: 'Plasma',
             absent: 'abwesend', permanent: 'Permanent',
+            dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Fehlende Planeten (${n})`,
             missingLf:      n => `⚠ Fehlende Spezies (${n})`,
             activeLf:       n => `Aktive Spezies (${n})`,
@@ -178,6 +184,7 @@
             hintMissingPlanets: url => `Besuche die <a class="ov_empire_link" href="${url}" target="_blank">Imperium-Seite</a> um sie zu lesen.`,
             hintMissingLf: 'Klicke jeden Planeten an, um seine Spezies zu registrieren.',
             export: '⬇ OValue-Daten exportieren', reset: '🗑 Universum-Cache leeren', close: '✕',
+            refresh: '↻ Daten aktualisieren', refreshing: '↻ Wird geladen…',
             exportOk: '✅ OValue-Daten in die Zwischenablage kopiert!',
             resetConfirm: srv => `Cache leeren für "${srv}"?`,
             resetDone: 'Cache geleert! Seite neu laden.'
@@ -187,6 +194,7 @@
             badgeMissing: '✗ MANQUANT', badgeOk: '✓ LU',
             player: 'Joueur', pclass: 'Classe', planets: 'Planètes', plasma: 'Plasma',
             absent: 'absent', permanent: 'Permanent',
+            dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Planètes manquantes (${n})`,
             missingLf:      n => `⚠ Espèces manquantes (${n})`,
             activeLf:       n => `Espèces actives (${n})`,
@@ -204,6 +212,7 @@
             hintMissingPlanets: url => `Visitez la <a class="ov_empire_link" href="${url}" target="_blank">page Empire</a> pour les collecter.`,
             hintMissingLf: 'Cliquez sur chaque planète pour enregistrer son espèce.',
             export: '⬇ Exporter les données OValue', reset: '🗑 Vider le cache univers', close: '✕',
+            refresh: '↻ Actualiser les données', refreshing: '↻ Chargement…',
             exportOk: '✅ Données OValue copiées dans le presse-papiers !',
             resetConfirm: srv => `Vider le cache pour "${srv}" ?`,
             resetDone: 'Cache vidé ! Rechargez la page.'
@@ -246,7 +255,7 @@
     // ── STATO ────────────────────────────────────────────────────────────────
     let d = GM_getValue(STORAGE_KEY, {});
     const DEFAULTS = {
-        overview_collected: false, lf_collected: false, empire_collected: false,
+        overview_collected: false, lf_collected: false, empire_collected: false, empire_api: false,
         playerName: '', playerClass: 'none', universeName: '', universeSpeed: 1,
         officers: {}, lfBonuses: { metal: '0%', classBonus: '0%' },
         settings: { plasma: 0 }, planets: [], planetLifeforms: {}, globalItems: []
@@ -270,17 +279,44 @@
 
     function getSidebarPlanets() {
         return [...document.querySelectorAll('#planetList .smallplanet')].flatMap(el => {
-            const link     = el.querySelector('.planetlink');
-            const coordsEl = el.querySelector('.planet-koords');
-            const nameEl   = el.querySelector('.planet-name');
-            if (!link || !coordsEl) return [];
+            const link   = el.querySelector('.planetlink');
+            const nameEl = el.querySelector('.planet-name');
+            if (!link) return [];
             let id = null;
             try { id = parseInt(new URL(link.href, location.origin).searchParams.get('cp')) || null; } catch (_) {}
-            const raw = coordsEl.textContent.replace(/[^0-9:]/g, '');
+            // OGLight nasconde le coordinate nel DOM — prendo dal tooltip se mancano
+            const coordsEl = el.querySelector('.planet-koords');
+            let raw = coordsEl ? coordsEl.textContent.replace(/[^0-9:]/g, '') : '';
+            if (!raw.match(/^\d+:\d+:\d+$/)) {
+                const tip = link.getAttribute('data-tooltip-title') || '';
+                const cm  = tip.match(/\[(\d+:\d+:\d+)\]/);
+                raw = cm ? cm[1] : '';
+            }
             const m = raw.match(/^(\d+):(\d+):(\d+)$/);
             if (!m) return [];
             return [{ id, name: nameEl?.textContent.trim() || '', coords: raw, pos: parseInt(m[3]) }];
         });
+    }
+
+    function captureLifeformsFromSidebar() {
+        const LF_TOOLTIP = {
+            'humans': 'Humans', 'umani': 'Humans', 'menschen': 'Humans', 'humains': 'Humans',
+            'rocktal': 'Rocktal',
+            'mechas': 'Mechas', 'mecha': 'Mechas',
+            'kaelesh': 'Kaelesh'
+        };
+        for (const el of document.querySelectorAll('#planetList .smallplanet')) {
+            const link = el.querySelector('.planetlink');
+            if (!link) continue;
+            let id = null;
+            try { id = parseInt(new URL(link.href, location.origin).searchParams.get('cp')) || null; } catch (_) {}
+            if (!id) continue;
+            const tip = link.getAttribute('data-tooltip-title') || '';
+            const lfm = tip.match(/(?:forma di vita|lifeform|lebensform|forme de vie):\s*(\w+)/i);
+            if (!lfm) continue;
+            const name = LF_TOOLTIP[lfm[1].toLowerCase()] || null;
+            if (name) d.planetLifeforms[id] = name;
+        }
     }
 
     function save() { GM_setValue(STORAGE_KEY, d); }
@@ -352,16 +388,13 @@
                 // Il tempo rimanente è nel tooltip: "Hire X|Still active for more than 6 days"
                 const tooltipTitle = el.getAttribute('data-tooltip-title') || '';
                 const afterPipe    = tooltipTitle.split('|').slice(1).join('|');
-                // Cerca "more than X days" / "più di X giorni" / "mehr als X Tage" / "plus de X jours"
-                const m = afterPipe.match(
-                    /(?:more than|più di|mehr als|plus de)\s*(\d+)\s*(?:days?|giorni?|Tage?|jours?)/i
-                );
+                // Estrae qualsiasi numero direttamente associato a una parola "giorni/days/..."
+                // Copre: "per altri 66 giorni", "more than 6 days", "für weitere 80 Tage", ecc.
+                const m = afterPipe.match(/(\d+)\s*(?:giorni?|days?|Tage?|jours?)/i);
                 if (m) {
-                    // +1 giorno di margine per sicurezza
-                    timeRemaining = (parseInt(m[1]) + 1) + 'd';
+                    timeRemaining = m[1] + 'd';
                 } else if (/active|attivo|aktiv|actif/i.test(afterPipe)) {
-                    // Tooltip indica attivo ma senza numero: assume 7 giorni
-                    timeRemaining = '7d';
+                    timeRemaining = '>6d';
                 }
             }
 
@@ -370,6 +403,7 @@
         }
         d.officers = officers;
         d.overview_collected = true;
+        captureLifeformsFromSidebar();
         captureLifeform();
         save();
         updatePanel();
@@ -445,37 +479,116 @@
         updatePanel();
     }
 
-    async function collectEmpire() {
-        const LF_NUM_MAP = { '1': 'Humans', '2': 'Rocktal', '3': 'Mechas', '4': 'Kaelesh' };
+    // ── COSTANTI EMPIRE API ──────────────────────────────────────────────────
+    // Chiavi LF edifici/ricerche: 1{specie}{tipo}{sub:02d}  tipo1=edificio tipo2=ricerca
+    const LF_NUM_MAP   = { '1': 'Humans', '2': 'Rocktal', '3': 'Mechas', '4': 'Kaelesh' };
+    const empireApiKey = k => /^1[1-4][12]\d{2}$/.test(k);
+    const apiKeyToOgId = k => {
+        const sp = parseInt(k[1]), type = parseInt(k[2]), sub = parseInt(k.slice(3));
+        return String(sp * 1000 + (type === 2 ? 100 : 0) + sub);
+    };
+    // Edifici amplificatori LF rilevanti per OValue
+    const AMP_BLD_KEYS = ['11111', '13107', '13111', '14107'];
 
-        // Fetch API empire: dati precisi per tutti i pianeti in una sola chiamata.
-        // Edifici/ricerche LF: chiave 5 cifre 1{specie}{tipo}{sub:02d}
-        //   tipo 1 = edificio → ogId = specie*1000 + sub
-        //   tipo 2 = ricerca  → ogId = specie*1000 + 100 + sub
-        const empireApiKey = k => /^1[1-4][12]\d{2}$/.test(k);
-        const apiKeyToOgId = k => {
-            const sp = parseInt(k[1]), type = parseInt(k[2]), sub = parseInt(k.slice(3));
-            return String(sp * 1000 + (type === 2 ? 100 : 0) + sub);
-        };
+    // Chiama l'API empire e restituisce l'array di pianeti.
+    // Può essere chiamata da qualsiasi pagina di OGame (non richiede la pagina Impero).
+    async function callEmpireAPI() {
+        const resp = await fetch(
+            `https://${window.location.host}/game/index.php?page=ajax&component=empire&ajax=1&planetType=0&asJson=1`,
+            { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
+        );
+        const json = await resp.json();
+        return JSON.parse(json.mergedArray).planets || [];
+    }
 
-        let apiPlanets = [];
-        try {
-            const resp = await fetch(
-                `https://${window.location.host}/game/index.php?page=ajax&component=empire&ajax=1&planetType=0&asJson=1`,
-                { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
-            );
-            const json = await resp.json();
-            apiPlanets = JSON.parse(json.mergedArray).planets || [];
+    // Costruisce/aggiorna d.planets dalla sidebar + dati API.
+    // Usato quando non siamo sulla pagina Impero (nessun DOM .planet disponibile).
+    // Preserva i dati già raccolti (items, lifeformLevel, overload) se esistenti.
+    function applyAPIToPlanets(apiPlanets) {
+        const sidebar = getSidebarPlanets();
+        if (!sidebar.length) return false;
 
-            for (const ap of apiPlanets) {
-                // Specie attiva
-                const lf = String(ap.lifeform || '');
-                if (ap.id && LF_NUM_MAP[lf]) d.planetLifeforms[ap.id] = LF_NUM_MAP[lf];
+        d.planets = sidebar.map(sp => {
+            // Cerca per id o planetID (i due campi possono essere diversi nell'API)
+            const ap = apiPlanets.find(a =>
+                String(a.id) === String(sp.id) || String(a.planetID) === String(sp.id)
+            ) || null;
+
+            const existing = Array.isArray(d.planets)
+                ? (d.planets.find(p => p.id === sp.id) || {})
+                : {};
+
+            let lfResearch = existing.lfResearch || {}, lfBuildings = existing.lfBuildings || {};
+            if (ap) {
+                lfResearch = {};
+                for (const [k, v] of Object.entries(ap)) {
+                    if (empireApiKey(k) && parseInt(k[2]) === 2 && v > 0)
+                        lfResearch[apiKeyToOgId(k)] = v;
+                }
+                lfBuildings = {};
+                for (const k of AMP_BLD_KEYS) {
+                    if ((ap[k] || 0) > 0) lfBuildings[apiKeyToOgId(k)] = ap[k];
+                }
+                // Salva razza dall'API se non già catturata via DOM
+                const lfFromAPI = LF_NUM_MAP[String(ap.lifeform || '')] || null;
+                if (lfFromAPI && !d.planetLifeforms[sp.id]) {
+                    d.planetLifeforms[sp.id] = lfFromAPI;
+                }
             }
-            // Plasma: ricerca globale 122, uguale per tutti i pianeti
+
+            return {
+                ...existing,
+                id: sp.id, name: sp.name, coords: sp.coords, pos: sp.pos,
+                lifeform:  d.planetLifeforms[sp.id] || existing.lifeform || null,
+                metal:     ap ? (ap['1']   || 0) : (existing.metal     || 0),
+                crystal:   ap ? (ap['2']   || 0) : (existing.crystal   || 0),
+                deuterium: ap ? (ap['3']   || 0) : (existing.deuterium || 0),
+                crawlers:  ap ? (ap['217'] || 0) : (existing.crawlers  || 0),
+                human:     ap ? (ap['11106'] || 0) : (existing.human   || 0),
+                magma:     ap ? (ap['12106'] || 0) : (existing.magma   || 0),
+                item: existing.item || 0, itemCustom: existing.itemCustom || 0,
+                overload: existing.overload || false,
+                lifeformLevel: existing.lifeformLevel || 0,
+                lfResearch, lfBuildings
+            };
+        });
+
+        // Plasma
+        const firstWithPlasma = apiPlanets.find(ap => ap['122'] != null);
+        if (firstWithPlasma) d.settings.plasma = firstWithPlasma['122'] || 0;
+
+        d.empire_collected = true;
+        d.empire_api = true;
+        return true;
+    }
+
+    // Recupera i dati dell'impero via API da qualsiasi pagina.
+    // force=true bypassa il throttle di 3 minuti (usato dal pulsante manuale).
+    async function collectEmpireFromAPI(force = false) {
+        const now = Date.now();
+        if (!force && (now - (d._lastEmpireAPIFetch || 0)) < 3 * 60 * 1000) return;
+        d._lastEmpireAPIFetch = now;
+
+        try {
+            const apiPlanets = await callEmpireAPI();
+            if (!apiPlanets.length) return;
+            applyAPIToPlanets(apiPlanets);
+            save();
+            updatePanel();
+        } catch (e) {
+            console.warn('[OValue Exporter] collectEmpireFromAPI failed:', e.message);
+        }
+    }
+
+    async function collectEmpire() {
+        let apiPlanets = [];
+        d.empire_api = false;
+        try {
+            apiPlanets = await callEmpireAPI();
+            // Plasma dalla chiave globale 122
             const first = apiPlanets.find(ap => ap['122'] != null);
             if (first) d.settings.plasma = first['122'] || 0;
-
+            d.empire_api = apiPlanets.length > 0;
         } catch (e) {
             console.warn('[OValue Exporter] Empire API fetch failed, using DOM fallback:', e.message);
         }
@@ -594,16 +707,23 @@
                 if (amp) itemCustom = parseInt(amp[1]);
             });
 
-            // Dati API per questo pianeta (null se API non disponibile)
-            const ap = apiPlanets.find(a => a.id == planetId) || null;
+            // Dati API per questo pianeta — cerca per id O per planetID (i due campi possono differire)
+            const ap = apiPlanets.find(a =>
+                String(a.id) === String(planetId) || String(a.planetID) === String(planetId)
+            ) || null;
 
-            // Lifeform: 1. API, 2. panoramica precedente, 3. icona DOM
+            // Lifeform: solo DOM — l'API non espone la razza in modo affidabile.
+            // Priorità: valore già acquisito da navigazione precedente → icona DOM → null.
             let lifeformName = planetId != null ? (d.planetLifeforms[planetId] || null) : null;
             if (!lifeformName) {
                 const lfIcon = p.querySelector('.lifeform-item-icon');
                 if (lfIcon) {
-                    const lfCls = Array.from(lfIcon.classList).find(c => /^lifeform\d$/.test(c));
-                    if (lfCls) lifeformName = LF_NUM_MAP[lfCls.replace('lifeform', '')] || null;
+                    const lfCls = Array.from(lfIcon.classList).find(c => /^lifeform[1-4]$/.test(c));
+                    if (lfCls) {
+                        lifeformName = LF_NUM_MAP[lfCls.replace('lifeform', '')] || null;
+                        if (lifeformName && planetId != null)
+                            d.planetLifeforms[planetId] = lifeformName;
+                    }
                 }
             }
 
@@ -619,7 +739,7 @@
             let lfResearch = {};
             if (ap) {
                 for (const [k, v] of Object.entries(ap)) {
-                    if (!empireApiKey(k) || parseInt(k[2]) !== 2) continue; // solo tipo 2 = ricerca
+                    if (!empireApiKey(k) || parseInt(k[2]) !== 2) continue;
                     if (v > 0) lfResearch[apiKeyToOgId(k)] = v;
                 }
             } else {
@@ -627,11 +747,10 @@
             }
 
             // LF edifici amplificatori: API → DOM
-            const AMP_BLD_KEYS = ['11111', '13107', '13111', '14107'];
             let lfBuildings = {};
             if (ap) {
                 for (const k of AMP_BLD_KEYS) {
-                    if (ap[k] > 0) lfBuildings[apiKeyToOgId(k)] = ap[k];
+                    if ((ap[k] || 0) > 0) lfBuildings[apiKeyToOgId(k)] = ap[k];
                 }
             } else {
                 lfBuildings = extractAmpBuildings(p);
@@ -754,6 +873,8 @@
 
     if (page === 'ingame' && component === 'overview') {
         setTimeout(collectOverview, 1000);
+        // Fetch API empire in background: aggiorna mine/LF per tutti i pianeti senza visitare la pagina Impero
+        setTimeout(() => collectEmpireFromAPI(), 2000);
     } else if (page === 'ingame' && component === 'lfbonuses') {
         setTimeout(collectLFBonuses, 1000);
     } else if (page === 'ingame' && component === 'lfresearch') {
@@ -870,7 +991,10 @@
             if (!d.empire_collected) {
                 empBody.innerHTML = `<div class="ov_hint">${L.hintEmpire(empireUrl())}</div>`;
             } else {
-                let html = row(L.planets, `<span class="ov_val">${d.planets.length}</span>`) +
+                const srcLabel = d.empire_api
+                    ? `<span class="ov_api_ok">${L.dataSourceApi}</span>`
+                    : `<span class="ov_api_dom">${L.dataSourceDom}</span>`;
+                let html = row(L.planets, `<span class="ov_val">${d.planets.length}</span> ${srcLabel}`) +
                            row(L.plasma,  `<span class="ov_val">Lv. ${d.settings.plasma}</span>`);
 
                 const missing = getMissingPlanets();
@@ -918,65 +1042,109 @@
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
         });
+
+        updateMenuStatus();
+    }
+
+    function updateMenuStatus() {
+        const dot = document.getElementById('ov_status_dot');
+        if (!dot) return;
+        const all = d.overview_collected && d.lf_collected && d.empire_collected;
+        const any = d.overview_collected || d.lf_collected || d.empire_collected;
+        if (all) {
+            dot.style.background = '#00ff9d';
+            dot.style.boxShadow  = '0 0 0 2px rgba(0,255,157,.25), 0 0 6px rgba(0,255,157,.35)';
+        } else if (any) {
+            dot.style.background = '#ffb800';
+            dot.style.boxShadow  = '0 0 0 2px rgba(255,184,0,.25)';
+        } else {
+            dot.style.background = '#334155';
+            dot.style.boxShadow  = '0 0 0 2px rgba(51,65,85,.3)';
+        }
     }
 
     // ── INJECT UI ─────────────────────────────────────────────────────────────
     GM_addStyle(`
         #ov_panel { position:fixed; left:0; top:0; width:232px;
-            background:#0e1520; border-right:1px solid #243040; z-index:9999; color:#8496a7;
-            display:none; box-shadow:4px 0 16px rgba(0,0,0,.6);
-            font-family:Verdana,Arial,sans-serif; font-size:11px; user-select:none;
+            background:#151923; border-right:1px solid rgba(255,255,255,.07); z-index:9999; color:#e2e8f0;
+            display:none; box-shadow:4px 0 24px rgba(0,0,0,.7);
+            font-family:ui-sans-serif,system-ui,-apple-system,sans-serif; font-size:12px; user-select:none;
             flex-direction:column; }
         #ov_panel.ov_open { display:flex; }
-        #ov_hdr { background:linear-gradient(to bottom,#1e2d3e,#131d28); border-bottom:1px solid #0a1018;
-            padding:7px 10px; display:flex; align-items:center; gap:6px;
+        #ov_hdr { background:#070c18; border-bottom:1px solid rgba(255,255,255,.07);
+            padding:8px 10px; display:flex; align-items:center; gap:6px;
             cursor:move; flex-shrink:0; }
-        #ov_hdr_title { font-weight:bold; color:#c8dff0; font-size:12px; flex-grow:1; letter-spacing:1px; }
-        #ov_speed { font-size:9px; color:#4a6a8a; white-space:nowrap;
-            overflow:hidden; text-overflow:ellipsis; max-width:100px; }
-        #ov_close { background:none; border:none; color:#4a6a8a; cursor:pointer;
-            font-size:14px; line-height:1; padding:0 2px; flex-shrink:0; }
-        #ov_close:hover { color:#8aa8c8; }
-        #ov_content { flex:1; overflow-y:auto; padding:8px 10px;
-            scrollbar-width:thin; scrollbar-color:#1e2e3e #0a1018; }
-        #ov_content::-webkit-scrollbar { width:4px; }
-        #ov_content::-webkit-scrollbar-track { background:#0a1018; }
-        #ov_content::-webkit-scrollbar-thumb { background:#1e3040; border-radius:2px; }
-        #ov_footer { padding:8px 10px; border-top:1px solid #1a2530; flex-shrink:0; }
-        .ov_sec { margin-bottom:6px; }
-        .ov_sec_hdr { display:flex; align-items:center; gap:4px;
-            padding:4px 0; border-bottom:1px solid #1a2530; margin-bottom:4px; cursor:pointer; }
-        .ov_sec_hdr:hover .ov_sec_lnk { color:#a0ccee; }
-        .ov_sec_toggle { font-size:8px; color:#3a5a7a; flex-shrink:0; transition:transform .15s; line-height:1; }
-        .ov_sec_lnk { font-size:10px; font-weight:bold; color:#7aaace; text-decoration:none;
-            letter-spacing:.5px; text-transform:uppercase; flex-grow:1; }
-        .ov_sec_lnk:hover { color:#a0ccee; }
-        .ov_badge { font-size:8px; font-weight:bold; padding:2px 5px; border-radius:3px; white-space:nowrap; }
-        .ov_ok  { background:#0f2a05; color:#6fc52a; border:1px solid #2a5010; }
-        .ov_ko  { background:#2a0808; color:#d43636; border:1px solid #5a1010; }
-        .ov_body { padding:0 0 2px; overflow:hidden; }
+        #ov_hdr_title { font-weight:700; color:#e2e8f0; font-size:10px; flex-grow:1;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+            text-transform:uppercase; letter-spacing:.1em; }
+        #ov_speed { font-size:9px; color:#64748b; white-space:nowrap;
+            overflow:hidden; text-overflow:ellipsis; max-width:105px;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+        #ov_close { background:none; border:none; color:#64748b; cursor:pointer;
+            font-size:14px; line-height:1; padding:0 2px; flex-shrink:0;
+            font-family:inherit; transition:color 150ms; }
+        #ov_close:hover { color:#94a3b8; }
+        #ov_content { flex:1; overflow-y:auto; padding:6px 8px;
+            scrollbar-width:thin; scrollbar-color:#2d3748 #0b0e14; }
+        #ov_content::-webkit-scrollbar { width:3px; }
+        #ov_content::-webkit-scrollbar-track { background:#0b0e14; }
+        #ov_content::-webkit-scrollbar-thumb { background:#2d3748; border-radius:2px; }
+        #ov_footer { padding:7px 8px; border-top:1px solid rgba(255,255,255,.06); flex-shrink:0;
+            display:flex; flex-direction:column; gap:5px; }
+        .ov_sec { margin-bottom:2px; }
+        .ov_sec_hdr { display:flex; align-items:center; gap:5px;
+            padding:5px 4px; cursor:pointer; border-radius:6px; transition:background 150ms; }
+        .ov_sec_hdr:hover { background:rgba(255,255,255,.04); }
+        .ov_sec_dot { width:5px; height:5px; border-radius:50%;
+            background:#00f0ff; opacity:.45; flex-shrink:0; transition:opacity 150ms; }
+        .ov_sec_hdr:hover .ov_sec_dot { opacity:1; }
+        .ov_sec_lnk { font-size:9px; font-weight:900; color:#64748b; text-decoration:none;
+            letter-spacing:.1em; text-transform:uppercase; flex-shrink:0;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; transition:color 150ms; }
+        .ov_sec_hdr:hover .ov_sec_lnk,
+        .ov_sec_lnk:hover { color:#94a3b8; }
+        .ov_sec_div { flex:1; height:1px; background:rgba(255,255,255,.05); }
+        .ov_sec_toggle { font-size:9px; color:#64748b; flex-shrink:0; transition:transform 150ms; line-height:1; }
+        .ov_badge { font-size:8px; font-weight:900; padding:2px 5px; border-radius:4px; white-space:nowrap;
+            text-transform:uppercase; letter-spacing:.04em;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+        .ov_ok  { background:rgba(0,255,157,.1); color:#00ff9d; border:1px solid rgba(0,255,157,.2); }
+        .ov_ko  { background:rgba(255,42,109,.08); color:#ff2a6d; border:1px solid rgba(255,42,109,.15); }
+        .ov_body { overflow:hidden; }
         .ov_body.collapsed { display:none; }
         .ov_row { display:flex; justify-content:space-between; align-items:center;
-            padding:2px 0; font-size:10px; border-bottom:1px solid #141e28; gap:4px; }
+            padding:4px 4px; font-size:11px; border-bottom:1px solid rgba(255,255,255,.04); gap:4px; }
         .ov_row:last-child { border-bottom:none; }
-        .ov_lbl { color:#5a7a9a; flex-shrink:0; }
-        .ov_val { color:#a0bcd4; text-align:right; }
-        .ov_ok_txt { color:#6fc52a; font-weight:bold; }
-        .ov_warn { color:#e8a83a; }
-        .ov_perm { color:#4a8ac0; }
-        .ov_dim  { color:#2e3e4e; font-style:italic; }
-        .ov_hint { font-size:10px; color:#4a6a8a; padding:3px 0; line-height:1.4; }
-        .ov_hint a { color:#5a9aca; text-decoration:underline; }
-        .ov_sub  { font-size:9px; font-weight:bold; color:#4a6a8a; margin:5px 0 2px;
-            text-transform:uppercase; letter-spacing:1px; }
+        .ov_lbl { color:#64748b; flex-shrink:0; }
+        .ov_val { color:#94a3b8; text-align:right; font-weight:600; }
+        .ov_ok_txt { color:#00ff9d; font-weight:600; }
+        .ov_warn { color:#ffb800; }
+        .ov_perm { color:#38bdf8; }
+        .ov_dim  { color:#334155; font-style:italic; }
+        .ov_api_ok { color:#00ff9d; font-size:8px; font-weight:900;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+            background:rgba(0,255,157,.08); border:1px solid rgba(0,255,157,.2);
+            border-radius:4px; padding:1px 4px; text-transform:uppercase; letter-spacing:.04em; }
+        .ov_api_dom { color:#ffb800; font-size:8px; font-weight:900;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+            background:rgba(255,184,0,.08); border:1px solid rgba(255,184,0,.2);
+            border-radius:4px; padding:1px 4px; text-transform:uppercase; letter-spacing:.04em; }
+        .ov_hint { font-size:11px; color:#64748b; padding:4px 4px; line-height:1.45; }
+        .ov_hint a { color:#38bdf8; text-decoration:underline; }
+        .ov_sub { font-size:9px; font-weight:700; color:#64748b; margin:6px 4px 2px;
+            text-transform:uppercase; letter-spacing:.1em;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
         .ov_item_name { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        #ov_export, #ov_reset { display:block; width:100%; padding:6px 0;
-            background:linear-gradient(to bottom,#2d4055,#182030); border:1px solid #0a1018;
-            color:#c8dff0; cursor:pointer; border-radius:3px; font-size:11px;
-            font-family:inherit; letter-spacing:.5px; text-align:center; }
-        #ov_export:hover { background:linear-gradient(to bottom,#3a5268,#202d3e); }
-        #ov_reset { background:linear-gradient(to bottom,#3a1010,#1e0808); margin-top:5px; }
-        #ov_reset:hover { background:linear-gradient(to bottom,#4e1515,#280a0a); }
+        #ov_refresh, #ov_export, #ov_reset { display:block; width:100%; padding:7px 0;
+            border-radius:8px; font-size:11px; font-family:inherit; font-weight:600;
+            text-align:center; cursor:pointer; transition:background 150ms,border-color 150ms; }
+        #ov_refresh { background:rgba(56,189,248,.07); border:1px solid rgba(56,189,248,.15); color:#38bdf8; }
+        #ov_refresh:hover { background:rgba(56,189,248,.13); border-color:rgba(56,189,248,.25); }
+        #ov_refresh:disabled { opacity:.4; cursor:not-allowed; }
+        #ov_export { background:rgba(0,240,255,.07); border:1px solid rgba(0,240,255,.15); color:#00f0ff; }
+        #ov_export:hover { background:rgba(0,240,255,.13); border-color:rgba(0,240,255,.25); }
+        #ov_reset { background:rgba(255,42,109,.07); border:1px solid rgba(255,42,109,.15); color:#ff2a6d; }
+        #ov_reset:hover { background:rgba(255,42,109,.13); border-color:rgba(255,42,109,.25); }
     `);
 
     function injectUI() {
@@ -984,14 +1152,13 @@
         if (menuTable) {
             const li = document.createElement('li');
             li.innerHTML = `
-                <span class="menu_icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
-                         fill="none" stroke="#7aaace" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                         style="display:block;margin:auto">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                        <path d="M2 17l10 5 10-5"/>
-                        <path d="M2 12l10 5 10-5"/>
-                    </svg>
+                <span class="menu_icon" style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;">
+                    <span id="ov_status_dot" style="
+                        display:block; width:8px; height:8px; border-radius:50%;
+                        background:#334155;
+                        box-shadow:0 0 0 2px rgba(51,65,85,.3);
+                        transition:background 400ms,box-shadow 400ms;
+                    "></span>
                 </span>
                 <a class="menubutton" href="#" id="ov_menu_btn"><span class="textlabel">OValue</span></a>
             `;
@@ -1012,12 +1179,18 @@
         const collapsed = GM_getValue(PANEL_COL_KEY, {});
         const mkSec = (id, lnkHref, lnkLabel, badgeId, bodyId, bodyHtml, lnkExtra = '') => {
             const isCollapsed = !!collapsed[id];
+            // Separa l'emoji dal testo per evitare che letter-spacing/uppercase si applichi all'emoji
+            const emojiMatch = lnkLabel.match(/^([\p{Emoji_Presentation}\p{Extended_Pictographic}])\s*/u);
+            const emoji = emojiMatch ? `<span style="font-size:10px;letter-spacing:0;text-transform:none;margin-right:2px;">${emojiMatch[1]}</span>` : '';
+            const labelText = emojiMatch ? lnkLabel.slice(emojiMatch[0].length) : lnkLabel;
             return `
             <div class="ov_sec" data-sec="${id}">
                 <div class="ov_sec_hdr">
-                    <span class="ov_sec_toggle" style="transform:rotate(${isCollapsed ? '-90' : '0'}deg)">▼</span>
-                    <a class="ov_sec_lnk${lnkExtra ? ' ' + lnkExtra : ''}" href="${lnkHref}"${lnkExtra ? ' target="_blank" rel="noopener noreferrer"' : ''}>${lnkLabel}</a>
+                    <span class="ov_sec_dot"></span>
+                    <a class="ov_sec_lnk${lnkExtra ? ' ' + lnkExtra : ''}" href="${lnkHref}"${lnkExtra ? ' target="_blank" rel="noopener noreferrer"' : ''}>${emoji}${labelText}</a>
+                    <span class="ov_sec_div"></span>
                     <span id="${badgeId}" class="ov_badge ov_ko">${L.badgeMissing}</span>
+                    <span class="ov_sec_toggle" style="transform:rotate(${isCollapsed ? '-90' : '0'}deg)">▾</span>
                 </div>
                 <div id="${bodyId}" class="ov_body${isCollapsed ? ' collapsed' : ''}">${bodyHtml}</div>
             </div>`;
@@ -1025,7 +1198,7 @@
 
         panel.innerHTML = `
             <div id="ov_hdr">
-                <span id="ov_hdr_title">⬡ OVALUE</span>
+                <span id="ov_hdr_title">⬡ OValue</span>
                 <span id="ov_speed"></span>
                 <button id="ov_close" title="${L.close}">${L.close}</button>
             </div>
@@ -1036,6 +1209,7 @@
                 ${mkSec('emp', empireUrl(), L.empire, 'ov_bdg_emp', 'ov_body_emp', `<div class="ov_hint">${L.hintEmpire(empireUrl())}</div>`, 'ov_empire_link')}
             </div>
             <div id="ov_footer">
+                <button id="ov_refresh">${L.refresh}</button>
                 <button id="ov_export">${L.export}</button>
                 <button id="ov_reset">${L.reset}</button>
             </div>
@@ -1118,6 +1292,15 @@
         document.getElementById('ov_close').addEventListener('click', () => {
             panel.classList.remove('ov_open');
             GM_setValue(PANEL_KEY, false);
+        });
+
+        document.getElementById('ov_refresh').addEventListener('click', async () => {
+            const btn = document.getElementById('ov_refresh');
+            btn.disabled = true;
+            btn.textContent = L.refreshing;
+            await collectEmpireFromAPI(true); // force=true bypassa throttle
+            btn.disabled = false;
+            btn.textContent = L.refresh;
         });
 
         document.getElementById('ov_export').addEventListener('click', () => {

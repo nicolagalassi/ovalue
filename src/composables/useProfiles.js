@@ -283,9 +283,18 @@ export function useProfiles() {
         if (profiles.value.length <= 1) return;
         const idx = profiles.value.findIndex(p => p.id === id);
         if (idx !== -1) {
+            const syncServer = profiles.value[idx].syncServer;
             profiles.value.splice(idx, 1);
             if (activeProfileId.value === id) {
                 activeProfileId.value = profiles.value[0].id;
+            }
+            if (syncServer) {
+                try {
+                    const blocked = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]');
+                    if (!blocked.includes(syncServer)) blocked.push(syncServer);
+                    localStorage.setItem('ovalue_blocked_servers', JSON.stringify(blocked));
+                } catch (e) {}
+                localStorage.removeItem('ovalue_exporter_pending');
             }
             saveProfiles();
         }
@@ -341,11 +350,14 @@ export function useProfiles() {
             // vecchio formato IT (esportatore ≤3.2.x)
             'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
             // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
-            'collector': 'collector', 'general': 'other', 'explorer': 'explorer',
+            'collector': 'collector', 'general': 'other', 'explorer': 'other',
             'Collector': 'collector', 'General': 'other', 'Explorer': 'other',
             'Sammler': 'collector', 'Allgemein': 'other', 'Entdecker': 'other',
             'Collecteur': 'collector', 'Général': 'other', 'Explorateur': 'other'
         };
+
+        let blockedServers = [];
+        try { blockedServers = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]'); } catch (e) {}
 
         // Aggiorna lista server noti
         const serverList = Object.keys(allData);
@@ -360,6 +372,7 @@ export function useProfiles() {
             if (!raw) continue;
 
             // Trova o crea automaticamente un profilo per questo server
+            if (blockedServers.includes(serverKey)) continue;
             let profile = profiles.value.find(p => p.syncServer === serverKey);
             if (!profile) {
                 const universeName = raw.universeName || serverKey.split('.')[0];
@@ -500,7 +513,7 @@ export function useProfiles() {
             // vecchio formato IT (esportatore ≤3.2.x)
             'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
             // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
-            'collector': 'collector', 'general': 'other', 'explorer': 'explorer',
+            'collector': 'collector', 'general': 'other', 'explorer': 'other',
             'Collector': 'collector', 'General': 'other', 'Explorer': 'other',
             'Sammler': 'collector', 'Allgemein': 'other', 'Entdecker': 'other',
             'Collecteur': 'collector', 'Général': 'other', 'Explorateur': 'other'
@@ -618,6 +631,14 @@ export function useProfiles() {
         const profile = activeProfile.value;
         if (!profile) return;
         profile.syncServer = serverHostname;
+        if (serverHostname) {
+            try {
+                const blocked = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]');
+                const filtered = blocked.filter(s => s !== serverHostname);
+                if (filtered.length !== blocked.length)
+                    localStorage.setItem('ovalue_blocked_servers', JSON.stringify(filtered));
+            } catch (e) {}
+        }
         saveProfiles();
     };
 

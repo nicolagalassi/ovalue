@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.5.0
+// @version      3.5.2
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -445,18 +445,52 @@
         updatePanel();
     }
 
-    function collectEmpire() {
-        // Plasma
-        let plasma = 0;
-        document.querySelectorAll('.planet').forEach(p => {
-            if (plasma) return;
-            const node = p.querySelector('.values.research [class~="122"]');
-            if (!node) return;
-            const src = node.querySelector('a:not(.active)') || node.querySelector('span') || node;
-            const m = src.textContent.replace(/\./g, '').match(/\d+/);
-            if (m) plasma = parseInt(m[0]);
-        });
-        d.settings.plasma = plasma;
+    async function collectEmpire() {
+        const LF_NUM_MAP = { '1': 'Humans', '2': 'Rocktal', '3': 'Mechas', '4': 'Kaelesh' };
+
+        // Fetch API empire: dati precisi per tutti i pianeti in una sola chiamata.
+        // Edifici/ricerche LF: chiave 5 cifre 1{specie}{tipo}{sub:02d}
+        //   tipo 1 = edificio → ogId = specie*1000 + sub
+        //   tipo 2 = ricerca  → ogId = specie*1000 + 100 + sub
+        const empireApiKey = k => /^1[1-4][12]\d{2}$/.test(k);
+        const apiKeyToOgId = k => {
+            const sp = parseInt(k[1]), type = parseInt(k[2]), sub = parseInt(k.slice(3));
+            return String(sp * 1000 + (type === 2 ? 100 : 0) + sub);
+        };
+
+        let apiPlanets = [];
+        try {
+            const resp = await fetch(
+                `https://${window.location.host}/game/index.php?page=ajax&component=empire&ajax=1&planetType=0&asJson=1`,
+                { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
+            );
+            const json = await resp.json();
+            apiPlanets = JSON.parse(json.mergedArray).planets || [];
+
+            for (const ap of apiPlanets) {
+                // Specie attiva
+                const lf = String(ap.lifeform || '');
+                if (ap.id && LF_NUM_MAP[lf]) d.planetLifeforms[ap.id] = LF_NUM_MAP[lf];
+            }
+            // Plasma: ricerca globale 122, uguale per tutti i pianeti
+            const first = apiPlanets.find(ap => ap['122'] != null);
+            if (first) d.settings.plasma = first['122'] || 0;
+
+        } catch (e) {
+            console.warn('[OValue Exporter] Empire API fetch failed, using DOM fallback:', e.message);
+        }
+
+        // Plasma DOM fallback: solo se l'API non ha restituito dati
+        if (!d.settings.plasma) {
+            document.querySelectorAll('.planet').forEach(p => {
+                if (d.settings.plasma) return;
+                const node = p.querySelector('.values.research [class~="122"]');
+                if (!node) return;
+                const src = node.querySelector('a:not(.active)') || node.querySelector('span') || node;
+                const m = src.textContent.replace(/\./g, '').match(/\d+/);
+                if (m) d.settings.plasma = parseInt(m[0]);
+            });
+        }
 
         const sidebar = getSidebarPlanets();
         const coordToId = {};
@@ -560,28 +594,57 @@
                 if (amp) itemCustom = parseInt(amp[1]);
             });
 
-            // Lifeform: usa planetLifeforms (da overview visit) o auto-rileva dall'edificio #1
+            // Dati API per questo pianeta (null se API non disponibile)
+            const ap = apiPlanets.find(a => a.id == planetId) || null;
+
+            // Lifeform: 1. API, 2. panoramica precedente, 3. icona DOM
             let lifeformName = planetId != null ? (d.planetLifeforms[planetId] || null) : null;
             if (!lifeformName) {
-                if      (lvl(p, 'lifeform1buildings', '11101') > 0) lifeformName = 'Humans';
-                else if (lvl(p, 'lifeform2buildings', '12101') > 0) lifeformName = 'Rocktal';
-                else if (lvl(p, 'lifeform3buildings', '13101') > 0) lifeformName = 'Mechas';
-                else if (lvl(p, 'lifeform4buildings', '14101') > 0) lifeformName = 'Kaelesh';
+                const lfIcon = p.querySelector('.lifeform-item-icon');
+                if (lfIcon) {
+                    const lfCls = Array.from(lfIcon.classList).find(c => /^lifeform\d$/.test(c));
+                    if (lfCls) lifeformName = LF_NUM_MAP[lfCls.replace('lifeform', '')] || null;
+                }
             }
+
+            // Miniere e crawler: API → DOM
+            const metal     = ap ? (ap['1']   || 0) : lvl(p, 'supply', '1');
+            const crystal   = ap ? (ap['2']   || 0) : lvl(p, 'supply', '2');
+            const deuterium = ap ? (ap['3']   || 0) : lvl(p, 'supply', '3');
+            const crawlers  = ap ? (ap['217'] || 0) : lvl(p, 'ships', '217');
+            const human     = ap ? (ap['11106'] || 0) : lvl(p, 'lifeform1buildings', '11106');
+            const magma     = ap ? (ap['12106'] || 0) : lvl(p, 'lifeform2buildings', '12106');
+
+            // LF ricerche: API → DOM
+            let lfResearch = {};
+            if (ap) {
+                for (const [k, v] of Object.entries(ap)) {
+                    if (!empireApiKey(k) || parseInt(k[2]) !== 2) continue; // solo tipo 2 = ricerca
+                    if (v > 0) lfResearch[apiKeyToOgId(k)] = v;
+                }
+            } else {
+                lfResearch = extractLfResearchLevels(p);
+            }
+
+            // LF edifici amplificatori: API → DOM
+            const AMP_BLD_KEYS = ['11111', '13107', '13111', '14107'];
+            let lfBuildings = {};
+            if (ap) {
+                for (const k of AMP_BLD_KEYS) {
+                    if (ap[k] > 0) lfBuildings[apiKeyToOgId(k)] = ap[k];
+                }
+            } else {
+                lfBuildings = extractAmpBuildings(p);
+            }
+
             planets.push({
                 id: planetId, name: p.querySelector('.planetname')?.textContent.trim() || '',
                 coords, pos,
                 lifeform: lifeformName,
-                metal:     lvl(p, 'supply', '1'),
-                crystal:   lvl(p, 'supply', '2'),
-                deuterium: lvl(p, 'supply', '3'),
-                human:     lvl(p, 'lifeform1buildings', '11106'),
-                magma:     lvl(p, 'lifeform2buildings', '12106'),
-                crawlers:  lvl(p, 'ships', '217'),
+                metal, crystal, deuterium, human, magma, crawlers,
                 item, itemCustom, overload: false,
                 lifeformLevel: getLifeformLevel(planetId, lifeformName),
-                lfResearch: extractLfResearchLevels(p),
-                lfBuildings: extractAmpBuildings(p)
+                lfResearch, lfBuildings
             });
         });
         d.planets = planets;

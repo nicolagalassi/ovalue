@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.6.3
+// @version      3.6.5
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -1047,19 +1047,19 @@
     }
 
     function updateMenuStatus() {
-        const dot = document.getElementById('ov_status_dot');
-        if (!dot) return;
+        const circle = document.getElementById('ov_status_circle');
+        if (!circle) return;
         const all = d.overview_collected && d.lf_collected && d.empire_collected;
         const any = d.overview_collected || d.lf_collected || d.empire_collected;
         if (all) {
-            dot.style.background = '#00ff9d';
-            dot.style.boxShadow  = '0 0 0 2px rgba(0,255,157,.25), 0 0 6px rgba(0,255,157,.35)';
+            circle.setAttribute('fill', '#00ff9d');
+            circle.setAttribute('filter', 'url(#ov_dot_glow)');
         } else if (any) {
-            dot.style.background = '#ffb800';
-            dot.style.boxShadow  = '0 0 0 2px rgba(255,184,0,.25)';
+            circle.setAttribute('fill', '#ffb800');
+            circle.setAttribute('filter', 'url(#ov_dot_glow)');
         } else {
-            dot.style.background = '#334155';
-            dot.style.boxShadow  = '0 0 0 2px rgba(51,65,85,.3)';
+            circle.setAttribute('fill', '#334155');
+            circle.removeAttribute('filter');
         }
     }
 
@@ -1152,24 +1152,32 @@
         if (menuTable) {
             const li = document.createElement('li');
             li.innerHTML = `
-                <span class="menu_icon" style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;">
-                    <span id="ov_status_dot" style="
-                        display:block; width:8px; height:8px; border-radius:50%;
-                        background:#334155;
-                        box-shadow:0 0 0 2px rgba(51,65,85,.3);
-                        transition:background 400ms,box-shadow 400ms;
-                    "></span>
+                <span class="menu_icon">
+                    <a id="ov_icon_btn" href="#" target="_self" style="display:block;line-height:0;">
+                        <svg id="ov_icon_svg" width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <filter id="ov_dot_glow" x="-100%" y="-100%" width="300%" height="300%">
+                                    <feGaussianBlur stdDeviation="2" result="blur"/>
+                                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                </filter>
+                            </defs>
+                            <rect width="26" height="26" rx="4" fill="#0b0e14" stroke="rgba(255,255,255,.15)" stroke-width="1"/>
+                            <circle id="ov_status_circle" cx="13" cy="13" r="4" fill="#334155"/>
+                        </svg>
+                    </a>
                 </span>
                 <a class="menubutton" href="#" id="ov_menu_btn"><span class="textlabel">OValue</span></a>
             `;
             menuTable.appendChild(li);
-            document.getElementById('ov_menu_btn').addEventListener('click', e => {
+            const togglePanel = e => {
                 e.preventDefault();
                 const panel = document.getElementById('ov_panel');
                 const open  = !panel.classList.contains('ov_open');
                 panel.classList.toggle('ov_open', open);
                 GM_setValue(PANEL_KEY, open);
-            });
+            };
+            document.getElementById('ov_menu_btn').addEventListener('click', togglePanel);
+            document.getElementById('ov_icon_btn').addEventListener('click', togglePanel);
         }
 
         const panel = document.createElement('div');

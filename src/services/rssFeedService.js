@@ -4,18 +4,17 @@
  * Fetches and parses the OGame EN international forum RSS feed.
  *
  * Board feed URL pattern (WBB4 / Woltlab Suite):
- *   https://board.en.ogame.gameforge.com/index.php/BoardFeed/{BOARD_ID}/
+ *   https://board.en.ogame.gameforge.com/index.php?board-feed/{BOARD_ID}/
  *
  * Board 1022 = Events / News / Info (most active board for announcements).
  *
- * CORS strategy — proxies tried in order, first success wins:
- *   1. Direct fetch        — works if Gameforge sends CORS headers (sometimes does)
- *   2. allorigins.win      — returns JSON { contents: '<xml>...' }
- *   3. corsproxy.io        — transparent proxy
- *   4. thingproxy          — last resort fallback
+ * CORS strategy — all proxies are raced in parallel, first success wins:
+ *   1. allorigins.win/raw  — returns XML directly (confirmed working 2026)
+ *   2. Direct fetch        — works if Gameforge sends CORS headers
+ *   3. corsproxy.io        — transparent proxy (may return 403 depending on IP)
+ *   4. codetabs            — last resort fallback
  *
  * For production, replace public proxies with a private edge function.
- * See INTEGRATION_GUIDE.md for a Netlify/Vercel edge function template.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -23,16 +22,16 @@ const FEED_URL  = 'https://board.en.ogame.gameforge.com/index.php?board-feed/102
 const MAX_ITEMS = 20;
 
 const PROXY_CHAIN = [
-  // 1. Direct (no proxy)
-  (url) => url,
+  // 1. allOrigins /raw — returns XML directly without JSON wrapper
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
 
-  // 2. allOrigins — wraps response in { contents: '...' }
-  (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+  // 2. Direct (no proxy) — works when Gameforge sends CORS headers
+  (url) => url,
 
   // 3. corsproxy.io — transparent
   (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
 
-  // 4. Codetabs — another transparent proxy
+  // 4. Codetabs — last resort
   (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
 ];
 
@@ -69,21 +68,26 @@ export async function fetchOGameFeed() {
 
 async function _fetchViaProxy(makeUrl, targetUrl, externalSignal) {
   const proxyUrl = makeUrl(targetUrl);
-  
-  const timeoutId = setTimeout(() => externalSignal.abort(), 8000);
+
+  // Per-request timeout: abort after 8s or when the winner cancels the race
+  const localController = new AbortController();
+  const timeoutId = setTimeout(() => localController.abort(), 8000);
+  const signal = AbortSignal.any
+    ? AbortSignal.any([localController.signal, externalSignal])
+    : localController.signal;
 
   const res = await fetch(proxyUrl, {
     method: 'GET',
     headers: { Accept: 'application/rss+xml, application/xml, text/xml, */*' },
-    signal: externalSignal,
+    signal,
   }).finally(() => clearTimeout(timeoutId));
 
   if (!res.ok) throw new Error(`HTTP ${res.status} — ${proxyUrl}`);
 
   const text = await res.text();
 
-  // allOrigins wraps XML in a JSON envelope: { contents: '...' }
-  if (proxyUrl.includes('allorigins.win')) {
+  // allorigins.win/get wraps XML in { contents: '...' }; /raw returns XML directly
+  if (proxyUrl.includes('allorigins.win/get')) {
     try {
       const json = JSON.parse(text);
       return json.contents ?? text;

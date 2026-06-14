@@ -26,7 +26,6 @@ const settings = reactive({
 const planets = ref([]);
 const bulkTarget = ref('metal');
 const bulkValue = ref('');
-const showIntro = ref(false);
 const showAllLfResearch = ref(false);
 
 // Sync with active profile
@@ -165,11 +164,6 @@ const collBreakdown = computed(() => {
     };
 });
 
-// ── Firma Forum ──────────────────────────────────────────────────────────────
-const maxMetalMine = computed(() =>
-    planets.value.length ? Math.max(...planets.value.map(p => p.metal || 0)) : 0
-);
-
 </script>
 
 <template>
@@ -182,34 +176,6 @@ const maxMetalMine = computed(() =>
         <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-sky-500 to-sky-400 mx-auto rounded-full opacity-70"></div>
     </div>
 
-    <!-- Intro Section -->
-    <div class="card-glass mb-8 bg-sky-500/[0.03] relative overflow-hidden">
-
-        <!-- Mobile: collapsed header -->
-        <button @click="showIntro = !showIntro" :aria-expanded="showIntro" aria-controls="intro-panel-content" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-sky-400">
-            <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <span class="text-xs font-black uppercase tracking-widest">{{ t('metal_calc_about') }}</span>
-            </div>
-            <svg class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': showIntro }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-        </button>
-
-        <!-- Collapsible body on mobile, always visible on desktop -->
-        <div id="intro-panel-content" class="p-6 md:flex md:flex-row md:items-center md:gap-6 relative z-10 group" :class="showIntro ? 'block' : 'hidden md:flex'">
-            <div class="hidden md:block p-4 rounded-2xl bg-sky-500/[0.08] text-sky-400 flex-shrink-0 group-hover:scale-105 transition-transform duration-200">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </div>
-            <div class="flex-grow">
-                <p class="text-sm text-slate-300 leading-relaxed font-medium mb-4">{{ t('metal_calc_intro') }}</p>
-                <a href="https://update.greasyfork.org/scripts/574448/OValue%20Exporter.user.js" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/[0.08] hover:bg-sky-500/[0.15] text-sky-400 text-[10px] font-semibold uppercase tracking-widest border border-sky-500/20 transition-all">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    {{ t('btn_download_script') }}
-                </a>
-            </div>
-        </div>
-        <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-sky-500/[0.04] rounded-full blur-2xl"></div>
-    </div>
-    
 
 
     <!-- ── IMPOSTAZIONI GLOBALI ──────────────────────────────────────── -->

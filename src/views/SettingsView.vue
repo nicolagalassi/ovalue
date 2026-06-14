@@ -2,13 +2,10 @@
 import { ref, computed } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
-import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useToast } from '../composables/useToast';
-import ForumSignature from '../components/ForumSignature.vue';
 
 const { currentLang, setLanguage, t } = useLanguage();
 const { show: showToast } = useToast();
-const { calcLFResearchBonus } = useOgameFormulas();
 const {
     profiles, activeProfileId, activeProfile, knownServers,
     createProfile, renameProfile, deleteProfile,
@@ -59,17 +56,6 @@ const lastSyncFormatted = computed(() => {
     const d = new Date(ts);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 });
-
-// ── Dati firma forum (derivati dal profilo attivo) ─────────────────────────
-const sigTotals = computed(() => ({
-    daily: activeProfile.value?.production?.daily || 0,
-}));
-const sigPlanets = computed(() => activeProfile.value?.production?.planets || []);
-const sigSettings = computed(() => activeProfile.value?.production?.settings || {});
-const sigMaxMine = computed(() =>
-    sigPlanets.value.length ? Math.max(...sigPlanets.value.map(p => p.metal || 0)) : 0,
-);
-const sigLfPct = computed(() => calcLFResearchBonus(sigPlanets.value));
 
 // ── Modal profilo ──────────────────────────────────────────────────────────
 const modalOpen = ref(false);
@@ -478,24 +464,6 @@ const confirmImportOGame = () => {
 
     </div><!-- fine colonna destra -->
     </div><!-- fine grid -->
-
-    <!-- ── FIRMA FORUM ──────────────────────────────────────────────────── -->
-    <div v-if="activeProfile" class="mt-10">
-      <div class="flex items-center gap-3 mb-4">
-        <span class="w-[2px] h-4 bg-violet-400/60 rounded-full flex-shrink-0"></span>
-        <span class="text-[10px] font-black text-violet-400/80 uppercase tracking-[0.2em] font-mono">{{ t('sig_title') }}</span>
-        <div class="flex-grow h-px bg-white/5"></div>
-      </div>
-      <ForumSignature
-        :totals="sigTotals"
-        :max-mine="sigMaxMine"
-        :lf-bonus="sigLfPct.metal"
-        :coll-bonus="sigLfPct.collectorBonus"
-        :settings="sigSettings"
-        :nickname="activeProfile.playerName || ''"
-        :universe="activeProfile.name"
-      />
-    </div>
 
   </div>
 

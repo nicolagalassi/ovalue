@@ -23,10 +23,21 @@ const { formatNum } = useOgameFormulas();
 
         <div class="hero-content relative z-10">
 
-          <!-- Tagline solo al primo accesso (nessun profilo): chi torna vede i suoi dati -->
-          <p v-if="!activeProfile" class="text-sm text-slate-400 mb-4 leading-relaxed max-w-lg mx-auto text-balance">
-            {{ t('index_desc') }}
-          </p>
+          <!-- Primo accesso: tagline + CTA install script -->
+          <template v-if="!activeProfile">
+            <p class="text-sm text-slate-400 mb-5 leading-relaxed max-w-lg mx-auto text-balance">
+              {{ t('index_desc') }}
+            </p>
+            <div class="flex flex-col items-center gap-2 mb-2">
+              <a href="https://update.greasyfork.org/scripts/574448/OValue%20Exporter.user.js"
+                 target="_blank" rel="noopener noreferrer"
+                 class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500/[0.10] hover:bg-sky-500/[0.18] text-sky-300 text-xs font-bold uppercase tracking-widest border border-sky-500/25 hover:border-sky-400/50 transition-all duration-200">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                {{ t('btn_download_script') }}
+              </a>
+              <span class="text-[11px] text-slate-600">{{ t('home_install_hint') }}</span>
+            </div>
+          </template>
 
           <div v-if="activeProfile" class="flex items-center justify-center gap-2 flex-wrap">
             <div v-if="activeProfile.production?.daily" class="profile-chip">

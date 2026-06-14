@@ -29,7 +29,6 @@ const navLinks = [
     { to: '/metal',       labelKey: 'card_metal_title',       activeColor: 'text-sky-400',     dotColor: 'bg-sky-400'     },
     { to: '/pack',        labelKey: 'card_pack_title',        activeColor: 'text-amber-400',   dotColor: 'bg-amber-400'   },
     { to: '/shopping',    labelKey: 'shopping_title',         activeColor: 'text-violet-400',  dotColor: 'bg-violet-400'  },
-    { to: '/expirations', labelKey: 'card_expirations_title', activeColor: 'text-rose-400',    dotColor: 'bg-rose-400'    },
     { to: '/strategy',    labelKey: 'card_strategy_title',    activeColor: 'text-emerald-400', dotColor: 'bg-emerald-400' },
 ];
 </script>

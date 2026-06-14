@@ -1,5 +1,4 @@
 <script setup>
-import { ref, computed } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
@@ -9,44 +8,7 @@ const { t } = useLanguage();
 const { activeProfile } = useProfiles();
 const { formatNum } = useOgameFormulas();
 
-const criticalCount = computed(() => {
-    if (!activeProfile.value?.expirations) return 0;
-    const now = Date.now();
-    const officers = Object.values(activeProfile.value.expirations.officers || {})
-        .filter(o => o.expires && (o.expires - now) > 0 && (o.expires - now) <= 86400000).length;
-    const items = (activeProfile.value.expirations.globalItems || [])
-        .filter(i => i.expires && (i.expires - now) > 0 && (i.expires - now) <= 86400000).length;
-    return officers + items;
-});
 
-const expirationChips = computed(() => {
-    if (!activeProfile.value?.expirations) return [];
-    const now = Date.now();
-    const all = [
-        ...Object.values(activeProfile.value.expirations.officers || {}).map(o => ({ name: o.name, expires: o.expires })),
-        ...(activeProfile.value.expirations.globalItems || []).map(i => ({ name: i.name, expires: i.expires })),
-    ].filter(e => e.expires);
-
-    return all
-        .map(e => {
-            const diff = e.expires - now;
-            const critical = diff > 0 && diff <= 86400000;
-            const warning  = diff > 0 && diff > 86400000 && diff <= 864000000;
-            if (!critical && !warning) return null;
-            const h = Math.floor(diff / 3600000);
-            const m = Math.floor((diff % 3600000) / 60000);
-            const d = Math.floor(h / 24);
-            const label = d > 0 ? `${d}g ${h % 24}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
-            return { name: e.name, expires: e.expires, critical, label };
-        })
-        .filter(Boolean)
-        .sort((a, b) => {
-            if (a.critical && !b.critical) return -1;
-            if (!a.critical && b.critical) return 1;
-            return a.expires - b.expires;
-        })
-        .slice(0, 4);
-});
 </script>
 
 <template>
@@ -72,15 +34,6 @@ const expirationChips = computed(() => {
               <span class="text-amber-300/80 font-medium">{{ formatNum(activeProfile.production.daily) }}</span>
               <span class="text-slate-500">{{ t('lbl_met_day') }}</span>
             </div>
-            <router-link v-for="chip in expirationChips" :key="chip.name" to="/expirations"
-              class="profile-chip cursor-pointer transition-colors"
-              :class="chip.critical
-                ? 'border-rose-500/20 bg-rose-500/[0.06] hover:bg-rose-500/10'
-                : 'border-orange-500/15 bg-orange-500/[0.04] hover:bg-orange-500/10'">
-              <span class="chip-dot" :class="chip.critical ? 'bg-rose-400 animate-pulse' : 'bg-orange-400/70'"></span>
-              <span :class="chip.critical ? 'text-rose-300' : 'text-orange-300/80'">{{ chip.name }}</span>
-              <span :class="chip.critical ? 'text-rose-500/70' : 'text-orange-600/80'">{{ chip.label }}</span>
-            </router-link>
           </div>
 
         </div>

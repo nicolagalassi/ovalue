@@ -49,14 +49,6 @@ const routes = [
         }
     },
     {
-        path: '/expirations',
-        component: () => import('./views/ExpirationsView.vue'),
-        meta: {
-            title: 'Scadenziario - OValue',
-            description: 'Monitora la scadenza di ufficiali e item del tuo impero OGame.'
-        }
-    },
-    {
         path: '/settings',
         component: () => import('./views/SettingsView.vue'),
         meta: {

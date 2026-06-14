@@ -410,6 +410,17 @@ const getTierDotClass = (tier) => {
     return 'bg-ogame-accent';
 };
 
+// ───── Ricerca per nome ───────────────────────────────────────────────────────
+const searchQuery = ref('');
+
+const searchResults = computed(() => {
+    const q = searchQuery.value.trim().toLowerCase();
+    if (!q) return null;
+    return Object.entries(SHOP_ITEMS.items)
+        .filter(([key]) => t(key).toLowerCase().includes(q))
+        .map(([key, val]) => ({ key, val }));
+});
+
 // Swipe delete logic
 const swipeState = reactive({ idx: null, startX: 0, currentXP: 0 });
 const tsStart = (e, idx) => { swipeState.idx = idx; swipeState.startX = e.touches[0].clientX; swipeState.currentXP = 0; };
@@ -446,6 +457,31 @@ const getSwipeStyle = (idx) => {
                 <path v-for="(p, i) in evt.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
               </svg>
               <span class="btn-label">{{ t(evt.label) }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sidebar-divider"></div>
+
+        <!-- Search Section -->
+        <div class="sidebar-section">
+          <label class="section-label">
+            <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            {{ t('shop_search_placeholder').replace('...', '') }}
+          </label>
+          <div class="relative mt-3">
+            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input
+              v-model="searchQuery"
+              type="search"
+              :placeholder="t('shop_search_placeholder')"
+              :aria-label="t('shop_search_placeholder')"
+              class="shop-search-input w-full pl-8 pr-7 py-2 text-[11px] text-slate-300 bg-black/40 border border-slate-700/40 rounded-lg focus:outline-none focus:border-ogame-accent/50 focus:bg-black/60 placeholder-slate-500 transition-colors"
+            />
+            <button v-if="searchQuery" @click="searchQuery = ''"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                    :aria-label="t('shop_search_clear')">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
         </div>
@@ -525,6 +561,22 @@ const getSwipeStyle = (idx) => {
       <div class="catalog-header px-4 md:px-10 pt-8 pb-4">
         <h1 class="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white">{{ t('shopping_title') }}</h1>
         <div class="mt-2 h-[2px] w-16 bg-gradient-to-r from-purple-500 to-transparent rounded-full"></div>
+        <!-- Ricerca visibile solo su mobile; desktop usa il sidebar -->
+        <div class="relative mt-4 max-w-xs lg:hidden">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input
+            v-model="searchQuery"
+            type="search"
+            :placeholder="t('shop_search_placeholder')"
+            :aria-label="t('shop_search_placeholder')"
+            class="shop-search-input w-full pl-9 pr-8 py-2 text-sm text-slate-300 bg-black/40 border border-slate-700/40 rounded-lg focus:outline-none focus:border-ogame-accent/50 focus:bg-black/60 placeholder-slate-500 transition-colors"
+          />
+          <button v-if="searchQuery" @click="searchQuery = ''"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                  :aria-label="t('shop_search_no_results')">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
       </div>
 
       <!-- Banner evento attivo -->
@@ -551,6 +603,82 @@ const getSwipeStyle = (idx) => {
 
       <!-- Catalog Grid -->
       <div class="catalog-sections px-4 md:px-10 pb-20 space-y-12 mt-6">
+
+        <!-- ── Risultati ricerca ── -->
+        <template v-if="searchResults !== null">
+          <div v-if="searchResults.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
+            <svg class="w-12 h-12 mb-3 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <span class="text-[10px] uppercase font-black tracking-widest text-slate-600">{{ t('shop_search_no_results') }}</span>
+          </div>
+          <div v-else>
+            <div class="section-divider flex items-center gap-3 mb-6">
+              <span class="w-[2px] h-4 bg-ogame-accent/40 rounded-full flex-shrink-0"></span>
+              <span class="text-[9px] font-black uppercase tracking-[0.25em] text-ogame-accent/60 font-mono">{{ searchResults.length }} {{ t('shop_search_results') }}</span>
+              <div class="h-px flex-1 bg-gradient-to-r from-ogame-accent/10 to-transparent"></div>
+            </div>
+            <div class="product-grid grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-2 md:gap-4">
+              <article
+                v-for="entry in searchResults" :key="entry.key"
+                class="product-card relative flex flex-col overflow-hidden rounded-xl bg-ogame-panel border border-slate-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
+                :class="{
+                  'card-highlight': isItemEventRelated(entry.key, entry.val.costs),
+                  'card-muted': shouldDimUnrelated && !isItemEventRelated(entry.key, entry.val.costs),
+                  'just-added': lastAddedId === entry.key
+                }"
+              >
+                <div class="relative flex items-center justify-center h-[80px] md:h-[108px] bg-black/30 border-b border-slate-700/15 overflow-hidden group">
+                  <img v-if="shopItemImageSrc(entry.key)" :src="shopItemImageSrc(entry.key)" :alt="t(entry.key)" class="h-[80%] w-[80%] object-contain drop-shadow-lg transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                  <div v-else class="glyph-tile w-14 h-14 md:w-16 md:h-16 rounded-2xl border flex items-center justify-center transition-transform duration-500 group-hover:scale-110" :class="itemGlyph(entry.key).tint">
+                    <svg class="w-7 h-7 md:w-8 md:h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                      <path v-for="(p, i) in itemGlyph(entry.key).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                    </svg>
+                  </div>
+                  <div v-if="isItemEventRelated(entry.key, entry.val.costs)" class="absolute top-1.5 right-1.5 flex items-center gap-1 bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded-md leading-none shadow-sm">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path v-for="(p, i) in getEventInfo(activeDiscountEvent).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/></svg>
+                    <template v-if="getBestDiscountPctForCard(entry.key, entry.val.costs) > 0">–{{ getBestDiscountPctForCard(entry.key, entry.val.costs) }}%</template>
+                  </div>
+                </div>
+                <div class="px-3 pt-3 pb-1.5">
+                  <h4 class="text-xs font-black uppercase tracking-wider text-slate-300 leading-snug line-clamp-2 min-h-[2.5em]">{{ t(entry.key) }}</h4>
+                </div>
+                <div class="px-3 pb-2">
+                  <div class="inline-flex items-center gap-0.5 bg-black/40 rounded-lg border border-slate-700/20 p-0.5">
+                    <button @click="stepQty(entry.key, -1)" :aria-label="t('shop_label_qty') + ' −1'" class="qty-step" :disabled="(itemQuantities[entry.key] || 1) <= 1">−</button>
+                    <input type="number" v-model.number="itemQuantities[entry.key]" min="1" :id="'qty-s-' + entry.key" :name="'qty-s-' + entry.key" :aria-label="t('shop_label_qty') + ' ' + t(entry.key)" class="qty-input" />
+                    <button @click="stepQty(entry.key, 1)" :aria-label="t('shop_label_qty') + ' +1'" class="qty-step">+</button>
+                  </div>
+                </div>
+                <div class="px-3 pb-3 space-y-1.5 mt-auto">
+                  <div v-for="[tierName, durations] in TIER_DISPLAY_ORDER.filter(tk => entry.val.costs && entry.val.costs[tk]).map(tk => [tk, entry.val.costs[tk]])" :key="tierName">
+                    <div v-if="Object.keys(durations).length > 1" class="flex p-0.5 mb-1.5 bg-black/50 rounded-lg border border-slate-700/15">
+                      <button v-for="(_, dur) in durations" :key="dur" @click="selectedDurations[`${entry.key}_${tierName}`] = dur" class="flex-1 text-[11px] font-black uppercase py-1.5 rounded-md transition-all" :class="selectedDurations[`${entry.key}_${tierName}`] === dur ? 'bg-white/[0.08] text-slate-200' : 'text-slate-600'">{{ dur === 'base' ? 'STD' : dur }}</button>
+                    </div>
+                    <button @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])" class="tier-row group/tier w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all duration-150" :class="[getTierColorClass(tierName), isItemDiscounted(entry.key, tierName, activeDiscountEvent) ? 'btn-discounted' : '']" :aria-label="t('shop_btn_add_cart') + ': ' + t(entry.key)">
+                      <div class="flex items-center gap-1.5 min-w-0 flex-1 pr-1">
+                        <template v-if="tierName !== 'none'">
+                          <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="getTierDotClass(tierName)"></span>
+                          <span class="text-[11px] font-black uppercase tracking-wide truncate">{{ getTierDisplayName(entry.key, tierName) }}</span>
+                          <span v-if="getTierSuffix(entry.key, tierName)" class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-black border flex-shrink-0" :class="getTierBadgeClass(tierName)">{{ getTierSuffix(entry.key, tierName) }}</span>
+                        </template>
+                        <svg v-else class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 5v14m7-7H5"/></svg>
+                      </div>
+                      <div class="flex items-center gap-2 flex-shrink-0">
+                        <div class="flex flex-col items-end leading-none">
+                          <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]" class="text-[10px] line-through opacity-35 font-mono mb-0.5">{{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}</span>
+                          <span class="text-sm font-black font-mono leading-none">{{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}<span class="text-[9px] opacity-50 font-bold ml-0.5">MO</span></span>
+                        </div>
+                        <svg class="tier-add-icon w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"/></svg>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </template>
+
+        <!-- ── Catalogo normale ── -->
+        <template v-else>
         <div
           v-for="catData in fullCatalog" :key="catData.id"
           :id="'cat-section-' + catData.id"
@@ -674,6 +802,8 @@ const getSwipeStyle = (idx) => {
             </div>
           </div>
         </div>
+        </template>
+
       </div>
     </main>
 
@@ -888,6 +1018,9 @@ const getSwipeStyle = (idx) => {
 </template>
 
 <style scoped>
+/* ─── SEARCH ─── */
+.shop-search-input::-webkit-search-cancel-button { display: none; }
+
 /* ─── BASE LAYOUT ─── */
 .shop-v4-root {
   display: flex;

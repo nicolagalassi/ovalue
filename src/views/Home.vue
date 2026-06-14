@@ -4,12 +4,10 @@ import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import Footer from '../components/Footer.vue';
-import NewsFeed from '../components/NewsFeed.vue';
 
 const { t } = useLanguage();
 const { activeProfile } = useProfiles();
 const { formatNum } = useOgameFormulas();
-const showNewsFeed = ref(false);
 
 const criticalCount = computed(() => {
     if (!activeProfile.value?.expirations) return 0;
@@ -209,41 +207,6 @@ const expirationChips = computed(() => {
         </div>
       </div>
 
-      <!-- ── NEWS — scomparsa ─────────────────────────────────────────────── -->
-      <div class="px-4 md:px-6 pb-8 max-w-4xl mx-auto w-full">
-
-        <!-- Toggle header -->
-        <button
-          @click="showNewsFeed = !showNewsFeed"
-          :aria-expanded="showNewsFeed"
-          aria-controls="news-feed-panel"
-          class="news-toggle group w-full flex items-center gap-3 py-3 transition-colors"
-          :class="showNewsFeed ? 'text-slate-300' : 'text-slate-600 hover:text-slate-400'"
-        >
-          <div class="h-px flex-grow bg-gradient-to-r from-transparent" :class="showNewsFeed ? 'to-slate-600/40' : 'to-slate-700/25'"></div>
-          <div class="flex items-center gap-2 flex-shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.143 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
-            <span class="text-[11px] font-semibold uppercase tracking-widest whitespace-nowrap">Forum OGame</span>
-            <svg class="w-3 h-3 transition-transform duration-300 text-slate-700" :class="{'rotate-180': showNewsFeed}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-          </div>
-          <div class="h-px flex-grow bg-gradient-to-l" :class="showNewsFeed ? 'from-slate-600/40' : 'from-slate-700/25'"></div>
-        </button>
-
-        <!-- News content — animato -->
-        <Transition
-          enter-active-class="transition-all duration-300 ease-out overflow-hidden"
-          enter-from-class="opacity-0 max-h-0"
-          enter-to-class="opacity-100 max-h-[2000px]"
-          leave-active-class="transition-all duration-200 ease-in overflow-hidden"
-          leave-from-class="opacity-100 max-h-[2000px]"
-          leave-to-class="opacity-0 max-h-0"
-        >
-          <div v-if="showNewsFeed" id="news-feed-panel" class="pt-3">
-            <NewsFeed />
-          </div>
-        </Transition>
-      </div>
-
     </div>
 
     <Footer class="flex-shrink-0 w-full" />
@@ -327,7 +290,6 @@ const expirationChips = computed(() => {
 
 /* ── Focus visible ───────────────────────────────────────────────── */
 .profile-chip:focus-visible { outline: 2px solid rgba(96,165,250,0.9); outline-offset: 2px; border-radius: 999px; }
-.news-toggle:focus-visible { outline: 2px solid rgba(96,165,250,0.9); outline-offset: 2px; border-radius: 4px; }
 
 /* ── Reduced motion ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {

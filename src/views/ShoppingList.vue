@@ -166,7 +166,15 @@ const isItemDiscounted = (itemKey, tier, eventId) => {
     if (eventId === 'boosters'     && String(itemKey).includes('booster')) return true;
     if (eventId === 'resources'    && String(itemKey).includes('res_package')) return true;
     if (eventId === 'classes'      && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return true;
-    if (eventId === 'platinum'     && tier === 'platinum') return true;
+    if (eventId === 'platinum') {
+        if (tier === 'platinum') return true;
+        if (String(itemKey).startsWith('res_package_')) return true;
+        if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return true;
+        if (['booster_metal', 'booster_crystal', 'booster_deut'].includes(itemKey) && tier !== 'bronze') return true;
+        if (itemKey === 'fields_planet' || itemKey === 'fields_moon' || itemKey === 'moons') return true;
+        if (itemKey === 'booster_energy' && tier !== 'bronze') return true;
+        if (itemKey === 'slot_fleet' || itemKey === 'slot_expedition') return true;
+    }
     if (eventId === 'merchant'     && itemKey === 'ingame_merchant') return true;
     if (eventId === 'relocate'     && itemKey === 'ingame_relocate') return true;
     if (eventId === 'slots'        && (itemKey === 'slot_fleet' || itemKey === 'slot_expedition')) return true;
@@ -207,7 +215,15 @@ const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
     }
     if (eventId === 'resources'  && String(itemKey).includes('res_package')) return 0.7;
     if (eventId === 'classes'    && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return 0.8;
-    if (eventId === 'platinum'   && tier === 'platinum') return 0.8;
+    if (eventId === 'platinum') {
+        if (tier === 'platinum') return 0.8;
+        if (String(itemKey).startsWith('res_package_')) return 0.8;
+        if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return 0.8;
+        if (['booster_metal', 'booster_crystal', 'booster_deut'].includes(itemKey) && tier !== 'bronze') return 0.8;
+        if (itemKey === 'fields_planet' || itemKey === 'fields_moon' || itemKey === 'moons') return 0.8;
+        if (itemKey === 'booster_energy' && tier !== 'bronze') return 0.8;
+        if (itemKey === 'slot_fleet' || itemKey === 'slot_expedition') return 0.8;
+    }
     if (eventId === 'merchant'   && itemKey === 'ingame_merchant') return 2000 / 3500;
     if (eventId === 'relocate'   && itemKey === 'ingame_relocate') return 0.5;
     if (eventId === 'slots'      && (itemKey === 'slot_fleet' || itemKey === 'slot_expedition')) return 0.7;

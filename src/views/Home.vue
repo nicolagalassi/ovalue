@@ -24,7 +24,7 @@ const { formatNum } = useOgameFormulas();
         <div class="hero-content relative z-10">
 
           <!-- Primo accesso: tagline + CTA install script -->
-          <template v-if="!activeProfile">
+          <template v-if="!activeProfile?.lastSync">
             <p class="text-sm text-slate-400 mb-5 leading-relaxed max-w-lg mx-auto text-balance">
               {{ t('index_desc') }}
             </p>
@@ -39,7 +39,7 @@ const { formatNum } = useOgameFormulas();
             </div>
           </template>
 
-          <div v-if="activeProfile" class="flex items-center justify-center gap-2 flex-wrap">
+          <div v-if="activeProfile?.lastSync" class="flex items-center justify-center gap-2 flex-wrap">
             <div v-if="activeProfile.production?.daily" class="profile-chip">
               <span class="chip-dot bg-amber-400/60"></span>
               <span class="text-amber-300/80 font-medium">{{ formatNum(activeProfile.production.daily) }}</span>

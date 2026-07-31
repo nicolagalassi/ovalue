@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **⚠️ Read [`AGENTS.md`](./AGENTS.md) before building any OGame-facing feature.** It
+> contains the OGame Origin team's hard compliance rules for third-party tools
+> (no automation, no scheduling, no auto-refresh/polling, no auto-registered alarms,
+> no direct probing, no imitating premium features, API-proxy usage, toleration
+> requirements, and a pre-submission self-audit checklist). These are non-negotiable
+> constraints: a tool that breaks them is rejected by the review team. When a request
+> conflicts with `AGENTS.md`, follow `AGENTS.md`.
+
 ## Commands
 
 ```bash

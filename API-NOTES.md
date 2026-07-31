@@ -64,6 +64,7 @@ I dati ricchi/live. Chiamate `fetch` con `credentials:'include'` e header
 | `page=ingame&component=movement` | pagina movimenti flotta | idem |
 | `component=galaxy&action=fetchSolarSystemData` (ex `fetchGalaxyContent`) | contenuto sistema (galassia) | on page-load / interazione utente; **mai loop** |
 | `page=standalone&component=empire` | vista impero (campi/temperature che l'API non espone) | on-demand |
+| ~~`page=ajax&component=empire`~~ | **DEPRECATO**: era usato per mine/LF cross-pianeta; su OGame **v13 risponde `405 Method Not Allowed`** → rimpiazzato da `accountInfo`. Tenere solo come fallback per server pre-v13 | come `accountInfo` |
 | `page=ajax&component=lfbonuses` (fallback `standalone`) | bonus LF (pagina) | on page-load / azione utente |
 | `page=ajax&component=productionqueue` | coda di produzione | on page-load / azione utente |
 | `component=facilities` / `messages` / `messagedetails` / `repairlayer` / `jumpgate` / `traderOverview` | strutture / messaggi / dettaglio / riparazioni / salto / mercante | on page-load / azione utente |

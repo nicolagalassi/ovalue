@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.7.0
+// @version      3.8.0
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -559,15 +559,107 @@
         return { lfResearch, lfBuildings };
     }
 
-    // Chiama l'API empire e restituisce l'array di pianeti.
-    // Può essere chiamata da qualsiasi pagina di OGame (non richiede la pagina Impero).
+    // Chiama l'API empire (LEGACY, server pre-v13). Su OGame v13 questo endpoint
+    // risponde 405 Method Not Allowed → usato solo come fallback dopo accountInfo.
     async function callEmpireAPI() {
         const resp = await fetch(
             `https://${window.location.host}/game/index.php?page=ajax&component=empire&ajax=1&planetType=0&asJson=1`,
             { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
         );
+        if (!resp.ok) throw new Error('empire HTTP ' + resp.status);
         const json = await resp.json();
         return JSON.parse(json.mergedArray).planets || [];
+    }
+
+    // ── ACCOUNTINFO — OGame v13 External Data Export (fonte primaria) ─────────
+    // Endpoint ufficiale, unica risposta con TUTTI i pianeti: miniere, navi, difese,
+    // edifici/ricerche LF, produzione oraria reale, ufficiali, classi, livelli LF.
+    // ID ufficiali (verificati su alaingilbert/ogame): specie 701..704 → LF 1..4;
+    // characterClassId 1=Collector 2=General 3=Discoverer; allianceClassId 1=Warrior
+    // 2=Trader 3=Researcher.
+    const SPECIES_TO_LF  = { 701: 'Humans', 702: 'Rocktal', 703: 'Mechas', 704: 'Kaelesh' };
+    const CHAR_CLASS_ID  = { 1: 'collector', 2: 'general', 3: 'explorer' };
+    const ALLY_CLASS_ID  = { 1: 'warrior', 2: 'trader', 3: 'researcher' };
+
+    async function callAccountInfo() {
+        const resp = await fetch(
+            `https://${window.location.host}/game/index.php?page=componentOnly&component=externaldataexport&action=accountInfo&asJson=1`,
+            { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
+        );
+        if (!resp.ok) throw new Error('accountInfo HTTP ' + resp.status);
+        return resp.json();
+    }
+
+    // Converte un pianeta accountInfo nella forma "flat" (chiavi numeriche) che
+    // applyAPIToPlanets()/collectEmpire() già consumano: così tutta la logica di
+    // merge esistente resta invariata e riusiamo empireApiKey()/apiKeyToOgId().
+    function accToFlatPlanet(p) {
+        const flat = {};
+        for (const src of ['buildings', 'ships', 'defenses', 'speciesBuildings', 'speciesResearches']) {
+            for (const [k, v] of Object.entries(p[src] || {})) flat[k] = v;
+        }
+        flat.id = p.id; flat.planetID = p.id;
+        // selectedSpeciesId 703 → lifeform '3' (LF_NUM_MAP)
+        flat.lifeform = p.selectedSpeciesId ? (p.selectedSpeciesId - 700) : 0;
+        flat.coords = `${p.galaxy}:${p.system}:${p.position}`;
+        return flat;
+    }
+
+    // Applica i dati account-level di accountInfo (classi, livelli LF, ufficiali)
+    // SENZA toccare d.planets (gestiti dai consumer della forma flat).
+    function applyAccountInfoMeta(acc) {
+        if (!acc) return;
+        if (acc.playerName) d.playerName = d.playerName || acc.playerName;
+        if (CHAR_CLASS_ID[acc.characterClassId]) d.playerClass = CHAR_CLASS_ID[acc.characterClassId];
+        // Classe alleanza dall'ID ufficiale (autorevole, language-neutral, nessuna
+        // dipendenza dai selettori DOM della pagina Alleanza).
+        if (acc.allianceClassId != null) {
+            d.allianceClass = ALLY_CLASS_ID[acc.allianceClassId] || 'none';
+            d.alliance_collected = true;
+        }
+        // Livelli lifeform per specie (701..704 → 1..4)
+        if (acc.species && acc.species.values) {
+            d.lfLevels = d.lfLevels || {};
+            for (const [sp, info] of Object.entries(acc.species.values)) {
+                const n = String(parseInt(sp) - 700);
+                if (info && info.level > 0) d.lfLevels[n] = info.level;
+            }
+        }
+        // Ufficiali: solo bootstrap se la Panoramica non è mai stata letta — così non
+        // sovrascriviamo il timeRemaining (scadenze) raccolto dal DOM overview.
+        if (acc.officers && !d.overview_collected) {
+            const off = {};
+            for (const role of OFFICER_ROLES) {
+                const on = !!acc.officers[role];
+                off[role] = { active: on, timeRemaining: on ? '>6d' : '' };
+            }
+            d.officers = off;
+        }
+    }
+
+    // Sorgente unica di "pianeti API" in forma flat: prova accountInfo (v13),
+    // poi ricade sul vecchio endpoint empire (server pre-v13). Chiamata SOLO al
+    // page-load, mai in polling/loop (§4.1), una sola risposta per tutti i pianeti,
+    // nessun cp= (§4.2).
+    async function fetchApiPlanets() {
+        try {
+            const acc = await callAccountInfo();
+            if (acc && acc.planets && Object.keys(acc.planets).length) {
+                applyAccountInfoMeta(acc);
+                const plasma = acc.researches ? acc.researches['122'] : null;
+                d.empire_source = 'accountInfo';
+                return Object.values(acc.planets).map(p => {
+                    const flat = accToFlatPlanet(p);
+                    if (plasma != null && flat['122'] == null) flat['122'] = plasma; // plasma = ricerca account-wide
+                    return flat;
+                });
+            }
+        } catch (e) {
+            console.warn('[OValue Exporter] accountInfo non disponibile, fallback empire:', e.message);
+        }
+        // Fallback legacy (sui server v13 dà 405 → array vuoto → i consumer usano il DOM)
+        d.empire_source = 'empire';
+        try { return await callEmpireAPI(); } catch (_) { return []; }
     }
 
     // Costruisce/aggiorna d.planets dalla sidebar + dati API.
@@ -631,7 +723,7 @@
         d._lastEmpireAPIFetch = now;
 
         try {
-            const apiPlanets = await callEmpireAPI();
+            const apiPlanets = await fetchApiPlanets();
             if (!apiPlanets.length) return;
             applyAPIToPlanets(apiPlanets);
             save();
@@ -645,7 +737,8 @@
         let apiPlanets = [];
         d.empire_api = false;
         try {
-            apiPlanets = await callEmpireAPI();
+            // accountInfo (v13) → fallback empire; in forma flat, così il merge DOM sotto resta invariato
+            apiPlanets = await fetchApiPlanets();
             // Plasma dalla chiave globale 122
             const first = apiPlanets.find(ap => ap['122'] != null);
             if (first) d.settings.plasma = first['122'] || 0;
@@ -922,9 +1015,9 @@
 
     if (page === 'ingame' && component === 'overview') {
         setTimeout(collectOverview, 1000);
-        // Fetch API empire SOLO al page-load (mai timer/loop/auto-refresh — AGENTS.md §1.3/§4);
-        // aggiorna mine/LF di tutti i pianeti in una sola risposta, senza cp= (§4.2) e con
-        // throttle di 3 min per non ripetere la chiamata a ogni navigazione.
+        // Idrata mine/LF/classi di tutti i pianeti via accountInfo (v13) SOLO al page-load
+        // (mai timer/loop/auto-refresh — AGENTS.md §1.3/§4), una sola risposta, senza cp=
+        // (§4.2), con throttle di 3 min per non ripetere la chiamata a ogni navigazione.
         setTimeout(() => collectEmpireFromAPI(), 2000);
     } else if (page === 'ingame' && component === 'lfbonuses') {
         setTimeout(collectLFBonuses, 1000);

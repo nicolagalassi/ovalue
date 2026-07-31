@@ -3,6 +3,25 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [3.9.0]
+
+### Aggiunto
+- **Ricerche LF attive e livelli letti dall'API.** Le ricerche LF attive per pianeta
+  (`selectedSpeciesTechnologyIds`, filtrate alle sole ricerche) e tutti i livelli
+  (`speciesResearches`, incluse le non attive) arrivano da `accountInfo`: le sezioni
+  «Bonus LF» e «Ricerche LF» del pannello si completano **da sole** al caricamento
+  della Panoramica, **senza aprire la pagina Bonus LF né i singoli pianeti**.
+  - Il **bonus metallo** non è un valore inviato dallo script: è una **percentuale
+    calcolata da OValue** dai livelli delle ricerche LF **attive** di ogni pianeta
+    (più edifici amplificatori e livello LF). Lo script fornisce le ricerche attive e
+    i livelli; il calcolatore produce la %.
+  - La pagina Bonus LF resta solo un fallback per l'aggregato %, che il calcolatore
+    ignora quando ha le ricerche per pianeta.
+
+### Cambiato
+- Il pannello non mostra più un fuorviante «0%» nella sezione LifeForm quando i dati
+  arrivano dall'API; indica invece che bonus e ricerche sono letti dall'API.
+
 ## OValue Exporter — [3.8.0]
 
 ### Aggiunto
@@ -27,12 +46,6 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
     `fetchApiPlanets()`.
   - Livelli LF per specie (`701–704` → 1–4), classe giocatore e classe alleanza
     arrivano direttamente da `accountInfo`.
-- **Ricerche LF attive e livelli letti dall'API.** Le ricerche LF attive per pianeta
-  (`selectedSpeciesTechnologyIds`, filtrate alle sole ricerche) e tutti i livelli
-  (`speciesResearches`, incluse le non attive) arrivano da `accountInfo`: le sezioni
-  «Bonus LF» e «Ricerche LF» si completano dall'API, **senza aprire la pagina Bonus LF
-  né i singoli pianeti**. La pagina Bonus LF resta solo un fallback per l'aggregato %,
-  che il calcolatore ignora quando ha le ricerche per pianeta.
 - Helper condiviso `parseLfFromApi()` che elimina la logica duplicata di decodifica
   delle chiavi LF tra i percorsi di raccolta.
 

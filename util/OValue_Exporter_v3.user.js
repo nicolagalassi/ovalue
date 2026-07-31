@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.8.0
+// @version      3.9.0
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT

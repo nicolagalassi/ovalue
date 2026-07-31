@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.6.5
+// @version      3.7.0
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -107,7 +107,7 @@
         it: {
             overview: '👤 Panoramica', lifeform: '🧬 LifeForm', empire: '🌍 Impero',
             badgeMissing: '✗ MANCANTE', badgeOk: '✓ LETTO',
-            player: 'Giocatore', pclass: 'Classe', planets: 'Pianeti', plasma: 'Plasma',
+            player: 'Giocatore', pclass: 'Classe', allyClass: 'Classe All.', planets: 'Pianeti', plasma: 'Plasma',
             absent: 'assente', permanent: 'Permanente',
             dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Pianeti Mancanti (${n})`,
@@ -136,7 +136,7 @@
         en: {
             overview: '👤 Overview', lifeform: '🧬 LifeForm', empire: '🌍 Empire',
             badgeMissing: '✗ MISSING', badgeOk: '✓ READ',
-            player: 'Player', pclass: 'Class', planets: 'Planets', plasma: 'Plasma',
+            player: 'Player', pclass: 'Class', allyClass: 'Ally Class', planets: 'Planets', plasma: 'Plasma',
             absent: 'absent', permanent: 'Permanent',
             dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Missing Planets (${n})`,
@@ -164,7 +164,7 @@
         de: {
             overview: '👤 Übersicht', lifeform: '🧬 Lebensform', empire: '🌍 Imperium',
             badgeMissing: '✗ FEHLT', badgeOk: '✓ GELESEN',
-            player: 'Spieler', pclass: 'Klasse', planets: 'Planeten', plasma: 'Plasma',
+            player: 'Spieler', pclass: 'Klasse', allyClass: 'Allianz-Kl.', planets: 'Planeten', plasma: 'Plasma',
             absent: 'abwesend', permanent: 'Permanent',
             dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Fehlende Planeten (${n})`,
@@ -192,7 +192,7 @@
         fr: {
             overview: '👤 Aperçu', lifeform: '🧬 Forme de vie', empire: '🌍 Empire',
             badgeMissing: '✗ MANQUANT', badgeOk: '✓ LU',
-            player: 'Joueur', pclass: 'Classe', planets: 'Planètes', plasma: 'Plasma',
+            player: 'Joueur', pclass: 'Classe', allyClass: "Classe All.", planets: 'Planètes', plasma: 'Plasma',
             absent: 'absent', permanent: 'Permanent',
             dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Planètes manquantes (${n})`,
@@ -235,6 +235,14 @@
         fr: { collector: 'Collecteur',    general: 'Général',   explorer: 'Explorateur' }
     }[UI_LANG] || { collector: 'Collector', general: 'General', explorer: 'Explorer' };
 
+    // Nomi localizzati classi alleanza (solo per il pannello UI; storage resta neutro)
+    const ALLY_NAMES = {
+        it: { warrior: 'Guerriero', trader: 'Commerciante', researcher: 'Ricercatore' },
+        en: { warrior: 'Warrior',   trader: 'Trader',       researcher: 'Researcher' },
+        de: { warrior: 'Krieger',   trader: 'Händler',      researcher: 'Forscher' },
+        fr: { warrior: 'Guerrier',  trader: 'Commerçant',   researcher: 'Chercheur' }
+    }[UI_LANG] || { warrior: 'Warrior', trader: 'Trader', researcher: 'Researcher' };
+
     // ── COSTANTI ─────────────────────────────────────────────────────────────
     const SERVER_KEY  = window.location.hostname;
     const STORAGE_KEY = 'ovalue_data_' + SERVER_KEY;
@@ -252,11 +260,18 @@
     // CSS class names = chiavi di storage (language-neutral)
     const OFFICER_ROLES = ['commander', 'admiral', 'engineer', 'geologist', 'technocrat'];
 
+    // Classi alleanza OGame — nomi CSS interni (language-neutral), come per la classe giocatore.
+    // Storage neutro: 'warrior' | 'trader' | 'researcher' | 'none'. A OValue serve soprattutto
+    // 'trader' (Commerciante), che dà +5% alla produzione mineraria.
+    const ALLIANCE_CLASS_CSS = ['warrior', 'trader', 'researcher'];
+
     // ── STATO ────────────────────────────────────────────────────────────────
     let d = GM_getValue(STORAGE_KEY, {});
     const DEFAULTS = {
         overview_collected: false, lf_collected: false, empire_collected: false, empire_api: false,
-        playerName: '', playerClass: 'none', universeName: '', universeSpeed: 1,
+        alliance_collected: false,
+        playerName: '', playerClass: 'none', allianceClass: 'none',
+        universeName: '', universeSpeed: 1,
         officers: {}, lfBonuses: { metal: '0%', classBonus: '0%' },
         settings: { plasma: 0 }, planets: [], planetLifeforms: {}, globalItems: []
     };
@@ -320,6 +335,41 @@
     }
 
     function save() { GM_setValue(STORAGE_KEY, d); }
+
+    // ── CLASSE ALLEANZA ──────────────────────────────────────────────────────
+    // Rileva la classe alleanza dal DOM già presente nella pagina che l'utente ha aperto
+    // (tipicamente la pagina Alleanza). Leggere il DOM di una pagina caricata dall'utente
+    // NON è una chiamata di background e non genera attività in galassia (AGENTS.md §4):
+    // nessun fetch dedicato, nessun timer, nessun cambio pianeta.
+    // Priorità: classe CSS language-neutral (robusta e indipendente dalla lingua) →
+    // fallback su tooltip a parole chiave, ristretto agli elementi che sono davvero
+    // l'indicatore di classe alleanza (evita falsi positivi su nomi membri, ecc.).
+    function detectAllianceClass() {
+        const candidates = document.querySelectorAll(
+            '.allianceclass.sprite, .sprite.allianceclass, [class*="allianceclass"] .sprite, [class*="allianceclass"]'
+        );
+        for (const el of candidates) {
+            const cls = ALLIANCE_CLASS_CSS.find(c => el.classList.contains(c));
+            if (cls) return cls;
+        }
+        // Fallback lingua-dipendente (IT/EN/DE/FR) SOLO su elementi realmente marcati come classe alleanza
+        for (const el of document.querySelectorAll('[class*="allianceclass"][data-tooltip-title], [class*="allianceClass"][data-tooltip-title]')) {
+            const t = el.getAttribute('data-tooltip-title') || '';
+            if (/(commerciante|trader|händler|handler|commer[çc]ant)/i.test(t)) return 'trader';
+            if (/(guerriero|warrior|krieger|guerrier)/i.test(t))               return 'warrior';
+            if (/(ricercatore|researcher|forscher|chercheur)/i.test(t))        return 'researcher';
+        }
+        return null;
+    }
+
+    function collectAllianceClass() {
+        const detected = detectAllianceClass();
+        if (!detected) return;
+        d.alliance_collected = true;
+        if (d.allianceClass !== detected) d.allianceClass = detected;
+        save();
+        updatePanel();
+    }
 
     // ── RACCOLTA DATI ────────────────────────────────────────────────────────
 
@@ -403,6 +453,11 @@
         }
         d.officers = officers;
         d.overview_collected = true;
+        // Opportunistico: alcune versioni OGame mostrano la classe alleanza in overview.
+        // Se presente la leggiamo qui (stesso DOM già caricato), altrimenti resta la
+        // rilevazione sulla pagina Alleanza.
+        const ac = detectAllianceClass();
+        if (ac) { d.allianceClass = ac; d.alliance_collected = true; }
         captureLifeformsFromSidebar();
         captureLifeform();
         save();
@@ -490,6 +545,20 @@
     // Edifici amplificatori LF rilevanti per OValue
     const AMP_BLD_KEYS = ['11111', '13107', '13111', '14107'];
 
+    // Estrae ricerche + edifici amplificatori LF da un pianeta della risposta API empire.
+    // Helper condiviso da applyAPIToPlanets() e collectEmpire() per evitare la duplicazione
+    // della logica di decodifica chiavi (schema 1{specie}{tipo}{sub}, tipo2=ricerca).
+    function parseLfFromApi(ap) {
+        const lfResearch = {}, lfBuildings = {};
+        for (const [k, v] of Object.entries(ap)) {
+            if (empireApiKey(k) && parseInt(k[2]) === 2 && v > 0) lfResearch[apiKeyToOgId(k)] = v;
+        }
+        for (const k of AMP_BLD_KEYS) {
+            if ((ap[k] || 0) > 0) lfBuildings[apiKeyToOgId(k)] = ap[k];
+        }
+        return { lfResearch, lfBuildings };
+    }
+
     // Chiama l'API empire e restituisce l'array di pianeti.
     // Può essere chiamata da qualsiasi pagina di OGame (non richiede la pagina Impero).
     async function callEmpireAPI() {
@@ -520,15 +589,7 @@
 
             let lfResearch = existing.lfResearch || {}, lfBuildings = existing.lfBuildings || {};
             if (ap) {
-                lfResearch = {};
-                for (const [k, v] of Object.entries(ap)) {
-                    if (empireApiKey(k) && parseInt(k[2]) === 2 && v > 0)
-                        lfResearch[apiKeyToOgId(k)] = v;
-                }
-                lfBuildings = {};
-                for (const k of AMP_BLD_KEYS) {
-                    if ((ap[k] || 0) > 0) lfBuildings[apiKeyToOgId(k)] = ap[k];
-                }
+                ({ lfResearch, lfBuildings } = parseLfFromApi(ap));
                 // Salva razza dall'API se non già catturata via DOM
                 const lfFromAPI = LF_NUM_MAP[String(ap.lifeform || '')] || null;
                 if (lfFromAPI && !d.planetLifeforms[sp.id]) {
@@ -735,24 +796,12 @@
             const human     = ap ? (ap['11106'] || 0) : lvl(p, 'lifeform1buildings', '11106');
             const magma     = ap ? (ap['12106'] || 0) : lvl(p, 'lifeform2buildings', '12106');
 
-            // LF ricerche: API → DOM
-            let lfResearch = {};
+            // LF ricerche + edifici amplificatori: API (helper condiviso) → DOM fallback
+            let lfResearch, lfBuildings;
             if (ap) {
-                for (const [k, v] of Object.entries(ap)) {
-                    if (!empireApiKey(k) || parseInt(k[2]) !== 2) continue;
-                    if (v > 0) lfResearch[apiKeyToOgId(k)] = v;
-                }
+                ({ lfResearch, lfBuildings } = parseLfFromApi(ap));
             } else {
-                lfResearch = extractLfResearchLevels(p);
-            }
-
-            // LF edifici amplificatori: API → DOM
-            let lfBuildings = {};
-            if (ap) {
-                for (const k of AMP_BLD_KEYS) {
-                    if ((ap[k] || 0) > 0) lfBuildings[apiKeyToOgId(k)] = ap[k];
-                }
-            } else {
+                lfResearch  = extractLfResearchLevels(p);
                 lfBuildings = extractAmpBuildings(p);
             }
 
@@ -873,12 +922,17 @@
 
     if (page === 'ingame' && component === 'overview') {
         setTimeout(collectOverview, 1000);
-        // Fetch API empire in background: aggiorna mine/LF per tutti i pianeti senza visitare la pagina Impero
+        // Fetch API empire SOLO al page-load (mai timer/loop/auto-refresh — AGENTS.md §1.3/§4);
+        // aggiorna mine/LF di tutti i pianeti in una sola risposta, senza cp= (§4.2) e con
+        // throttle di 3 min per non ripetere la chiamata a ogni navigazione.
         setTimeout(() => collectEmpireFromAPI(), 2000);
     } else if (page === 'ingame' && component === 'lfbonuses') {
         setTimeout(collectLFBonuses, 1000);
     } else if (page === 'ingame' && component === 'lfresearch') {
         setTimeout(collectLFResearch, 1000);
+    } else if (page === 'ingame' && component === 'alliance') {
+        // Classe alleanza dal DOM della pagina Alleanza aperta dall'utente (nessun fetch)
+        setTimeout(collectAllianceClass, 1000);
     } else if (component === 'empire') {
         tryCollectEmpire();
     } else {
@@ -937,6 +991,10 @@
                 const cn = CLASS_NAMES[d.playerClass] || d.playerClass;
                 let html = row(L.player, `<span style="color:#a0bcd4">${d.playerName || '—'}</span>`);
                 html    += row(L.pclass, `<span style="color:${cc};font-weight:bold">${d.playerClass !== 'none' ? cn : '—'}</span>`);
+                if (d.allianceClass && d.allianceClass !== 'none') {
+                    const an = ALLY_NAMES[d.allianceClass] || d.allianceClass;
+                    html += row(L.allyClass, `<span style="color:#ffb800;font-weight:bold">${an}</span>`);
+                }
                 for (const role of OFFICER_ROLES) {
                     const off  = d.officers[role];
                     const name = OFF_NAMES[role] || role;

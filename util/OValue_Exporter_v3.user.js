@@ -115,6 +115,7 @@
             activeLf:       n => `Razze Attive (${n})`,
             globalItems:    n => `Item Globali (${n})`,
             bonusMetal: 'Bonus Metallo', bonusClass: 'Bonus Classe',
+            lfApiNote: 'Bonus e ricerche letti dall\'API — nessuna pagina da visitare.',
             lifeformLevels: 'Livelli Forme di Vita',
             activeResearches: n => `Ricerche Attive (${n})`,
             hintActiveResearches: 'Le ricerche LF attive sono state registrate.',
@@ -144,6 +145,7 @@
             activeLf:       n => `Active Species (${n})`,
             globalItems:    n => `Global Items (${n})`,
             bonusMetal: 'Metal Bonus', bonusClass: 'Class Bonus',
+            lfApiNote: 'Bonuses and researches read from the API — no page to visit.',
             lifeformLevels: 'Lifeform Levels',
             activeResearches: n => `Active Researches (${n})`,
             hintActiveResearches: 'Active LF researches have been recorded.',
@@ -172,6 +174,7 @@
             activeLf:       n => `Aktive Spezies (${n})`,
             globalItems:    n => `Globale Items (${n})`,
             bonusMetal: 'Metall-Bonus', bonusClass: 'Klassen-Bonus',
+            lfApiNote: 'Boni und Forschungen aus der API — keine Seite nötig.',
             lifeformLevels: 'Lebensform-Stufen',
             activeResearches: n => `Aktive Forschungen (${n})`,
             hintActiveResearches: 'Aktive LF-Forschungen wurden gespeichert.',
@@ -200,6 +203,7 @@
             activeLf:       n => `Espèces actives (${n})`,
             globalItems:    n => `Items globaux (${n})`,
             bonusMetal: 'Bonus métal', bonusClass: 'Bonus classe',
+            lfApiNote: 'Bonus et recherches lus depuis l\'API — aucune page à visiter.',
             lifeformLevels: 'Niveaux des formes de vie',
             activeResearches: n => `Recherches actives (${n})`,
             hintActiveResearches: 'Les recherches LF actives ont été enregistrées.',
@@ -634,6 +638,39 @@
                 off[role] = { active: on, timeRemaining: on ? '>6d' : '' };
             }
             d.officers = off;
+        }
+
+        // Ricerche LF ATTIVE per pianeta, direttamente dall'API — così la sezione
+        // "Ricerche LF" si completa senza dover aprire ogni pianeta.
+        // selectedSpeciesTechnologyIds = slot tech attivi (edifici + ricerche): filtriamo
+        // le sole RICERCHE (tipo=2) e prendiamo il livello da speciesResearches.
+        // I livelli di TUTTE le ricerche (attive e non) restano comunque in p.lfResearch
+        // (da speciesResearches), quindi non serve leggere la pagina Impero per le LF non attive.
+        if (acc.planets) {
+            d.planetResearches = d.planetResearches || {};
+            const activeUnion = new Set(Array.isArray(d.activeResearches) ? d.activeResearches : []);
+            for (const [pid, p] of Object.entries(acc.planets)) {
+                const levels = p.speciesResearches || {};
+                const res = {};
+                for (const tid of (p.selectedSpeciesTechnologyIds || [])) {
+                    const k = String(tid);
+                    if (!empireApiKey(k) || parseInt(k[2]) !== 2) continue; // solo ricerche
+                    const lvl = levels[k] || 0;
+                    if (lvl > 0) {
+                        const ogId = apiKeyToOgId(k);
+                        res[ogId] = lvl;
+                        activeUnion.add(parseInt(ogId));
+                    }
+                }
+                if (Object.keys(res).length) d.planetResearches[pid] = res;
+            }
+            d.activeResearches = [...activeUnion];
+            if (Object.keys(d.planetResearches).length) {
+                // Le ricerche attive (e i livelli) arrivano dall'API: la pagina Bonus LF
+                // serviva solo per l'aggregato % di fallback, ora non necessario.
+                d.lf_collected = true;
+                d.lf_from_api = true;
+            }
         }
     }
 
@@ -1107,8 +1144,17 @@
             if (!d.lf_collected) {
                 lfBody.innerHTML = `<div class="ov_hint">${L.hintLf}</div>`;
             } else {
-                let html = row(L.bonusMetal, `<span class="ov_val">${d.lfBonuses.metal}</span>`) +
-                           row(L.bonusClass, `<span class="ov_val">${d.lfBonuses.classBonus}</span>`);
+                // Mostra i bonus aggregati solo se davvero letti dalla pagina Bonus LF
+                // (valore ≠ 0%); con i dati da accountInfo il bonus metallo è calcolato
+                // da OValue dalle ricerche attive, quindi evitiamo un fuorviante "0%".
+                const hasAggBonus = /[1-9]/.test(String(d.lfBonuses.metal)) || /[1-9]/.test(String(d.lfBonuses.classBonus));
+                let html = '';
+                if (hasAggBonus) {
+                    html += row(L.bonusMetal, `<span class="ov_val">${d.lfBonuses.metal}</span>`) +
+                            row(L.bonusClass, `<span class="ov_val">${d.lfBonuses.classBonus}</span>`);
+                } else if (d.lf_from_api) {
+                    html += `<div class="ov_hint">${L.lfApiNote}</div>`;
+                }
                 if (d.lfLevels && Object.keys(d.lfLevels).length) {
                     const lfNames  = { 1: 'Humans', 2: "Rock'tal", 3: 'Mechas', 4: 'Kaelesh' };
                     const lfColors = { 1: '#6fc52a', 2: '#e8a83a', 3: '#5a9ac8', 4: '#c850c0' };

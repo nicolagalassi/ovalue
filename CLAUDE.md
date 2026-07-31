@@ -9,6 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > requirements, and a pre-submission self-audit checklist). These are non-negotiable
 > constraints: a tool that breaks them is rejected by the review team. When a request
 > conflicts with `AGENTS.md`, follow `AGENTS.md`.
+>
+> **📡 See [`API-NOTES.md`](./API-NOTES.md) for the usable OGame API map** — the public
+> API (Level 1), report/stats endpoints (Level 2), and in-game AJAX endpoints (Level 3),
+> each annotated with its compliance constraint at the point of use, plus the already-
+> hydrated data-layer inventory and the "add a lightweight feature" operating rule.
 
 ## Commands
 

@@ -424,6 +424,10 @@ export function useProfiles() {
             if (raw.playerClass && raw.playerClass !== 'none') {
                 profile.production.settings.playerClass = classMap[raw.playerClass] ?? profile.production.settings.playerClass;
             }
+            // Classe alleanza (esportatore ≥3.7.0): OValue applica il +5% solo per 'trader'
+            if (raw.allianceClass) {
+                profile.production.settings.allyClass = raw.allianceClass === 'trader' ? 'trader' : 'none';
+            }
             if (raw.settings?.plasma != null) profile.production.settings.plasma = Number(raw.settings.plasma);
             if (raw.universeSpeed != null) profile.production.settings.ecoSpeed = Number(raw.universeSpeed);
             if (raw.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(String(raw.lfBonuses.metal).replace(',', '.')) || 0;
@@ -539,6 +543,10 @@ export function useProfiles() {
 
         if (rawData.playerClass && rawData.playerClass !== 'none') {
             profile.production.settings.playerClass = classMap[rawData.playerClass] ?? profile.production.settings.playerClass;
+        }
+        // Classe alleanza (esportatore ≥3.7.0): OValue applica il +5% solo per 'trader'
+        if (rawData.allianceClass) {
+            profile.production.settings.allyClass = rawData.allianceClass === 'trader' ? 'trader' : 'none';
         }
         if (rawData.settings?.plasma != null) profile.production.settings.plasma = Number(rawData.settings.plasma);
         if (rawData.universeSpeed != null) profile.production.settings.ecoSpeed = Number(rawData.universeSpeed);

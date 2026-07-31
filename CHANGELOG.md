@@ -27,6 +27,12 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
     `fetchApiPlanets()`.
   - Livelli LF per specie (`701–704` → 1–4), classe giocatore e classe alleanza
     arrivano direttamente da `accountInfo`.
+- **Ricerche LF attive e livelli letti dall'API.** Le ricerche LF attive per pianeta
+  (`selectedSpeciesTechnologyIds`, filtrate alle sole ricerche) e tutti i livelli
+  (`speciesResearches`, incluse le non attive) arrivano da `accountInfo`: le sezioni
+  «Bonus LF» e «Ricerche LF» si completano dall'API, **senza aprire la pagina Bonus LF
+  né i singoli pianeti**. La pagina Bonus LF resta solo un fallback per l'aggregato %,
+  che il calcolatore ignora quando ha le ricerche per pianeta.
 - Helper condiviso `parseLfFromApi()` che elimina la logica duplicata di decodifica
   delle chiavi LF tra i percorsi di raccolta.
 

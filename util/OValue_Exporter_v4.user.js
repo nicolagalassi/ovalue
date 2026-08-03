@@ -130,13 +130,10 @@
             export: '⬇ Esporta Dati OValue', reset: '🗑 Svuota Cache Universo', close: '✕',
             refresh: '↻ Aggiorna Dati',
             refreshing: '↻ Aggiornamento…',
-            production: '📊 Produzione',
             prod24h: 'Metallo / 24h',
-            prodSimClass: 'Simula classe',
-            prodCurrent: 'attuale',
-            prodDelta: 'Δ vs attuale',
-            prodPerPlanet: 'Per pianeta (24h)',
-            prodNote: 'Simulazione "what-if": nessun dato di gioco viene modificato.',
+            prodSim: 'simulato',
+            prodVsCurrent: 'vs attuale',
+            prodOtherClass: 'Gen. / Espl.',
             hintProd: 'Leggi prima l\'Impero: la produzione si calcola dai pianeti raccolti.',
             exportOk: '✅ Dati OValue copiati negli appunti!',
             resetConfirm: srv => `Svuotare la cache per "${srv}"?`,
@@ -167,13 +164,10 @@
             hintMissingLf: 'Click each planet to register its species.',
             export: '⬇ Export OValue Data', reset: '🗑 Clear Universe Cache', close: '✕',
             refresh: '↻ Refresh Data', refreshing: '↻ Refreshing…',
-            production: '📊 Production',
             prod24h: 'Metal / 24h',
-            prodSimClass: 'Simulate class',
-            prodCurrent: 'current',
-            prodDelta: 'Δ vs current',
-            prodPerPlanet: 'Per planet (24h)',
-            prodNote: '"What-if" simulation: no game data is changed.',
+            prodSim: 'simulated',
+            prodVsCurrent: 'vs current',
+            prodOtherClass: 'Gen. / Expl.',
             hintProd: 'Read the Empire first: production is computed from the collected planets.',
             exportOk: '✅ OValue data copied to clipboard!',
             resetConfirm: srv => `Clear cache for "${srv}"?`,
@@ -204,13 +198,10 @@
             hintMissingLf: 'Klicke jeden Planeten an, um seine Spezies zu registrieren.',
             export: '⬇ OValue-Daten exportieren', reset: '🗑 Universum-Cache leeren', close: '✕',
             refresh: '↻ Daten aktualisieren', refreshing: '↻ Wird geladen…',
-            production: '📊 Produktion',
             prod24h: 'Metall / 24h',
-            prodSimClass: 'Klasse simulieren',
-            prodCurrent: 'aktuell',
-            prodDelta: 'Δ vs aktuell',
-            prodPerPlanet: 'Pro Planet (24h)',
-            prodNote: '"Was-wäre-wenn"-Simulation: keine Spieldaten werden geändert.',
+            prodSim: 'simuliert',
+            prodVsCurrent: 'vs aktuell',
+            prodOtherClass: 'Allg. / Entd.',
             hintProd: 'Zuerst das Imperium lesen: die Produktion wird aus den erfassten Planeten berechnet.',
             exportOk: '✅ OValue-Daten in die Zwischenablage kopiert!',
             resetConfirm: srv => `Cache leeren für "${srv}"?`,
@@ -241,13 +232,10 @@
             hintMissingLf: 'Cliquez sur chaque planète pour enregistrer son espèce.',
             export: '⬇ Exporter les données OValue', reset: '🗑 Vider le cache univers', close: '✕',
             refresh: '↻ Actualiser les données', refreshing: '↻ Chargement…',
-            production: '📊 Production',
             prod24h: 'Métal / 24h',
-            prodSimClass: 'Simuler la classe',
-            prodCurrent: 'actuelle',
-            prodDelta: 'Δ vs actuelle',
-            prodPerPlanet: 'Par planète (24h)',
-            prodNote: 'Simulation "et si" : aucune donnée de jeu n\'est modifiée.',
+            prodSim: 'simulé',
+            prodVsCurrent: 'vs actuelle',
+            prodOtherClass: 'Gén. / Expl.',
             hintProd: 'Lisez d\'abord l\'Empire : la production est calculée à partir des planètes collectées.',
             exportOk: '✅ Données OValue copiées dans le presse-papiers !',
             resetConfirm: srv => `Vider le cache pour "${srv}" ?`,
@@ -1310,8 +1298,6 @@
     const lfColor = (name) =>
         ({ Humans: '#6aafdf', Rocktal: '#df8a6a', Mechas: '#a08ad0', Kaelesh: '#8adf6a' }[name] || '#a0bcd4');
 
-    const classColor = { collector: '#6aafdf', general: '#df8a6a', explorer: '#8adf6a' };
-
     const row      = (l, r) => `<div class="ov_row"><span class="ov_lbl">${l}</span><span>${r}</span></div>`;
     const subTitle = (t)    => `<div class="ov_sub">${t}</div>`;
 
@@ -1335,7 +1321,6 @@
         setbadge('ov_bdg_lf',  d.lf_collected);
         setbadge('ov_bdg_lfr', d.planetResearches && Object.keys(d.planetResearches).length > 0);
         setbadge('ov_bdg_emp', d.empire_collected);
-        setbadge('ov_bdg_prod', d.empire_collected && Array.isArray(d.planets) && d.planets.length > 0);
 
         const spd = document.getElementById('ov_speed');
         if (spd) spd.textContent =
@@ -1353,10 +1338,9 @@
             if (!d.overview_collected) {
                 ovBody.innerHTML = `<div class="ov_hint">${L.hintOverview}</div>`;
             } else {
-                const cc = classColor[d.playerClass] || '#7a9ab2';
-                const cn = CLASS_NAMES[d.playerClass] || d.playerClass;
-                let html = row(L.player, `<span style="color:#a0bcd4">${d.playerName || '—'}</span>`);
-                html    += row(L.pclass, `<span style="color:${cc};font-weight:bold">${d.playerClass !== 'none' ? cn : '—'}</span>`);
+                // Nick e classe giocatore vivono ora nell'hero in cima al pannello;
+                // qui la Panoramica resta focalizzata su classe alleanza + ufficiali.
+                let html = '';
                 if (d.allianceClass && d.allianceClass !== 'none') {
                     const an = ALLY_NAMES[d.allianceClass] || d.allianceClass;
                     html += row(L.allyClass, `<span style="color:#ffb800;font-weight:bold">${an}</span>`);
@@ -1480,74 +1464,67 @@
         updateMenuStatus();
     }
 
-    // ── RENDER PRODUZIONE ──────────────────────────────────────────────────────
-    // Mostra la produzione di metallo su 24h e un simulatore di classe (es. Esploratore→
-    // Collezionista). È pura visualizzazione "what-if": non modifica nulla nel gioco.
-    const fmtNum = (n) => new Intl.NumberFormat().format(Math.floor(n || 0));
-    // 'collector' incide sul metallo; 'general'/'explorer' danno lo stesso risultato → 'other'.
-    const classToPc = (c) => (c === 'collector' ? 'collector' : 'other');
+    // ── RENDER PRODUZIONE (hero in cima al pannello) ────────────────────────────
+    // Blocco riassuntivo sempre visibile: nick + classe, produzione metallo 24h e un
+    // toggle di classe (Collezionista ⟷ Generale/Esploratore — un solo tasto perché
+    // Generale ed Esploratore danno la stessa produzione mineraria).
+    // Pura visualizzazione "what-if": non modifica nulla nel gioco (AGENTS.md).
+    const fmtNum   = (n) => new Intl.NumberFormat().format(Math.floor(n || 0));
+    const CLASS_COL = { collector: '#6aafdf', general: '#df8a6a', explorer: '#8adf6a' };
 
     function renderProduction() {
-        const body = document.getElementById('ov_body_prod');
-        if (!body) return;
+        const hero = document.getElementById('ov_hero');
+        if (!hero) return;
 
         if (!d.empire_collected || !Array.isArray(d.planets) || d.planets.length === 0) {
-            body.innerHTML = `<div class="ov_hint">${L.hintProd}</div>`;
+            hero.innerHTML = `<div class="ov_hint">${L.hintProd}</div>`;
             return;
         }
 
-        const model = buildProductionModel();
-        const real  = computeProduction(model, null);              // classe reale
-        const realBtn = ['collector', 'general', 'explorer'].includes(d.playerClass) ? d.playerClass : 'general';
-        const selBtn  = simClass || realBtn;
-        const sim   = computeProduction(model, classToPc(selBtn));  // classe simulata
+        const model = buildProductionModel();                 // realClass: 'collector' | 'other'
+        const real  = computeProduction(model, null);         // produzione classe reale
+        // Un solo tasto per Generale/Esploratore → valori neutri 'collector' | 'other'.
+        const selPc = simClass || model.realClass;
+        const sim   = computeProduction(model, selPc);
         const delta = sim.daily - real.daily;
-        const isReal = classToPc(selBtn) === model.realClass;
+        const isReal = selPc === model.realClass;
 
-        // Riga produzione reale (classe attuale)
-        let html = `<div class="ov_row"><span class="ov_lbl">${L.prod24h} <span class="ov_dim">(${L.prodCurrent})</span></span>` +
-                   `<span class="ov_val" style="color:#00ff9d">${fmtNum(real.daily)}</span></div>`;
+        // Identità (nick + classe reale) — la produzione va "sotto al nick e classe".
+        const pc = d.playerClass;
+        const className = pc && pc !== 'none' ? (CLASS_NAMES[pc] || pc) : '—';
+        const classCol  = CLASS_COL[pc] || '#7a9ab2';
+        let html = `<div class="ov_hero_id">` +
+                   `<span class="ov_hero_nick">${d.playerName || '—'}</span>` +
+                   `<span class="ov_hero_class" style="color:${classCol};border-color:${classCol}33">${className}</span>` +
+                   `</div>`;
 
-        // Selettore classe
-        html += `<div class="ov_sub">${L.prodSimClass}</div><div id="ov_prod_classes" class="ov_pc_row">`;
-        for (const c of ['collector', 'general', 'explorer']) {
-            const on = c === selBtn;
-            const col = { collector: '#6aafdf', general: '#df8a6a', explorer: '#8adf6a' }[c];
-            html += `<button class="ov_pc_btn${on ? ' ov_pc_on' : ''}" data-class="${c}" ` +
-                    `style="${on ? `border-color:${col};color:${col}` : ''}">${CLASS_NAMES[c] || c}</button>`;
+        // Produzione grande (classe selezionata). Se sto simulando, mostro anche il delta.
+        html += `<div class="ov_hero_label">${L.prod24h}${isReal ? '' : ` · ${L.prodSim}`}</div>`;
+        html += `<div class="ov_hero_val">${fmtNum(sim.daily)}</div>`;
+        if (!isReal) {
+            const up = delta >= 0;
+            const dCol = up ? '#00ff9d' : '#ff2a6d';
+            const sign = up ? '+' : '';
+            const pct  = real.daily > 0 ? ` (${sign}${(delta / real.daily * 100).toFixed(1)}%)` : '';
+            html += `<div class="ov_hero_delta" style="color:${dCol}">${sign}${fmtNum(delta)}${pct} <span class="ov_dim">${L.prodVsCurrent}</span></div>`;
+        }
+
+        // Toggle classe: Collezionista ⟷ Generale/Esploratore
+        html += `<div class="ov_pc_row">`;
+        for (const opt of [{ pc: 'collector', label: CLASS_NAMES.collector }, { pc: 'other', label: L.prodOtherClass }]) {
+            const on = opt.pc === selPc;
+            const col = opt.pc === 'collector' ? CLASS_COL.collector : '#df8a6a';
+            html += `<button class="ov_pc_btn${on ? ' ov_pc_on' : ''}" data-pc="${opt.pc}" ` +
+                    `style="${on ? `border-color:${col};color:${col}` : ''}">${opt.label}</button>`;
         }
         html += `</div>`;
 
-        // Riga produzione simulata + delta (solo se diversa dalla classe reale)
-        if (!isReal) {
-            const dCol = delta >= 0 ? '#00ff9d' : '#ff2a6d';
-            const sign = delta >= 0 ? '+' : '';
-            const pct  = real.daily > 0 ? ` (${sign}${(delta / real.daily * 100).toFixed(1)}%)` : '';
-            html += `<div class="ov_row"><span class="ov_lbl">${CLASS_NAMES[selBtn] || selBtn}</span>` +
-                    `<span class="ov_val">${fmtNum(sim.daily)}</span></div>`;
-            html += `<div class="ov_row"><span class="ov_lbl">${L.prodDelta}</span>` +
-                    `<span style="color:${dCol};font-weight:700">${sign}${fmtNum(delta)}${pct}</span></div>`;
-        }
-
-        // Dettaglio per pianeta (classe selezionata)
-        if (sim.perPlanet.length) {
-            html += `<div class="ov_sub">${L.prodPerPlanet}</div>`;
-            sim.perPlanet
-                .slice()
-                .sort((a, b) => b.daily - a.daily)
-                .forEach(p => {
-                    html += `<div class="ov_row"><span class="ov_lbl">P${String(p.pos).padStart(2, '0')} · ${p.name || '—'}</span>` +
-                            `<span class="ov_val">${fmtNum(p.daily)}</span></div>`;
-                });
-        }
-
-        html += `<div class="ov_hint" style="font-size:10px">${L.prodNote}</div>`;
-        body.innerHTML = html;
+        hero.innerHTML = html;
 
         // Handler dei pulsanti classe (nodi freschi ad ogni render → nessun leak)
-        body.querySelectorAll('.ov_pc_btn').forEach(btn => {
+        hero.querySelectorAll('.ov_pc_btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                simClass = btn.getAttribute('data-class');
+                simClass = btn.getAttribute('data-pc');
                 renderProduction();
             });
         });
@@ -1652,8 +1629,22 @@
         #ov_export:hover { background:rgba(0,240,255,.13); border-color:rgba(0,240,255,.25); }
         #ov_reset { background:rgba(255,42,109,.07); border:1px solid rgba(255,42,109,.15); color:#ff2a6d; }
         #ov_reset:hover { background:rgba(255,42,109,.13); border-color:rgba(255,42,109,.25); }
-        .ov_pc_row { display:flex; gap:4px; padding:3px 2px 5px; }
-        .ov_pc_btn { flex:1; padding:5px 0; font-size:10px; font-family:inherit; font-weight:600;
+        #ov_hero { padding:9px 10px 10px; margin:-6px -8px 6px; background:#0f131c;
+            border-bottom:1px solid rgba(255,255,255,.07); }
+        #ov_hero .ov_hint { padding:6px 2px; }
+        .ov_hero_id { display:flex; align-items:center; gap:6px; margin-bottom:8px; min-width:0; }
+        .ov_hero_nick { color:#e2e8f0; font-weight:700; font-size:12px; flex:1; min-width:0;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .ov_hero_class { flex-shrink:0; font-size:9px; font-weight:700; padding:2px 6px; border-radius:4px;
+            border:1px solid transparent; text-transform:uppercase; letter-spacing:.05em;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+        .ov_hero_label { font-size:9px; color:#64748b; text-transform:uppercase; letter-spacing:.1em;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-bottom:1px; }
+        .ov_hero_val { font-size:22px; font-weight:800; color:#00ff9d; line-height:1.15;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:-.02em; }
+        .ov_hero_delta { font-size:11px; font-weight:700; margin-top:2px; }
+        .ov_pc_row { display:flex; gap:5px; margin-top:8px; }
+        .ov_pc_btn { flex:1; padding:6px 0; font-size:10px; font-family:inherit; font-weight:600;
             color:#94a3b8; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.1);
             border-radius:6px; cursor:pointer; transition:background 150ms,border-color 150ms,color 150ms;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1725,11 +1716,11 @@
                 <button id="ov_close" title="${L.close}">${L.close}</button>
             </div>
             <div id="ov_content">
+                <div id="ov_hero"><div class="ov_hint">${L.hintProd}</div></div>
                 ${mkSec('ov', '?page=ingame&component=overview', L.overview, 'ov_bdg_ov', 'ov_body_ov', `<div class="ov_hint">${L.hintOverview}</div>`)}
                 ${mkSec('lf', '?page=ingame&component=lfbonuses', L.lifeform, 'ov_bdg_lf', 'ov_body_lf', `<div class="ov_hint">${L.hintLf}</div>`)}
                 ${mkSec('lfr', '?page=ingame&component=lfresearch', L.lfResearch, 'ov_bdg_lfr', 'ov_body_lfr', `<div class="ov_hint">${L.hintLfResearch}</div>`)}
                 ${mkSec('emp', empireUrl(), L.empire, 'ov_bdg_emp', 'ov_body_emp', `<div class="ov_hint">${L.hintEmpire(empireUrl())}</div>`, 'ov_empire_link')}
-                ${mkSec('prod', empireUrl(), L.production, 'ov_bdg_prod', 'ov_body_prod', `<div class="ov_hint">${L.hintProd}</div>`, 'ov_empire_link')}
             </div>
             <div id="ov_footer">
                 <button id="ov_refresh">${L.refresh}</button>

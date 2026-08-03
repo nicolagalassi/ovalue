@@ -3,6 +3,24 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.0.0]
+
+### Aggiunto
+- **Production Core dentro lo script** (`util/OValue_Exporter_v4.user.js`). Nuova sezione
+  «📊 Produzione» nel pannello che mostra la **produzione di metallo su 24h** calcolata
+  dai pianeti già raccolti, **senza aprire l'app**.
+- **Simulatore di classe.** Pulsanti Collezionista / Generale / Esploratore per vedere
+  la produzione «what-if» al variare della classe (es. da Esploratore a Collezionista),
+  con il **delta assoluto e percentuale** rispetto alla classe attuale e il dettaglio
+  per pianeta. Generale ed Esploratore danno lo stesso metallo (solo Collezionista
+  modifica la produzione mineraria), coerentemente con il modello di OValue.
+  - I numeri usano **le stesse formule** del production core dell'app
+    (`calcDailyProduction` / `calcLFResearchBonus`): la simulazione non modifica **alcun**
+    dato di gioco ed è pura visualizzazione (nessuna nuova chiamata al server, nessun
+    timer/loop, nessuna azione di gioco).
+- Il nuovo script è il **successore dell'exporter**: tutte le funzioni di raccolta ed
+  **esportazione** dati verso OValue restano invariate.
+
 ## OValue Exporter — [3.9.0]
 
 ### Aggiunto

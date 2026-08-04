@@ -696,7 +696,7 @@
     "strategy_lf_activate_all": "Attiva tutte",
     "strategy_lf_deactivate_all": "Disattiva tutte",
     "strategy_lf_research_select": "Ricerche LF da considerare",
-    "strategy_lf_research_select_hint": "Scegli le singole ricerche nel pannello sotto",
+    "strategy_lf_research_select_hint": "Pre-selezionate le ricerche attive nel profilo; personalizza sotto",
     "strategy_th_type": "Tipo",
     "strategy_th_planet": "Pianeta",
     "strategy_th_level": "Livello",

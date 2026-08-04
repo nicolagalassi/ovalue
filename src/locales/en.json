@@ -694,7 +694,7 @@
     "strategy_lf_activate_all": "Activate all",
     "strategy_lf_deactivate_all": "Deactivate all",
     "strategy_lf_research_select": "LF researches to consider",
-    "strategy_lf_research_select_hint": "Pick individual researches in the panel below",
+    "strategy_lf_research_select_hint": "Pre-selected from your active researches; customize below",
     "strategy_th_type": "Type",
     "strategy_th_planet": "Planet",
     "strategy_th_level": "Level",

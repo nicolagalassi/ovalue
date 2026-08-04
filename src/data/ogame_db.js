@@ -126,7 +126,7 @@ export const OGAME_DB = {
             2110: { cost: [85000, 40000, 35000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Punte di diamante irrobustite', nameEn: 'Hardened Diamond Drill Heads', bonus: [0.0008, 0, 0, 0, 0, 0] },
             2111: { cost: [120000, 30000, 25000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Tecnologie minerarie sismiche', bonus: [0, 0.0008, 0, 0, 0, 0] },
             2112: { cost: [100000, 40000, 30000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Sistema di pompaggio al magma', bonus: [0, 0, 0.0008, 0, 0, 0] },
-            2113: { cost: [200000, 100000, 100000, 0], factors: [1.2, 1.2, 1.2, 0], name: 'Moduli Cristalli ionici', nameEn: 'Ion Crystal Modules', bonus: [0.001, 0, 0, 0.5, 0, 0] },
+            2113: { cost: [200000, 100000, 100000, 0], factors: [1.2, 1.2, 1.2, 0], name: 'Moduli Cristalli ionici', nameEn: 'Ion Crystal Modules', bonus: [0, 0, 0] },
             2114: { cost: [220000, 110000, 110000, 0], factors: [1.3, 1.3, 1.3, 0], name: 'Costruzione Base ottimizzata', bonus: [0, 0, 0] },
             2115: { cost: [240000, 120000, 120000, 0], factors: [1.3, 1.3, 1.3, 0], name: 'Trasmettitore energetico Diamante', bonus: [0, 0, 0] },
             2116: { cost: [250000, 250000, 250000, 0], factors: [1.4, 1.4, 1.4, 0], name: 'Miglioramento Scudo ossidiana', bonus: [0, 0, 0] },

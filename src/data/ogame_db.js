@@ -122,7 +122,7 @@ export const OGAME_DB = {
             2106: { cost: [50000, 50000, 20000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Centrali Geotermoelettriche', bonus: [0, 0, 0] },
             2107: { cost: [70000, 40000, 20000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Sondaggio da alte profondita', nameEn: 'Depth Sounding', bonus: [0.0008, 0, 0, 0, 0, 0] },
             2108: { cost: [160000, 120000, 50000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Potenziamento da cristallo ionico (Caccia pesante)', bonus: [0, 0, 0] },
-            2109: { cost: [75000, 55000, 25000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Concentratore astrale', nameEn: 'Improved Stellarator', bonus: [0.0015, 0, 0, 0.5, 0, 0] },
+            2109: { cost: [75000, 55000, 25000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Concentratore astrale', nameEn: 'Improved Stellarator', bonus: [0, 0, 0] },
             2110: { cost: [85000, 40000, 35000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Punte di diamante irrobustite', nameEn: 'Hardened Diamond Drill Heads', bonus: [0.0008, 0, 0, 0, 0, 0] },
             2111: { cost: [120000, 30000, 25000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Tecnologie minerarie sismiche', bonus: [0, 0.0008, 0, 0, 0, 0] },
             2112: { cost: [100000, 40000, 30000, 0], factors: [1.5, 1.5, 1.5, 0], name: 'Sistema di pompaggio al magma', bonus: [0, 0, 0.0008, 0, 0, 0] },

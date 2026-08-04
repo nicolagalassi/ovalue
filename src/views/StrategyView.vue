@@ -816,13 +816,13 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         {{ t('strategy_lf_research_select') }}
                         <span class="text-slate-700 normal-case font-normal">({{ lfResearchIds.length }}/{{ ALL_LF_IDS.length }})</span>
                     </div>
-                    <div class="flex gap-1">
+                    <div class="grid grid-cols-2 gap-1">
                         <button @click="setLfResAll(true)"
-                                class="px-2 py-1 text-[9px] font-bold rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-400/25 hover:bg-emerald-500/25 transition-colors">
+                                class="w-full px-2 py-1 text-[9px] font-bold rounded-md text-center bg-emerald-500/15 text-emerald-300 border border-emerald-400/25 hover:bg-emerald-500/25 transition-colors">
                             {{ t('strategy_lf_activate_all') }}
                         </button>
                         <button @click="setLfResAll(false)"
-                                class="px-2 py-1 text-[9px] font-bold rounded-md bg-black/20 text-slate-500 border border-slate-700/30 hover:text-slate-300 transition-colors">
+                                class="w-full px-2 py-1 text-[9px] font-bold rounded-md text-center bg-black/20 text-slate-500 border border-slate-700/30 hover:text-slate-300 transition-colors">
                             {{ t('strategy_lf_deactivate_all') }}
                         </button>
                     </div>

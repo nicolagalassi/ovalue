@@ -3,13 +3,14 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
-import { useStrategy } from '../composables/useStrategy';
+import { useStrategy, toMSU, buildingCumulativeCost, lfBuildingCost } from '../composables/useStrategy';
 import { useToast } from '../composables/useToast';
+import { OGAME_DB } from '../data/ogame_db';
 
 const { t } = useLanguage();
 const { show: showToast } = useToast();
 const { activeProfile, saveProfiles } = useProfiles();
-const { formatNum, calcLFResearchBonus } = useOgameFormulas();
+const { formatNum, calcLFResearchBonus, calcPlanetMetalProduction } = useOgameFormulas();
 const { runPlanner, computeEuroCost, buildInitialState, simulateDailyProduction } = useStrategy();
 
 const showIntro = ref(false);
@@ -43,7 +44,7 @@ const _saveConfig = () => {
             includePlasma: includePlasma.value,
             includeLf: includeLf.value,
             includeLfResearch: includeLfResearch.value,
-            lfResearchTierGroups: lfResearchTierGroups.value,
+            lfResearchIds: lfResearchIds.value,
             capMine: capMine.value,
             capPlasma: capPlasma.value,
             capLf: capLf.value,
@@ -51,6 +52,11 @@ const _saveConfig = () => {
             maxSteps: maxSteps.value,
             shopDiscount: shopDiscount.value,
             moBonus: moBonus.value,
+            astroCurrentLevel: astroCurrentLevel.value,
+            astroPlanetPos: astroPlanetPos.value,
+            astroMineTarget: astroMineTarget.value,
+            astroLfChoice: astroLfChoice.value,
+            astroLfTarget: astroLfTarget.value,
         }));
     } catch {}
 };
@@ -73,12 +79,39 @@ const includeCrawlerMines = ref(false);
 const includePlasma = ref(true);
 const includeLf = ref(true);
 const includeLfResearch = ref(false);
-const lfResearchTierGroups = ref([1, 2, 3]);
+
+// Elenco completo delle ricerche LF con bonus metallo (le uniche candidabili
+// dal planner). Sostituisce i vecchi gruppi-tier T1-6/T7-12/T13-18: ora ogni
+// ricerca si attiva/disattiva singolarmente.
+const LF_RESEARCH_ALL = (() => {
+    const out = [];
+    for (const sp of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
+        const cat = OGAME_DB[`lf_${sp}_res`];
+        if (!cat) continue;
+        for (const [id, item] of Object.entries(cat.items || {})) {
+            if (item.bonus && (item.bonus[0] || 0) > 0)
+                out.push({ id, name: item.name || id, species: sp, tier: parseInt(id) % 100 });
+        }
+    }
+    return out.sort((a, b) => a.tier - b.tier);
+})();
+const ALL_LF_IDS = LF_RESEARCH_ALL.map(r => r.id);
+const lfResearchIds = ref([...ALL_LF_IDS]);   // ID ricerca LF abilitati
+
 const capMine = ref(0);            // 0 = nessun cap
 const capPlasma = ref(0);
 const capLf = ref(0);
 const capLfResearch = ref(0);
 const lfChoice = ref([]);          // per pianeta: 'inherit' | 'rocktal' | 'humans' | 'mecha'
+
+// ───── Astrofisica: convenienza di un nuovo pianeta ──────────────────────
+// L'astrofisica non produce metallo: sblocca un nuovo pianeta da costruire da 0.
+// Questo pannello confronta il costo (livelli astro + costruzione) con la resa.
+const astroCurrentLevel = ref(0);       // livello astrofisica attuale
+const astroPlanetPos = ref(8);          // posizione del nuovo pianeta (temperatura)
+const astroMineTarget = ref(25);        // livello obiettivo delle miniere del nuovo pianeta
+const astroLfChoice = ref('none');      // 'none' | 'humans' | 'rocktal'
+const astroLfTarget = ref(0);           // livello edificio LF sul nuovo pianeta
 
 // Sync con profilo attivo: inizializza form e produzione corrente.
 watch(activeProfile, (newP) => {
@@ -110,7 +143,8 @@ onMounted(() => {
         if (cfg.includePlasma !== undefined)         includePlasma.value = cfg.includePlasma;
         if (cfg.includeLf !== undefined)             includeLf.value = cfg.includeLf;
         if (cfg.includeLfResearch !== undefined)     includeLfResearch.value = cfg.includeLfResearch;
-        if (Array.isArray(cfg.lfResearchTierGroups)) lfResearchTierGroups.value = cfg.lfResearchTierGroups;
+        // Ripristina la selezione ricerche LF, scartando ID non più validi.
+        if (Array.isArray(cfg.lfResearchIds))        lfResearchIds.value = cfg.lfResearchIds.filter(id => ALL_LF_IDS.includes(id));
         if (cfg.capMine !== undefined)               capMine.value = cfg.capMine;
         if (cfg.capPlasma !== undefined)             capPlasma.value = cfg.capPlasma;
         if (cfg.capLf !== undefined)                 capLf.value = cfg.capLf;
@@ -118,11 +152,17 @@ onMounted(() => {
         if (cfg.maxSteps !== undefined)              maxSteps.value = cfg.maxSteps;
         if (cfg.shopDiscount !== undefined)          shopDiscount.value = cfg.shopDiscount;
         if (cfg.moBonus !== undefined)               moBonus.value = cfg.moBonus;
+        if (cfg.astroCurrentLevel !== undefined)     astroCurrentLevel.value = cfg.astroCurrentLevel;
+        if (cfg.astroPlanetPos !== undefined)        astroPlanetPos.value = cfg.astroPlanetPos;
+        if (cfg.astroMineTarget !== undefined)       astroMineTarget.value = cfg.astroMineTarget;
+        if (cfg.astroLfChoice !== undefined)         astroLfChoice.value = cfg.astroLfChoice;
+        if (cfg.astroLfTarget !== undefined)         astroLfTarget.value = cfg.astroLfTarget;
     } catch {}
 });
 watch(
     [packMode, packBatch, playerClassOverride, includeMines, includeCrawlerMines, includePlasma, includeLf, includeLfResearch,
-     lfResearchTierGroups, capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
+     lfResearchIds, capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus,
+     astroCurrentLevel, astroPlanetPos, astroMineTarget, astroLfChoice, astroLfTarget],
     _saveConfig
 );
 
@@ -294,7 +334,7 @@ const buildPlannerOptions = () => ({
     includePlasma: includePlasma.value,
     includeLf: includeLf.value,
     includeLfResearch: includeLfResearch.value,
-    lfResearchTierGroups: [...lfResearchTierGroups.value],
+    lfResearchIds: [...lfResearchIds.value],
     packMode: packMode.value,
     packBatch: packBatch.value,
     caps: {
@@ -573,6 +613,110 @@ const typeSummary = computed(() => {
         .filter(c => c.count > 0)
         .sort((a, b) => b.delta - a.delta);
 });
+
+// ───── Selezione ricerche LF (pannello per-ricerca) ──────────────────────
+const LF_SPECIES_CHIP = {
+    humans:  { on: 'bg-blue-500/20 text-blue-200 border-blue-400/40',     off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
+    rocktal: { on: 'bg-orange-500/20 text-orange-200 border-orange-400/40', off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
+    mecha:   { on: 'bg-teal-500/20 text-teal-200 border-teal-400/40',     off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
+    kaelesh: { on: 'bg-purple-500/20 text-purple-200 border-purple-400/40', off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
+};
+const lfResearchBySpecies = computed(() => {
+    const groups = {};
+    LF_RESEARCH_ALL.forEach(r => { (groups[r.species] ||= []).push(r); });
+    return ['humans', 'rocktal', 'mecha', 'kaelesh']
+        .filter(sp => groups[sp]?.length)
+        .map(sp => ({
+            species: sp,
+            label: LF_RESEARCH_SPECIES[sp]?.label ?? sp,
+            items: groups[sp],
+        }));
+});
+const isLfResSelected = (id) => lfResearchIds.value.includes(id);
+const toggleLfRes = (id) => {
+    lfResearchIds.value = isLfResSelected(id)
+        ? lfResearchIds.value.filter(x => x !== id)
+        : [...lfResearchIds.value, id];
+};
+const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; };
+const setLfResSpecies = (sp, on) => {
+    const ids = LF_RESEARCH_ALL.filter(r => r.species === sp).map(r => r.id);
+    const set = new Set(lfResearchIds.value);
+    ids.forEach(id => (on ? set.add(id) : set.delete(id)));
+    lfResearchIds.value = [...set];
+};
+
+// ───── Astrofisica: calcolo convenienza nuovo pianeta ────────────────────
+// Confronta il costo totale (livelli astro necessari alla prossima colonia +
+// costruzione da 0 di miniere ed edificio LF) con la produzione che il nuovo
+// pianeta genererebbe. Regola OGame: colonie disponibili = ceil(astro / 2),
+// quindi ogni colonia in più costa +1 livello (da pari) o +2 livelli (da dispari).
+const astroLfOpts = [
+    { v: 'none',    l: '—' },
+    { v: 'humans',  l: 'U' },
+    { v: 'rocktal', l: 'R' },
+];
+const astroPlan = computed(() => {
+    const sim = currentSimState.value;
+    if (!sim) return null;
+
+    const cur        = Math.max(0, parseInt(astroCurrentLevel.value) || 0);
+    const mineTarget = Math.max(0, parseInt(astroMineTarget.value) || 0);
+    const pos        = parseInt(astroPlanetPos.value) || 8;
+    const lfChoice   = astroLfChoice.value;
+    const lfTarget   = lfChoice === 'none' ? 0 : Math.max(0, parseInt(astroLfTarget.value) || 0);
+    const pack       = sim.pack;
+
+    // Livelli di astrofisica per sbloccare la prossima colonia.
+    const targetAstro   = cur % 2 === 0 ? cur + 1 : cur + 2;
+    const levelsNeeded  = targetAstro - cur;
+    const astroCost     = buildingCumulativeCost('astrophysics', cur, targetAstro, 0);
+
+    // Costo costruzione da 0: 3 miniere + edificio LF (se scelto).
+    const mMet = buildingCumulativeCost('metal_mine', 0, mineTarget, pack.minLevel);
+    const mCry = buildingCumulativeCost('crystal_mine', 0, mineTarget, pack.minLevel);
+    const mDeu = buildingCumulativeCost('deuterium_synthesizer', 0, mineTarget, pack.minLevel);
+    let lfCost = [0, 0, 0];
+    if (lfChoice === 'rocktal')     lfCost = lfBuildingCost('rocktal', 2006, 0, lfTarget, pack.lfRsrLabLevel);
+    else if (lfChoice === 'humans') lfCost = lfBuildingCost('humans', 1006, 0, lfTarget, pack.lfRsrLabLevel);
+
+    const total    = [0, 1, 2].map(i => astroCost[i] + mMet[i] + mCry[i] + mDeu[i] + lfCost[i]);
+    const totalMSU = toMSU(total, pack);
+
+    // Produzione del nuovo pianeta con le impostazioni account correnti
+    // (plasma, classe, geologo, bonus ricerche LF globale, crawler al cap).
+    const newPlanet = {
+        name: 'astro', pos,
+        metal: mineTarget, crystal: mineTarget, deuterium: mineTarget,
+        crawlers: 0, item: 0, itemCustom: 0,
+        lifeform: lfChoice === 'none' ? 'humans' : lfChoice,
+        magma: lfChoice === 'rocktal' ? lfTarget : 0,
+        human: lfChoice === 'humans' ? lfTarget : 0,
+        lfResearch: {}, lfActive: {},
+    };
+    const dailyProd = Math.floor(calcPlanetMetalProduction(
+        newPlanet, sim.settings, lfResearchPct.value,
+        { lifeform: newPlanet.lifeform, useMaxCrawlers: true }
+    ).total * 24);
+
+    const roiDays = dailyProd > 0 ? totalMSU / dailyProd : Infinity;
+
+    // Confronto con il piano: il passo meno efficiente (ROI peggiore) è la
+    // soglia — l'astrofisica conviene se rientra prima di quel passo.
+    let worstStepROI = null, worthwhile = null;
+    if (result.value?.steps?.length) {
+        worstStepROI = result.value.steps.reduce(
+            (mx, s) => (s.deltaProd > 0 ? Math.max(mx, s.costMSU / s.deltaProd) : mx), 0);
+        worthwhile = roiDays <= worstStepROI;
+    }
+
+    // Pacchetti/€ stimati (valore pacchetto = produzione attuale/giorno).
+    const packValue = Math.max(1, currentProd.value);
+    const packs = Math.ceil(totalMSU / packValue);
+    const euro  = computeEuroCost(packs, { ...sim.shop, shopDiscount: shopDiscount.value, moBonus: moBonus.value });
+
+    return { cur, targetAstro, levelsNeeded, total, totalMSU, dailyProd, roiDays, worstStepROI, worthwhile, packs, euro };
+});
 </script>
 
 <template>
@@ -696,19 +840,9 @@ const typeSummary = computed(() => {
                             <input type="checkbox" v-model="includeLfResearch" class="w-4 h-4 accent-emerald-500 rounded flex-shrink-0">
                             <span class="text-[12px] text-slate-300">{{ t('strategy_lf_research') }}</span>
                         </label>
-                        <div v-if="includeLfResearch" class="flex gap-1 pl-6">
-                            <button v-for="g in [1, 2, 3]" :key="g"
-                                    @click="lfResearchTierGroups.includes(g)
-                                        ? lfResearchTierGroups = lfResearchTierGroups.filter(x => x !== g)
-                                        : lfResearchTierGroups = [...lfResearchTierGroups, g]"
-                                    class="flex-1 py-1 text-[9px] font-bold rounded-md transition-all duration-150 text-center"
-                                    :class="lfResearchTierGroups.includes(g)
-                                        ? 'bg-emerald-500/20 border border-emerald-400/30 text-emerald-300'
-                                        : 'bg-black/20 text-slate-700 hover:text-slate-500'">
-                                T{{ (g-1)*6+1 }}–{{ g*6 }}
-                            </button>
-                        </div>
-
+                        <p v-if="includeLfResearch" class="pl-6 text-[9px] text-slate-600 leading-tight">
+                            {{ t('strategy_lf_research_select_hint') }}
+                        </p>
                     </div>
                 </div>
                 <!-- Cap livello -->
@@ -781,6 +915,54 @@ const typeSummary = computed(() => {
                             ? t('opt_' + (currentSimState?.settings?.playerClass || 'none'))
                             : t('opt_collector') }}
                     </p>
+                </div>
+            </div>
+
+            <!-- Selezione ricerche LF da considerare (per-ricerca) -->
+            <div v-if="includeLfResearch" class="pt-4 border-t border-slate-700/20">
+                <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold flex items-center gap-2">
+                        {{ t('strategy_lf_research_select') }}
+                        <span class="text-slate-700 normal-case font-normal">({{ lfResearchIds.length }}/{{ ALL_LF_IDS.length }})</span>
+                    </div>
+                    <div class="flex gap-1">
+                        <button @click="setLfResAll(true)"
+                                class="px-2 py-1 text-[9px] font-bold rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-400/25 hover:bg-emerald-500/25 transition-colors">
+                            {{ t('strategy_lf_activate_all') }}
+                        </button>
+                        <button @click="setLfResAll(false)"
+                                class="px-2 py-1 text-[9px] font-bold rounded-md bg-black/20 text-slate-500 border border-slate-700/30 hover:text-slate-300 transition-colors">
+                            {{ t('strategy_lf_deactivate_all') }}
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div v-for="grp in lfResearchBySpecies" :key="grp.species"
+                         class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
+                        <button @click="setLfResSpecies(grp.species, !grp.items.every(r => isLfResSelected(r.id)))"
+                                class="w-full flex items-center justify-between mb-2 text-[10px] uppercase tracking-wider font-semibold"
+                                :class="{
+                                    'text-blue-300':   grp.species === 'humans',
+                                    'text-orange-300': grp.species === 'rocktal',
+                                    'text-teal-300':   grp.species === 'mecha',
+                                    'text-purple-300': grp.species === 'kaelesh',
+                                }">
+                            <span>{{ grp.label }}</span>
+                            <span class="text-[9px] text-slate-600 normal-case">
+                                {{ grp.items.filter(r => isLfResSelected(r.id)).length }}/{{ grp.items.length }}
+                            </span>
+                        </button>
+                        <div class="flex flex-wrap gap-1">
+                            <button v-for="r in grp.items" :key="r.id"
+                                    @click="toggleLfRes(r.id)"
+                                    :title="r.name"
+                                    class="px-2 py-1 text-[10px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1"
+                                    :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[grp.species].on : LF_SPECIES_CHIP[grp.species].off">
+                                <span class="font-mono font-bold">T{{ r.tier }}</span>
+                                <span class="max-w-[9rem] truncate">{{ r.name }}</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -867,6 +1049,83 @@ const typeSummary = computed(() => {
                 <svg class="w-3 h-3 mt-px shrink-0 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <span>{{ t('strategy_perf_hint') }}</span>
             </div>
+        </div>
+
+        <!-- ────── ASTROFISICA: convenienza nuovo pianeta ────── -->
+        <div class="card-glass p-5 mb-6">
+            <h3 class="text-sm font-semibold text-slate-200 mb-1 flex items-center gap-2.5 uppercase tracking-wider">
+                <span class="w-[2px] h-4 bg-fuchsia-400/60 rounded-full flex-shrink-0"></span>
+                {{ t('astro_title') }}
+            </h3>
+            <p class="text-[11px] text-slate-500 mb-4 leading-relaxed">{{ t('astro_desc') }}</p>
+
+            <!-- Input -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
+                    <label for="astro-lvl" class="block text-[10px] text-fuchsia-400/80 uppercase tracking-wider font-semibold mb-1.5">{{ t('astro_current_level') }}</label>
+                    <input id="astro-lvl" type="number" v-model.number="astroCurrentLevel" min="0" @focus="$event.target.select()"
+                           class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
+                </div>
+                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
+                    <label for="astro-pos" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('astro_planet_pos') }}</label>
+                    <input id="astro-pos" type="number" v-model.number="astroPlanetPos" min="1" max="15" @focus="$event.target.select()"
+                           class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
+                </div>
+                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
+                    <label for="astro-mine" class="block text-[10px] text-sky-400/70 uppercase tracking-wider font-semibold mb-1.5">{{ t('astro_mine_target') }}</label>
+                    <input id="astro-mine" type="number" v-model.number="astroMineTarget" min="0" max="50" @focus="$event.target.select()"
+                           class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
+                </div>
+                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('astro_lf') }}</div>
+                    <div class="flex gap-1 bg-black/30 p-1 rounded-lg border border-slate-700/20">
+                        <button v-for="opt in astroLfOpts" :key="opt.v"
+                                @click="astroLfChoice = opt.v"
+                                class="flex-1 py-1 text-[11px] font-bold rounded-md transition-all duration-150"
+                                :class="astroLfChoice === opt.v ? 'bg-slate-600/70 text-slate-100' : 'text-slate-600 hover:text-slate-400'">
+                            {{ opt.l }}
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15" :class="astroLfChoice === 'none' ? 'opacity-40' : ''">
+                    <label for="astro-lf-lvl" class="block text-[10px] text-orange-400/70 uppercase tracking-wider font-semibold mb-1.5">{{ t('astro_lf_level') }}</label>
+                    <input id="astro-lf-lvl" type="number" v-model.number="astroLfTarget" min="0" :disabled="astroLfChoice === 'none'" @focus="$event.target.select()"
+                           class="input-glass w-full px-2 py-2 text-center font-mono text-sm disabled:cursor-not-allowed">
+                </div>
+            </div>
+
+            <!-- Risultato astro -->
+            <div v-if="astroPlan" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
+                    <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('astro_levels_needed') }}</div>
+                    <div class="text-lg font-black text-fuchsia-300 font-mono">{{ astroPlan.cur }} → {{ astroPlan.targetAstro }}</div>
+                    <div class="text-[9px] text-slate-600 mt-0.5">+{{ astroPlan.levelsNeeded }} {{ t('astro_levels_unit') }}</div>
+                </div>
+                <div class="bg-ogame-surface rounded-xl p-3 border border-emerald-500/25 text-center">
+                    <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold mb-1">{{ t('astro_new_prod') }}</div>
+                    <div class="text-lg font-black text-emerald-300 font-mono">+{{ formatNum(astroPlan.dailyProd) }}</div>
+                    <div class="text-[9px] text-slate-600 mt-0.5">{{ t('lbl_dm') }} / {{ t('strategy_per_day') }}</div>
+                </div>
+                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
+                    <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('astro_total_cost') }}</div>
+                    <div class="text-lg font-black text-slate-200 font-mono">{{ formatNum(astroPlan.totalMSU) }}</div>
+                    <div class="text-[9px] text-amber-400/80 mt-0.5">{{ formatNum(astroPlan.packs) }} pack · €{{ formatNum(astroPlan.euro.totalEuro) }}</div>
+                </div>
+                <div class="bg-ogame-surface rounded-xl p-3 border text-center"
+                     :class="astroPlan.worthwhile === null ? 'border-slate-700/15'
+                             : astroPlan.worthwhile ? 'border-emerald-500/30' : 'border-red-500/30'">
+                    <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('astro_roi') }}</div>
+                    <div class="text-lg font-black font-mono" :class="roiColor(astroPlan.totalMSU, astroPlan.dailyProd)">
+                        {{ formatROI(astroPlan.totalMSU, astroPlan.dailyProd) }}
+                    </div>
+                    <div v-if="astroPlan.worthwhile === null" class="text-[9px] text-slate-600 mt-0.5">{{ t('astro_verdict_hint') }}</div>
+                    <div v-else-if="astroPlan.worthwhile" class="text-[9px] text-emerald-400 mt-0.5 font-bold uppercase tracking-wide">{{ t('astro_verdict_worth') }}</div>
+                    <div v-else class="text-[9px] text-red-400 mt-0.5 font-bold uppercase tracking-wide">{{ t('astro_verdict_not') }}</div>
+                </div>
+            </div>
+            <p v-if="astroPlan && astroPlan.worstStepROI !== null" class="mt-3 text-[10px] text-slate-600 leading-tight">
+                {{ t('astro_compare_note') }} <span class="font-mono text-slate-500">{{ formatROI(astroPlan.worstStepROI, 1) }}</span>
+            </p>
         </div>
 
         <!-- ────── RISULTATI ────── -->

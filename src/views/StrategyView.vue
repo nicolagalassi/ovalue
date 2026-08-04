@@ -621,17 +621,6 @@ const LF_SPECIES_CHIP = {
     mecha:   { on: 'bg-teal-500/20 text-teal-200 border-teal-400/40',     off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
     kaelesh: { on: 'bg-purple-500/20 text-purple-200 border-purple-400/40', off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
 };
-const lfResearchBySpecies = computed(() => {
-    const groups = {};
-    LF_RESEARCH_ALL.forEach(r => { (groups[r.species] ||= []).push(r); });
-    return ['humans', 'rocktal', 'mecha', 'kaelesh']
-        .filter(sp => groups[sp]?.length)
-        .map(sp => ({
-            species: sp,
-            label: LF_RESEARCH_SPECIES[sp]?.label ?? sp,
-            items: groups[sp],
-        }));
-});
 const isLfResSelected = (id) => lfResearchIds.value.includes(id);
 const toggleLfRes = (id) => {
     lfResearchIds.value = isLfResSelected(id)
@@ -639,12 +628,6 @@ const toggleLfRes = (id) => {
         : [...lfResearchIds.value, id];
 };
 const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; };
-const setLfResSpecies = (sp, on) => {
-    const ids = LF_RESEARCH_ALL.filter(r => r.species === sp).map(r => r.id);
-    const set = new Set(lfResearchIds.value);
-    ids.forEach(id => (on ? set.add(id) : set.delete(id)));
-    lfResearchIds.value = [...set];
-};
 
 // ───── Astrofisica: calcolo convenienza nuovo pianeta ────────────────────
 // Confronta il costo totale (livelli astro necessari alla prossima colonia +
@@ -936,32 +919,16 @@ const astroPlan = computed(() => {
                         </button>
                     </div>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div v-for="grp in lfResearchBySpecies" :key="grp.species"
-                         class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
-                        <button @click="setLfResSpecies(grp.species, !grp.items.every(r => isLfResSelected(r.id)))"
-                                class="w-full flex items-center justify-between mb-2 text-[10px] uppercase tracking-wider font-semibold"
-                                :class="{
-                                    'text-blue-300':   grp.species === 'humans',
-                                    'text-orange-300': grp.species === 'rocktal',
-                                    'text-teal-300':   grp.species === 'mecha',
-                                    'text-purple-300': grp.species === 'kaelesh',
-                                }">
-                            <span>{{ grp.label }}</span>
-                            <span class="text-[9px] text-slate-600 normal-case">
-                                {{ grp.items.filter(r => isLfResSelected(r.id)).length }}/{{ grp.items.length }}
-                            </span>
+                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
+                    <div class="flex flex-wrap gap-1.5">
+                        <button v-for="r in LF_RESEARCH_ALL" :key="r.id"
+                                @click="toggleLfRes(r.id)"
+                                :title="r.name"
+                                class="px-2 py-1 text-[10px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1"
+                                :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[r.species].on : LF_SPECIES_CHIP[r.species].off">
+                            <span class="font-mono font-bold">T{{ r.tier }}</span>
+                            <span class="max-w-[9rem] truncate">{{ r.name }}</span>
                         </button>
-                        <div class="flex flex-wrap gap-1">
-                            <button v-for="r in grp.items" :key="r.id"
-                                    @click="toggleLfRes(r.id)"
-                                    :title="r.name"
-                                    class="px-2 py-1 text-[10px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1"
-                                    :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[grp.species].on : LF_SPECIES_CHIP[grp.species].off">
-                                <span class="font-mono font-bold">T{{ r.tier }}</span>
-                                <span class="max-w-[9rem] truncate">{{ r.name }}</span>
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>

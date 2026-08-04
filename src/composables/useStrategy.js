@@ -219,15 +219,18 @@ const buildCandidates = (state, options) => {
     // delta calcolato pari al beneficio di TUTTI i livelli accumulati — ROI falso.
     if (options.includeLfResearch) {
         const capRes = caps?.lfResearch ?? Infinity;
-        const allowedTierGroups = options.lfResearchTierGroups ?? [1, 2, 3];
+        // Selezione per-ricerca: Set di ID abilitati. Se non fornito → tutte le
+        // ricerche con bonus metallo sono candidabili (retro-compatibilità).
+        const allowedIds = Array.isArray(options.lfResearchIds)
+            ? new Set(options.lfResearchIds.map(String))
+            : null;
         for (const species of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
             const catData = OGAME_DB[`lf_${species}_res`];
             if (!catData) continue;
             for (const [idStr, itemData] of Object.entries(catData.items || {})) {
                 const bonus = itemData.bonus;
                 if (!bonus || (bonus[0] || 0) <= 0) continue;
-                const tierGroup = Math.ceil((parseInt(idStr) % 100) / 6);
-                if (!allowedTierGroups.includes(tierGroup)) continue;
+                if (allowedIds && !allowedIds.has(idStr)) continue;
                 planets.forEach((p, planetIdx) => {
                     const currentLevel = parseInt((p.lfResearch || {})[idStr]) || 0;
                     const isActive     = (p.lfActive || {})[idStr] === true;

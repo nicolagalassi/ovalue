@@ -5,6 +5,7 @@ import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useStrategy } from '../composables/useStrategy';
 import { useToast } from '../composables/useToast';
+import { OGAME_DB } from '../data/ogame_db';
 
 const { t } = useLanguage();
 const { show: showToast } = useToast();
@@ -43,7 +44,7 @@ const _saveConfig = () => {
             includePlasma: includePlasma.value,
             includeLf: includeLf.value,
             includeLfResearch: includeLfResearch.value,
-            lfResearchTierGroups: lfResearchTierGroups.value,
+            lfResearchIds: lfResearchIds.value,
             capMine: capMine.value,
             capPlasma: capPlasma.value,
             capLf: capLf.value,
@@ -73,7 +74,25 @@ const includeCrawlerMines = ref(false);
 const includePlasma = ref(true);
 const includeLf = ref(true);
 const includeLfResearch = ref(false);
-const lfResearchTierGroups = ref([1, 2, 3]);
+
+// Elenco completo delle ricerche LF con bonus metallo (le uniche candidabili
+// dal planner). Sostituisce i vecchi gruppi-tier T1-6/T7-12/T13-18: ora ogni
+// ricerca si attiva/disattiva singolarmente.
+const LF_RESEARCH_ALL = (() => {
+    const out = [];
+    for (const sp of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
+        const cat = OGAME_DB[`lf_${sp}_res`];
+        if (!cat) continue;
+        for (const [id, item] of Object.entries(cat.items || {})) {
+            if (item.bonus && (item.bonus[0] || 0) > 0)
+                out.push({ id, name: item.name || id, species: sp, tier: parseInt(id) % 100 });
+        }
+    }
+    return out.sort((a, b) => a.tier - b.tier);
+})();
+const ALL_LF_IDS = LF_RESEARCH_ALL.map(r => r.id);
+const lfResearchIds = ref([...ALL_LF_IDS]);   // ID ricerca LF abilitati
+
 const capMine = ref(0);            // 0 = nessun cap
 const capPlasma = ref(0);
 const capLf = ref(0);
@@ -110,7 +129,8 @@ onMounted(() => {
         if (cfg.includePlasma !== undefined)         includePlasma.value = cfg.includePlasma;
         if (cfg.includeLf !== undefined)             includeLf.value = cfg.includeLf;
         if (cfg.includeLfResearch !== undefined)     includeLfResearch.value = cfg.includeLfResearch;
-        if (Array.isArray(cfg.lfResearchTierGroups)) lfResearchTierGroups.value = cfg.lfResearchTierGroups;
+        // Ripristina la selezione ricerche LF, scartando ID non più validi.
+        if (Array.isArray(cfg.lfResearchIds))        lfResearchIds.value = cfg.lfResearchIds.filter(id => ALL_LF_IDS.includes(id));
         if (cfg.capMine !== undefined)               capMine.value = cfg.capMine;
         if (cfg.capPlasma !== undefined)             capPlasma.value = cfg.capPlasma;
         if (cfg.capLf !== undefined)                 capLf.value = cfg.capLf;
@@ -122,7 +142,7 @@ onMounted(() => {
 });
 watch(
     [packMode, packBatch, playerClassOverride, includeMines, includeCrawlerMines, includePlasma, includeLf, includeLfResearch,
-     lfResearchTierGroups, capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
+     lfResearchIds, capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
     _saveConfig
 );
 
@@ -294,7 +314,7 @@ const buildPlannerOptions = () => ({
     includePlasma: includePlasma.value,
     includeLf: includeLf.value,
     includeLfResearch: includeLfResearch.value,
-    lfResearchTierGroups: [...lfResearchTierGroups.value],
+    lfResearchIds: [...lfResearchIds.value],
     packMode: packMode.value,
     packBatch: packBatch.value,
     caps: {
@@ -573,6 +593,21 @@ const typeSummary = computed(() => {
         .filter(c => c.count > 0)
         .sort((a, b) => b.delta - a.delta);
 });
+
+// ───── Selezione ricerche LF (pannello per-ricerca) ──────────────────────
+const LF_SPECIES_CHIP = {
+    humans:  { on: 'bg-blue-500/20 text-blue-200 border-blue-400/40',     off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
+    rocktal: { on: 'bg-orange-500/20 text-orange-200 border-orange-400/40', off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
+    mecha:   { on: 'bg-teal-500/20 text-teal-200 border-teal-400/40',     off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
+    kaelesh: { on: 'bg-purple-500/20 text-purple-200 border-purple-400/40', off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
+};
+const isLfResSelected = (id) => lfResearchIds.value.includes(id);
+const toggleLfRes = (id) => {
+    lfResearchIds.value = isLfResSelected(id)
+        ? lfResearchIds.value.filter(x => x !== id)
+        : [...lfResearchIds.value, id];
+};
+const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; };
 </script>
 
 <template>
@@ -696,19 +731,9 @@ const typeSummary = computed(() => {
                             <input type="checkbox" v-model="includeLfResearch" class="w-4 h-4 accent-emerald-500 rounded flex-shrink-0">
                             <span class="text-[12px] text-slate-300">{{ t('strategy_lf_research') }}</span>
                         </label>
-                        <div v-if="includeLfResearch" class="flex gap-1 pl-6">
-                            <button v-for="g in [1, 2, 3]" :key="g"
-                                    @click="lfResearchTierGroups.includes(g)
-                                        ? lfResearchTierGroups = lfResearchTierGroups.filter(x => x !== g)
-                                        : lfResearchTierGroups = [...lfResearchTierGroups, g]"
-                                    class="flex-1 py-1 text-[9px] font-bold rounded-md transition-all duration-150 text-center"
-                                    :class="lfResearchTierGroups.includes(g)
-                                        ? 'bg-emerald-500/20 border border-emerald-400/30 text-emerald-300'
-                                        : 'bg-black/20 text-slate-700 hover:text-slate-500'">
-                                T{{ (g-1)*6+1 }}–{{ g*6 }}
-                            </button>
-                        </div>
-
+                        <p v-if="includeLfResearch" class="pl-6 text-[9px] text-slate-600 leading-tight">
+                            {{ t('strategy_lf_research_select_hint') }}
+                        </p>
                     </div>
                 </div>
                 <!-- Cap livello -->
@@ -781,6 +806,38 @@ const typeSummary = computed(() => {
                             ? t('opt_' + (currentSimState?.settings?.playerClass || 'none'))
                             : t('opt_collector') }}
                     </p>
+                </div>
+            </div>
+
+            <!-- Selezione ricerche LF da considerare (per-ricerca) -->
+            <div v-if="includeLfResearch" class="pt-4 border-t border-slate-700/20">
+                <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold flex items-center gap-2">
+                        {{ t('strategy_lf_research_select') }}
+                        <span class="text-slate-700 normal-case font-normal">({{ lfResearchIds.length }}/{{ ALL_LF_IDS.length }})</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <button @click="setLfResAll(true)"
+                                class="w-full px-2 py-1 text-[9px] font-bold rounded-md text-center bg-emerald-500/15 text-emerald-300 border border-emerald-400/25 hover:bg-emerald-500/25 transition-colors">
+                            {{ t('strategy_lf_activate_all') }}
+                        </button>
+                        <button @click="setLfResAll(false)"
+                                class="w-full px-2 py-1 text-[9px] font-bold rounded-md text-center bg-black/20 text-slate-500 border border-slate-700/30 hover:text-slate-300 transition-colors">
+                            {{ t('strategy_lf_deactivate_all') }}
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
+                    <div class="flex flex-wrap gap-1.5">
+                        <button v-for="r in LF_RESEARCH_ALL" :key="r.id"
+                                @click="toggleLfRes(r.id)"
+                                :title="r.name"
+                                class="px-2 py-1 text-[10px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1"
+                                :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[r.species].on : LF_SPECIES_CHIP[r.species].off">
+                            <span class="font-mono font-bold">T{{ r.tier }}</span>
+                            <span class="max-w-[9rem] truncate">{{ r.name }}</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 

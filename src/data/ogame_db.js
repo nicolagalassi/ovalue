@@ -422,6 +422,57 @@ export const SHOP_ITEMS = {
         // Expedition Items (Delay Reduction)
         "exp_delay_50": { cat: "expedition", tier: "none", costs: { "none": { "7d": 50000, "30d": 170000, "90d": 450000 } } },
         "exp_delay_75": { cat: "expedition", tier: "none", costs: { "none": { "7d": 75000, "30d": 255000, "90d": 675000 } } },
-        "exp_delay_100": { cat: "expedition", tier: "none", costs: { "none": { "7d": 125000, "30d": 425000, "90d": 1125000 } } }
+        "exp_delay_100": { cat: "expedition", tier: "none", costs: { "none": { "7d": 125000, "30d": 425000, "90d": 1125000 } } },
+
+        // Resource Amplifiers (produzione pianeta) — solo tier Bronzo noto; durate 30d/90d
+        "res_amp_15": { cat: "boosters", tier: "multi", costs: { "bronze": { "30d": 110000, "90d": 250000 } } },
+        "res_amp_20": { cat: "boosters", tier: "multi", costs: { "bronze": { "30d": 130000, "90d": 300000 } } },
+        "res_amp_25": { cat: "boosters", tier: "multi", costs: { "bronze": { "30d": 170000, "90d": 380000 } } },
+        "res_amp_30": { cat: "boosters", tier: "multi", costs: { "bronze": { "30d": 210000, "90d": 480000 } } },
+        "res_amp_40": { cat: "boosters", tier: "multi", costs: { "bronze": { "30d": 260000, "90d": 600000 } } },
+
+        // Expedition Resource Amplifiers — solo tier Bronzo noto; durate 7d/30d/90d
+        "exp_res_amp_10": { cat: "expedition", tier: "multi", costs: { "bronze": { "7d": 75000,  "30d": 290000, "90d": 700000 } } },
+        "exp_res_amp_15": { cat: "expedition", tier: "multi", costs: { "bronze": { "7d": 112500, "30d": 400000, "90d": 1000000 } } },
+        "exp_res_amp_20": { cat: "expedition", tier: "multi", costs: { "bronze": { "7d": 145000, "30d": 525000, "90d": 1260000 } } },
+        "exp_res_amp_25": { cat: "expedition", tier: "multi", costs: { "bronze": { "7d": 180000, "30d": 650000, "90d": 1500000 } } },
+        "exp_res_amp_30": { cat: "expedition", tier: "multi", costs: { "bronze": { "7d": 200000, "30d": 700000, "90d": 1700000 } } },
+        "exp_res_amp_35": { cat: "expedition", tier: "multi", costs: { "bronze": { "7d": 230000, "30d": 800000, "90d": 1900000 } } },
+        "exp_res_amp_40": { cat: "expedition", tier: "multi", costs: { "bronze": { "7d": 255000, "30d": 900000, "90d": 2000000 } } },
+
+        // Expedition Computer — solo tier Bronzo noto; durate 7d/30d/90d
+        "exp_computer": { cat: "expedition", tier: "multi", costs: { "bronze": { "7d": 250000, "30d": 1000000, "90d": 2500000 } } },
+
+        // Scrap Dealer Offers (Mercante di ferri vecchi) — costo singolo, nessuna durata
+        "scrap_offer_77": { cat: "ingame", tier: "none", costs: { "none": { "base": 150000 } } },
+        "scrap_offer_79": { cat: "ingame", tier: "none", costs: { "none": { "base": 300000 } } },
+        "scrap_offer_81": { cat: "ingame", tier: "none", costs: { "none": { "base": 450000 } } },
+        "scrap_offer_83": { cat: "ingame", tier: "none", costs: { "none": { "base": 600000 } } },
+        "scrap_offer_85": { cat: "ingame", tier: "none", costs: { "none": { "base": 750000 } } }
     }
+};
+
+// ── Pacchetti Materia Oscura (tagli acquistabili) ────────────────────────────
+// Fonte condivisa tra PackCalc (ottimizzatore) e Shopping List (selettore tagli MO).
+//   cost   = prezzo in € del taglio
+//   amount = MO base ottenuta (senza bonus)
+// Bonus applicabili:
+//   - Bonus metodo di pagamento (PayPal/Carta/Amazon): +DM_PAYMENT_BONUS_PER_EUR × €
+//   - Bonus evento (moltiplicatore %): uno tra DM_EVENT_BONUSES
+// MO effettiva = floor( (amount + (pagamento ? cost × DM_PAYMENT_BONUS_PER_EUR : 0)) × (1 + bonus%/100) )
+export const DM_PACKAGES = [
+    { cost: 200, amount: 5100000 },
+    { cost: 100, amount: 2525000 },
+    { cost: 50,  amount: 1140000 },
+    { cost: 25,  amount: 480000 },
+    { cost: 10,  amount: 150000 },
+    { cost: 5,   amount: 60000 }
+];
+export const DM_EVENT_BONUSES = [0, 30, 40, 50, 60, 100, 130];
+export const DM_PAYMENT_BONUS_PER_EUR = 1000;
+
+// MO effettiva di un taglio dati i bonus attivi.
+export const dmPackageAmount = (pkg, { paymentBonus = true, eventBonus = 0 } = {}) => {
+    const base = pkg.amount + (paymentBonus ? pkg.cost * DM_PAYMENT_BONUS_PER_EUR : 0);
+    return Math.floor(base * (1 + (parseInt(eventBonus) || 0) / 100));
 };

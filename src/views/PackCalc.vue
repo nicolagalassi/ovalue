@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
-import { OGAME_DB } from '../data/ogame_db';
+import { OGAME_DB, DM_PACKAGES, DM_EVENT_BONUSES } from '../data/ogame_db';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useProfiles } from '../composables/useProfiles';
 
@@ -97,7 +97,7 @@ const stockDeu = createFormattedInput(stock, 'deuterium');
 // --- BUILDER & PARSER ---
 // --- BUILDER ---
 const builder = reactive({ cat: 'resources', item: 'metal_mine', level: 1, startLevel: 0, mult: 1 });
-const basePacks = [ { cost: 200, amount: 5100000 }, { cost: 100, amount: 2525000 }, { cost: 50, amount: 1140000 }, { cost: 25, amount: 480000 }, { cost: 10, amount: 150000 }, { cost: 5, amount: 60000 } ];
+const basePacks = DM_PACKAGES;  // fonte condivisa con la Shopping List (src/data/ogame_db.js)
 
 const currentItems = computed(() => { const catData = OGAME_DB[builder.cat]; return catData ? catData.items : {}; });
 watch(() => builder.cat, (newCat) => { 
@@ -823,7 +823,7 @@ const copyShareText = async () => {
                 <div class="mb-4">
                     <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_event_bonus') }}</div>
                     <div class="grid grid-cols-4 gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
-                        <button v-for="b in [0, 30, 40, 50, 60, 100, 130]" :key="b"
+                        <button v-for="b in DM_EVENT_BONUSES" :key="b"
                                 @click="settings.moBonus = b"
                                 class="py-2 text-[11px] font-semibold rounded-lg transition-all duration-150 text-center"
                                 :class="settings.moBonus === b

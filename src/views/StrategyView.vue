@@ -44,7 +44,6 @@ const _saveConfig = () => {
             includePlasma: includePlasma.value,
             includeLf: includeLf.value,
             includeLfResearch: includeLfResearch.value,
-            lfResearchIds: lfResearchIds.value,
             capMine: capMine.value,
             capPlasma: capPlasma.value,
             capLf: capLf.value,
@@ -129,8 +128,6 @@ onMounted(() => {
         if (cfg.includePlasma !== undefined)         includePlasma.value = cfg.includePlasma;
         if (cfg.includeLf !== undefined)             includeLf.value = cfg.includeLf;
         if (cfg.includeLfResearch !== undefined)     includeLfResearch.value = cfg.includeLfResearch;
-        // Ripristina la selezione ricerche LF, scartando ID non più validi.
-        if (Array.isArray(cfg.lfResearchIds))        lfResearchIds.value = cfg.lfResearchIds.filter(id => ALL_LF_IDS.includes(id));
         if (cfg.capMine !== undefined)               capMine.value = cfg.capMine;
         if (cfg.capPlasma !== undefined)             capPlasma.value = cfg.capPlasma;
         if (cfg.capLf !== undefined)                 capLf.value = cfg.capLf;
@@ -142,7 +139,7 @@ onMounted(() => {
 });
 watch(
     [packMode, packBatch, playerClassOverride, includeMines, includeCrawlerMines, includePlasma, includeLf, includeLfResearch,
-     lfResearchIds, capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
+     capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
     _saveConfig
 );
 
@@ -180,6 +177,28 @@ const lfResearchPct = computed(() => {
 const hasLfResearchData = computed(() =>
     planets.value.some(p => Object.values(p.lfResearch || {}).some(v => v > 0))
 );
+
+// ID delle ricerche LF (con bonus metallo) già ATTIVE nel profilo corrente:
+// attive su almeno un pianeta (lfActive === true) e con livello > 0.
+const profileActiveLfIds = computed(() => {
+    const ids = new Set();
+    planets.value.forEach(p => {
+        const active = p.lfActive || {};
+        const levels = p.lfResearch || {};
+        Object.keys(active).forEach(id => {
+            if (active[id] === true && (parseInt(levels[id]) || 0) > 0 && ALL_LF_IDS.includes(id))
+                ids.add(id);
+        });
+    });
+    return [...ids];
+});
+// Allinea la selezione del planner alla situazione attuale: pre-seleziona le
+// ricerche attive nel profilo (fallback: tutte, se il profilo non ne ha).
+// Si ri-sincronizza a ogni import/cambio profilo; i toggle manuali in sessione
+// restano finché il set attivo non cambia.
+watch(profileActiveLfIds, (ids) => {
+    lfResearchIds.value = ids.length ? [...ids] : [...ALL_LF_IDS];
+}, { immediate: true });
 
 // ───── LF per-pianeta: helpers per il toggle ────────────────────────────
 const lfOpts = [

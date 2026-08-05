@@ -196,10 +196,21 @@ const DISCOUNT_EVENTS = [
 
 const getEventInfo = (eventId) => DISCOUNT_EVENTS.find(e => e.id === eventId);
 
+// Nuovi item (amplificatori risorse/spedizioni, computer spedizioni, offerte
+// mercante) resi idonei agli sconti "item 15%/20%" e "item platino" a
+// prescindere da categoria/tier — usato sia per l'idoneità sia per il fattore
+// di sconto, così le due funzioni restano coerenti.
+const DISCOUNTABLE_NEW_ITEM = (itemKey) =>
+    /^res_amp_/.test(itemKey) ||
+    /^exp_res_amp_/.test(itemKey) ||
+    itemKey === 'exp_computer' ||
+    /^scrap_offer_/.test(itemKey);
+
 // Calculation Helpers
 const isItemDiscounted = (itemKey, tier, eventId) => {
     if (eventId === 'none') return false;
     if (eventId === 'discount' || eventId === 'discount_20') {
+        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return true;
         const item = SHOP_ITEMS.items[itemKey];
         const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
         if (item && !excludeCats.includes(item.cat)) return true;
@@ -209,6 +220,7 @@ const isItemDiscounted = (itemKey, tier, eventId) => {
     if (eventId === 'resources'    && String(itemKey).includes('res_package')) return true;
     if (eventId === 'classes'      && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return true;
     if (eventId === 'platinum') {
+        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return true;
         if (tier === 'platinum') return true;
         if (String(itemKey).startsWith('res_package_')) return true;
         if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return true;
@@ -241,11 +253,13 @@ const isItemEventRelated = (itemKey, costs) => {
 
 const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
     if (eventId === 'discount') {
+        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return 0.85;
         const item = SHOP_ITEMS.items[itemKey];
         const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
         if (item && !excludeCats.includes(item.cat)) return 0.85;
     }
     if (eventId === 'discount_20') {
+        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return 0.80;
         const item = SHOP_ITEMS.items[itemKey];
         const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
         if (item && !excludeCats.includes(item.cat)) return 0.80;
@@ -258,6 +272,7 @@ const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
     if (eventId === 'resources'  && String(itemKey).includes('res_package')) return 0.7;
     if (eventId === 'classes'    && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return 0.8;
     if (eventId === 'platinum') {
+        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return 0.8;
         if (tier === 'platinum') return 0.8;
         if (String(itemKey).startsWith('res_package_')) return 0.8;
         if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return 0.8;

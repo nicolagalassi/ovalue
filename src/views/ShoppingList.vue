@@ -312,7 +312,9 @@ const formatNum = (n) => new Intl.NumberFormat('it-IT').format(Math.floor(n));
 const visibleCategories = computed(() =>
     SHOP_ITEMS.categories.filter(c => {
         if (c.id === 'construction') return activeDiscountEvent.value === 'construction';
-        if (c.id === 'expedition')   return activeDiscountEvent.value === 'expedition';
+        // expedition: sempre visibile (amplificatori risorse + computer come gli slot).
+        // I soli item di riduzione ritardo restano legati all'evento "turbo spedizioni",
+        // gestiti a livello di blocco in fullCatalog.
         if (c.id === 'avatars')      return false;
         return true;
     })
@@ -336,10 +338,13 @@ const fullCatalog = computed(() => {
             ];
         } else if (cat.id === 'expedition') {
             blocks = [
-                { blockKey: 'exp-delay', titleKey: 'shop_expedition_sub_delay', items: ['exp_delay_50','exp_delay_75','exp_delay_100'].map(pair) },
                 { blockKey: 'exp-resamp', titleKey: 'shop_expedition_sub_resamp', items: ['exp_res_amp_10','exp_res_amp_15','exp_res_amp_20','exp_res_amp_25','exp_res_amp_30','exp_res_amp_35','exp_res_amp_40'].map(pair) },
                 { blockKey: 'exp-computer', titleKey: 'shop_expedition_sub_computer', items: ['exp_computer'].map(pair) },
             ];
+            // Riduzione ritardo: solo durante l'evento "turbo spedizioni" (come in origine)
+            if (activeDiscountEvent.value === 'expedition') {
+                blocks.unshift({ blockKey: 'exp-delay', titleKey: 'shop_expedition_sub_delay', items: ['exp_delay_50','exp_delay_75','exp_delay_100'].map(pair) });
+            }
         } else {
             const flat = {};
             for (const [k, v] of Object.entries(SHOP_ITEMS.items)) if (v.cat === cat.id) flat[k] = v;

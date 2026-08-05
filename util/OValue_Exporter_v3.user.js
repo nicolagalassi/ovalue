@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.9.0
+// @version      3.10.0
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -563,6 +563,75 @@
         return { lfResearch, lfBuildings };
     }
 
+    // ── ITEM: rilevamento amplificatori (condiviso DOM + buffs accountInfo) ───
+    // Amplificatore metallo → livello 10/20/30/40. Riconosce il nome nelle 4 lingue,
+    // sia dal tooltip DOM (.item_img) sia dal campo `name` dei buff v13 (stesso testo).
+    function metalAmpLevel(t) {
+        if (!t) return 0;
+        let lvl = 0;
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Bronzo|Bronze)\b/i.test(t) ||
+            /(?:Bronze)\s+(?:Metal|Metall)/i.test(t))                                lvl = Math.max(lvl, 10);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Argento|Silver|Silber|Argent)\b/i.test(t) ||
+            /(?:Silver)\s+(?:Metal|Metall)/i.test(t))                                lvl = Math.max(lvl, 20);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Oro|Gold|Or)\b/i.test(t) ||
+            /(?:Gold)\s+(?:Metal|Metall)/i.test(t))                                  lvl = Math.max(lvl, 30);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Platino|Platinum|Platin|Platine)\b/i.test(t) ||
+            /(?:Platinum)\s+(?:Metal|Metall)/i.test(t))                              lvl = Math.max(lvl, 40);
+        return lvl;
+    }
+    // Amplificatore risorse → percentuale (numero nel nome/tooltip).
+    function resourceAmpPct(t) {
+        const amp = (t || '').match(/(?:Amplificatore di risorse|Resource Amplifier|Ressourcenverst[äa]rker|Amplificateur de ressources)[^\d]*(\d+)/i);
+        return amp ? parseInt(amp[1]) : 0;
+    }
+
+    // Converte i timestamp di un buff (accountInfo v13) in { timeRemaining, totalDuration }.
+    // I campi effect/buff Start/End hanno unità epoch non documentata: auto-rileviamo s vs ms
+    // e validiamo una finestra plausibile (entro 3 anni). Se 0 / relativo / scaduto → null:
+    // l'item è permanente o non tracciabile in modo affidabile → NON lo tracciamo (come il DOM,
+    // che salta gli item permanenti), così non mostriamo mai una scadenza sbagliata.
+    function buffExpiry(b) {
+        let end   = Math.max(+((b && b.effectEnd)   || 0), +((b && b.buffEnd)   || 0));
+        let start = Math.max(+((b && b.effectStart) || 0), +((b && b.buffStart) || 0));
+        if (end   > 1e12) end   = Math.floor(end   / 1000);   // ms → s
+        if (start > 1e12) start = Math.floor(start / 1000);
+        const nowS = Math.floor(Date.now() / 1000);
+        const MAX  = nowS + 3 * 365 * 86400;
+        if (!(end > nowS && end < MAX)) return null;
+        const total = (start && start < end) ? (end - start) * 1000 : null;
+        return { timeRemaining: fmtDuration(end - nowS), totalDuration: total };
+    }
+    function fmtDuration(sec) {
+        sec = Math.max(0, Math.floor(sec));
+        const d = Math.floor(sec / 86400); sec -= d * 86400;
+        const h = Math.floor(sec / 3600);  sec -= h * 3600;
+        const m = Math.floor(sec / 60);    const s = sec - m * 60;
+        return `${d}d ${h}h ${m}m ${s}s`;
+    }
+
+    // Estrae gli item dall'array `buffs` di un pianeta accountInfo (v13):
+    //   - item        → livello amplificatore metallo (per-pianeta, come nel DOM)
+    //   - itemCustom  → percentuale amplificatore risorse (per-pianeta)
+    //   - globals     → altri item (booster impero) con scadenza, per il tracker.
+    // Gli amplificatori metallo/risorse sono esclusi da `globals` (come il DOM li esclude
+    // da .empireItems): sono già mappati come input di produzione per-pianeta.
+    function parseBuffs(buffs) {
+        let item = 0, itemCustom = 0;
+        const globals = [];
+        for (const b of (Array.isArray(buffs) ? buffs : [])) {
+            const name = (b && b.name) || '';
+            if (!name) continue;
+            const ml = metalAmpLevel(name);
+            if (ml) { item = Math.max(item, ml); continue; }
+            const rp = resourceAmpPct(name);
+            if (rp) { itemCustom = Math.max(itemCustom, rp); continue; }
+            const exp = buffExpiry(b);
+            if (!exp) continue;   // permanente/sconosciuto → non tracciato
+            globals.push({ name, timeRemaining: exp.timeRemaining, totalDuration: exp.totalDuration });
+        }
+        return { item, itemCustom, globals };
+    }
+
     // Chiama l'API empire (LEGACY, server pre-v13). Su OGame v13 questo endpoint
     // risponde 405 Method Not Allowed → usato solo come fallback dopo accountInfo.
     async function callEmpireAPI() {
@@ -606,6 +675,7 @@
         // selectedSpeciesId 703 → lifeform '3' (LF_NUM_MAP)
         flat.lifeform = p.selectedSpeciesId ? (p.selectedSpeciesId - 700) : 0;
         flat.coords = `${p.galaxy}:${p.system}:${p.position}`;
+        flat.buffs = Array.isArray(p.buffs) ? p.buffs : [];  // item attivi (amplificatori + booster impero)
         return flat;
     }
 
@@ -706,6 +776,8 @@
         const sidebar = getSidebarPlanets();
         if (!sidebar.length) return false;
 
+        const buffGlobals = new Map();  // name → item globale (dedup cross-pianeta, come .empireItems nel DOM)
+
         d.planets = sidebar.map(sp => {
             // Cerca per id o planetID (i due campi possono essere diversi nell'API)
             const ap = apiPlanets.find(a =>
@@ -717,6 +789,7 @@
                 : {};
 
             let lfResearch = existing.lfResearch || {}, lfBuildings = existing.lfBuildings || {};
+            let item = existing.item || 0, itemCustom = existing.itemCustom || 0;
             if (ap) {
                 ({ lfResearch, lfBuildings } = parseLfFromApi(ap));
                 // Salva razza dall'API se non già catturata via DOM
@@ -724,6 +797,12 @@
                 if (lfFromAPI && !d.planetLifeforms[sp.id]) {
                     d.planetLifeforms[sp.id] = lfFromAPI;
                 }
+                // Item da buffs accountInfo (v13): amplificatori per-pianeta + item globali,
+                // così su v13 gli item si idratano senza aprire la pagina Impero.
+                const parsed = parseBuffs(ap.buffs);
+                if (parsed.item)       item       = parsed.item;
+                if (parsed.itemCustom) itemCustom = parsed.itemCustom;
+                for (const g of parsed.globals) if (!buffGlobals.has(g.name)) buffGlobals.set(g.name, g);
             }
 
             return {
@@ -736,12 +815,18 @@
                 crawlers:  ap ? (ap['217'] || 0) : (existing.crawlers  || 0),
                 human:     ap ? (ap['11106'] || 0) : (existing.human   || 0),
                 magma:     ap ? (ap['12106'] || 0) : (existing.magma   || 0),
-                item: existing.item || 0, itemCustom: existing.itemCustom || 0,
+                item, itemCustom,
                 overload: existing.overload || false,
                 lifeformLevel: existing.lifeformLevel || 0,
                 lfResearch, lfBuildings
             };
         });
+
+        // Item globali dai buffs — solo finché la pagina Impero (DOM, fonte autorevole con
+        // durate complete) non li ha mai forniti: nessun clobber dei dati DOM più ricchi.
+        if (!d._itemsFromEmpireDom && buffGlobals.size) {
+            d.globalItems = [...buffGlobals.values()];
+        }
 
         // Plasma
         const firstWithPlasma = apiPlanets.find(ap => ap['122'] != null);
@@ -884,18 +969,9 @@
             let item = 0, itemCustom = 0;
             p.querySelectorAll('.item_img').forEach(img => {
                 const t = img.getAttribute('data-tooltip-title') || '';
-                // Amplificatore metallo: IT/EN/DE/FR + livello (Bronzo/Bronze/Silber/Argent = 10%, ecc.)
-                if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Bronzo|Bronze)\b/i.test(t) ||
-                    /(?:Bronze)\s+(?:Metal|Metall)/i.test(t))                              item = Math.max(item, 10);
-                if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Argento|Silver|Silber|Argent)\b/i.test(t) ||
-                    /(?:Silver)\s+(?:Metal|Metall)/i.test(t))                              item = Math.max(item, 20);
-                if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Oro|Gold|Or)\b/i.test(t) ||
-                    /(?:Gold)\s+(?:Metal|Metall)/i.test(t))                                item = Math.max(item, 30);
-                if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Platino|Platinum|Platin|Platine)\b/i.test(t) ||
-                    /(?:Platinum)\s+(?:Metal|Metall)/i.test(t))                            item = Math.max(item, 40);
-                // Amplificatore risorse: IT/EN/DE/FR
-                const amp = t.match(/(?:Amplificatore di risorse|Resource Amplifier|Ressourcenverstärker|Amplificateur de ressources)[^\d]*(\d+)/i);
-                if (amp) itemCustom = parseInt(amp[1]);
+                item     = Math.max(item, metalAmpLevel(t));
+                const rp = resourceAmpPct(t);
+                if (rp) itemCustom = rp;
             });
 
             // Dati API per questo pianeta — cerca per id O per planetID (i due campi possono differire)
@@ -983,6 +1059,7 @@
             globalItems.push({ name, timeRemaining, totalDuration });
         });
         d.globalItems = globalItems;
+        d._itemsFromEmpireDom = true;  // DOM Impero: fonte autorevole per gli item globali (durate complete)
         d.empire_collected = true;
         save();
         updatePanel();

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.10.0
+// @version      3.11.0
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -114,6 +114,9 @@
             missingLf:      n => `⚠ Razze Mancanti (${n})`,
             activeLf:       n => `Razze Attive (${n})`,
             globalItems:    n => `Item Globali (${n})`,
+            crawlerOverload: (n, tot) => `⚡ Sovraccarico Crawler (${n}/${tot})`,
+            hintOverload: 'Il sovraccarico crawler (150%) non è nell\'API: apri le <b>Impostazioni risorse</b> di ogni pianeta (girando i pianeti) per leggerlo.',
+            overloadOn: '150%', overloadOff: '100%',
             bonusMetal: 'Bonus Metallo', bonusClass: 'Bonus Classe',
             lfApiNote: 'Bonus e ricerche letti dall\'API — nessuna pagina da visitare.',
             lifeformLevels: 'Livelli Forme di Vita',
@@ -144,6 +147,9 @@
             missingLf:      n => `⚠ Missing Species (${n})`,
             activeLf:       n => `Active Species (${n})`,
             globalItems:    n => `Global Items (${n})`,
+            crawlerOverload: (n, tot) => `⚡ Crawler Overload (${n}/${tot})`,
+            hintOverload: 'Crawler overload (150%) is not in the API: open each planet\'s <b>Resource Settings</b> (cycle through your planets) to read it.',
+            overloadOn: '150%', overloadOff: '100%',
             bonusMetal: 'Metal Bonus', bonusClass: 'Class Bonus',
             lfApiNote: 'Bonuses and researches read from the API — no page to visit.',
             lifeformLevels: 'Lifeform Levels',
@@ -173,6 +179,9 @@
             missingLf:      n => `⚠ Fehlende Spezies (${n})`,
             activeLf:       n => `Aktive Spezies (${n})`,
             globalItems:    n => `Globale Items (${n})`,
+            crawlerOverload: (n, tot) => `⚡ Crawler-Überladung (${n}/${tot})`,
+            hintOverload: 'Die Crawler-Überladung (150%) ist nicht in der API: öffne die <b>Ressourcen-Einstellungen</b> jedes Planeten (Planeten durchgehen), um sie zu lesen.',
+            overloadOn: '150%', overloadOff: '100%',
             bonusMetal: 'Metall-Bonus', bonusClass: 'Klassen-Bonus',
             lfApiNote: 'Boni und Forschungen aus der API — keine Seite nötig.',
             lifeformLevels: 'Lebensform-Stufen',
@@ -202,6 +211,9 @@
             missingLf:      n => `⚠ Espèces manquantes (${n})`,
             activeLf:       n => `Espèces actives (${n})`,
             globalItems:    n => `Items globaux (${n})`,
+            crawlerOverload: (n, tot) => `⚡ Surcharge Crawler (${n}/${tot})`,
+            hintOverload: 'La surcharge crawler (150%) n\'est pas dans l\'API : ouvrez les <b>Paramètres de ressources</b> de chaque planète (parcourez vos planètes) pour la lire.',
+            overloadOn: '150%', overloadOff: '100%',
             bonusMetal: 'Bonus métal', bonusClass: 'Bonus classe',
             lfApiNote: 'Bonus et recherches lus depuis l\'API — aucune page à visiter.',
             lifeformLevels: 'Niveaux des formes de vie',
@@ -277,7 +289,8 @@
         playerName: '', playerClass: 'none', allianceClass: 'none',
         universeName: '', universeSpeed: 1,
         officers: {}, lfBonuses: { metal: '0%', classBonus: '0%' },
-        settings: { plasma: 0 }, planets: [], planetLifeforms: {}, globalItems: []
+        settings: { plasma: 0 }, planets: [], planetLifeforms: {}, globalItems: [],
+        overloadByPlanet: {}
     };
     for (const [k, v] of Object.entries(DEFAULTS)) {
         if (d[k] === undefined)
@@ -371,6 +384,40 @@
         if (!detected) return;
         d.alliance_collected = true;
         if (d.allianceClass !== detected) d.allianceClass = detected;
+        save();
+        updatePanel();
+    }
+
+    // ── SOVRACCARICO CRAWLER ─────────────────────────────────────────────────
+    // Lo stato del sovraccarico crawler (100% vs 150%, solo Collezionista) NON è nell'API
+    // accountInfo: esiste solo sulla pagina Impostazioni risorse. Lo leggiamo dal DOM della
+    // pagina che l'utente ha aperto (nessun fetch di background, nessun cp=: AGENTS.md §4).
+    // È un dato per-pianeta → serve visitare la pagina di ciascun pianeta ("girare i pianeti").
+    function detectCrawlerOverload() {
+        // Checkbox overload crawler — selettori robusti tra le versioni OGame.
+        const cb = document.querySelector(
+            'input#crawlerBoost, input[name="crawlerBoost"], input[name*="crawlerBoost" i], ' +
+            'input[id*="crawlerBoost" i], input[id*="overload" i], input[name*="overload" i], ' +
+            '.crawlerBoost input[type="checkbox"], [class*="overload" i] input[type="checkbox"], ' +
+            '[class*="crawler" i] input[type="checkbox"]'
+        );
+        if (cb) return !!cb.checked;
+        return null;  // non presente su questa pagina → nessun dato
+    }
+
+    function collectResourceSettings() {
+        if (getPlanetType() === 'moon') return;   // le lune non hanno crawler
+        const planetId = getPlanetId();
+        if (planetId == null) return;
+        const ov = detectCrawlerOverload();
+        if (ov === null) return;                    // non rilevato → non sovrascrivere
+        d.overloadByPlanet = d.overloadByPlanet || {};
+        d.overloadByPlanet[planetId] = ov;
+        // Aggiorna anche il pianeta già letto dall'impero, se presente
+        if (Array.isArray(d.planets)) {
+            const p = d.planets.find(p => p.id === planetId);
+            if (p) p.overload = ov;
+        }
         save();
         updatePanel();
     }
@@ -816,7 +863,8 @@
                 human:     ap ? (ap['11106'] || 0) : (existing.human   || 0),
                 magma:     ap ? (ap['12106'] || 0) : (existing.magma   || 0),
                 item, itemCustom,
-                overload: existing.overload || false,
+                overload: (d.overloadByPlanet && d.overloadByPlanet[sp.id] !== undefined)
+                          ? d.overloadByPlanet[sp.id] : (existing.overload || false),
                 lifeformLevel: existing.lifeformLevel || 0,
                 lfResearch, lfBuildings
             };
@@ -1016,7 +1064,9 @@
                 coords, pos,
                 lifeform: lifeformName,
                 metal, crystal, deuterium, human, magma, crawlers,
-                item, itemCustom, overload: false,
+                item, itemCustom,
+                overload: (planetId != null && d.overloadByPlanet && d.overloadByPlanet[planetId] !== undefined)
+                          ? d.overloadByPlanet[planetId] : false,
                 lifeformLevel: getLifeformLevel(planetId, lifeformName),
                 lfResearch, lfBuildings
             });
@@ -1140,6 +1190,9 @@
     } else if (page === 'ingame' && component === 'alliance') {
         // Classe alleanza dal DOM della pagina Alleanza aperta dall'utente (nessun fetch)
         setTimeout(collectAllianceClass, 1000);
+    } else if (page === 'ingame' && component === 'resourcesettings') {
+        // Sovraccarico crawler dal DOM della pagina Impostazioni risorse (per-pianeta, nessun fetch)
+        setTimeout(collectResourceSettings, 1000);
     } else if (component === 'empire') {
         tryCollectEmpire();
     } else {
@@ -1306,6 +1359,28 @@
                         html += row(`<span class="ov_item_name">${it.name}</span>`,
                             `<span class="${perm ? 'ov_perm' : 'ov_warn'}">${it.timeRemaining}</span>`);
                     });
+                }
+
+                // Sovraccarico crawler — per-pianeta, solo Collezionista. Non è nell'API:
+                // va letto dalle Impostazioni risorse di OGNI pianeta → invita a "girare i pianeti".
+                if (d.playerClass === 'collector') {
+                    const ovMap    = d.overloadByPlanet || {};
+                    const plist    = getSidebarPlanets();
+                    const readList = plist.filter(p => p.id != null && ovMap[p.id] !== undefined);
+                    html += subTitle(L.crawlerOverload(readList.length, plist.length));
+                    readList.forEach(p => {
+                        const on = ovMap[p.id];
+                        html += `<div class="ov_row"><span class="ov_lbl">P${String(p.pos).padStart(2,'0')} · ${p.name||'—'}</span>` +
+                                `<span class="${on ? 'ov_ok_txt' : 'ov_dim'}">${on ? L.overloadOn : L.overloadOff}</span></div>`;
+                    });
+                    const ovMissing = plist.filter(p => p.id != null && ovMap[p.id] === undefined);
+                    if (ovMissing.length) {
+                        html += `<div class="ov_hint">${L.hintOverload}</div>`;
+                        ovMissing.forEach(p => {
+                            const href = `?page=ingame&component=resourcesettings&cp=${p.id}`;
+                            html += `<div class="ov_row ov_dim"><span class="ov_lbl">✗ <a href="${href}" style="color:#5a9aca">${p.name || p.coords}</a></span><span>—</span></div>`;
+                        });
+                    }
                 }
 
                 empBody.innerHTML = html;

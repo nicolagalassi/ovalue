@@ -2,7 +2,7 @@
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
-import { SHOP_ITEMS } from '../data/ogame_db';
+import { SHOP_ITEMS, DM_PACKAGES, DM_EVENT_BONUSES, dmPackageAmount } from '../data/ogame_db';
 
 /**
  * Shopping List V5 - "Event Spotlight" Layout
@@ -68,12 +68,35 @@ const ITEM_GLYPHS = {
         paths: ['M12 19l9 2-9-18-9 18 9-2zm0 0v-8'],
         tint: 'text-sky-300 bg-sky-500/10 border-sky-400/20'
     },
+    _res_amp: {
+        paths: ['M13 10V3L4 14h7v7l9-11h-7z'],
+        tint: 'text-emerald-300 bg-emerald-500/10 border-emerald-400/20'
+    },
+    _exp_res_amp: {
+        paths: ['M12 19l9 2-9-18-9 18 9-2zm0 0v-8'],
+        tint: 'text-sky-300 bg-sky-500/10 border-sky-400/20'
+    },
+    _exp_computer: {
+        paths: ['M9 3v18m6-18v18M3 9h18M3 15h18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z'],
+        tint: 'text-violet-300 bg-violet-500/10 border-violet-400/20'
+    },
+    _scrap_offer: {
+        paths: ['M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
+        tint: 'text-amber-300 bg-amber-500/10 border-amber-400/20'
+    },
     _default: {
         paths: ['M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
         tint: 'text-slate-400 bg-slate-500/10 border-slate-500/20'
     }
 };
-const itemGlyph = (k) => ITEM_GLYPHS[k] || ITEM_GLYPHS._default;
+const itemGlyph = (k) => {
+    if (ITEM_GLYPHS[k]) return ITEM_GLYPHS[k];
+    if (/^res_amp_/.test(k))      return ITEM_GLYPHS._res_amp;
+    if (/^exp_res_amp_/.test(k))  return ITEM_GLYPHS._exp_res_amp;
+    if (k === 'exp_computer')     return ITEM_GLYPHS._exp_computer;
+    if (/^scrap_offer_/.test(k))  return ITEM_GLYPHS._scrap_offer;
+    return ITEM_GLYPHS._default;
+};
 
 // State
 const shopCart = ref([]);
@@ -83,6 +106,25 @@ const activeCategory = ref(SHOP_ITEMS.categories[0].id);
 const activeDiscountEvent = ref('none');
 const isMounted = ref(false);
 const lastAddedId = ref(null);
+
+// ── Selettore Tagli di MO (pacchetti Materia Oscura) ──────────────────────
+// Riferimento in cima alla lista: mostra quanta MO rende ogni taglio in €,
+// con gli stessi bonus del Pack Exchange (bonus evento + bonus pagamento PayPal).
+const dmPanelOpen = ref(false);
+const dmEventBonus = ref(0);
+const dmPaymentBonus = ref(true);
+const dmPackages = computed(() =>
+    DM_PACKAGES.map(pkg => {
+        const amount = dmPackageAmount(pkg, { paymentBonus: dmPaymentBonus.value, eventBonus: dmEventBonus.value });
+        return {
+            cost: pkg.cost,
+            base: pkg.amount,
+            amount,
+            perEuro: Math.floor(amount / pkg.cost),
+            gain: amount - pkg.amount
+        };
+    })
+);
 
 // Sync with active profile
 watch(activeProfile, (newP) => {
@@ -285,6 +327,7 @@ const fullCatalog = computed(() => {
             blocks = [
                 { blockKey: 'boost-res', titleKey: 'shop_boosters_sub_res', items: ['booster_metal','booster_crystal','booster_deut'].map(pair) },
                 { blockKey: 'boost-en', titleKey: 'shop_boosters_sub_energy', items: [pair('booster_energy')] },
+                { blockKey: 'boost-resamp', titleKey: 'shop_boosters_sub_resamp', items: ['res_amp_15','res_amp_20','res_amp_25','res_amp_30','res_amp_40'].map(pair) },
             ];
         } else if (cat.id === 'construction') {
             blocks = [
@@ -292,7 +335,11 @@ const fullCatalog = computed(() => {
                 { blockKey: 'cons-life', titleKey: 'shop_construction_sub_lifeforms', items: ['kraken_lifeforms','detroid_lifeforms','newtron_lifeforms'].map(pair) },
             ];
         } else if (cat.id === 'expedition') {
-            blocks = [{ blockKey: 'exp-std', titleKey: null, items: ['exp_delay_50','exp_delay_75','exp_delay_100'].map(pair) }];
+            blocks = [
+                { blockKey: 'exp-delay', titleKey: 'shop_expedition_sub_delay', items: ['exp_delay_50','exp_delay_75','exp_delay_100'].map(pair) },
+                { blockKey: 'exp-resamp', titleKey: 'shop_expedition_sub_resamp', items: ['exp_res_amp_10','exp_res_amp_15','exp_res_amp_20','exp_res_amp_25','exp_res_amp_30','exp_res_amp_35','exp_res_amp_40'].map(pair) },
+                { blockKey: 'exp-computer', titleKey: 'shop_expedition_sub_computer', items: ['exp_computer'].map(pair) },
+            ];
         } else {
             const flat = {};
             for (const [k, v] of Object.entries(SHOP_ITEMS.items)) if (v.cat === cat.id) flat[k] = v;
@@ -592,6 +639,56 @@ const getSwipeStyle = (idx) => {
                   :aria-label="t('shop_search_no_results')">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
+        </div>
+      </div>
+
+      <!-- Selettore Tagli di MO (pacchetti Materia Oscura) -->
+      <div class="px-4 md:px-10 pb-2">
+        <div class="rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] overflow-hidden">
+          <button type="button" @click="dmPanelOpen = !dmPanelOpen"
+                  class="w-full flex items-center gap-3 px-4 py-3 text-left"
+                  :aria-expanded="dmPanelOpen">
+            <div class="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-400/25 flex items-center justify-center text-violet-300 flex-shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 1v-1m0 0c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[11px] font-black uppercase tracking-widest text-violet-200">{{ t('shop_mo_packages_title') }}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">{{ t('shop_mo_packages_sub') }}</div>
+            </div>
+            <svg class="w-4 h-4 text-slate-500 transition-transform flex-shrink-0" :class="dmPanelOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+
+          <div v-if="dmPanelOpen" class="px-4 pb-4 border-t border-violet-500/10 pt-3">
+            <!-- Controlli bonus -->
+            <div class="flex flex-col sm:flex-row sm:items-end gap-3 mb-3">
+              <div class="flex-1 min-w-0">
+                <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-1.5">{{ t('lbl_event_bonus') }}</div>
+                <div class="flex flex-wrap gap-1">
+                  <button v-for="b in DM_EVENT_BONUSES" :key="b" @click="dmEventBonus = b"
+                          class="px-2.5 py-1.5 text-[11px] font-bold rounded-lg transition-all border"
+                          :class="dmEventBonus === b ? 'bg-amber-500/15 border-amber-400/35 text-amber-200' : 'text-slate-500 hover:text-slate-300 border-transparent'">
+                    <template v-if="b === 0">–</template><template v-else>+{{ b }}%</template>
+                  </button>
+                </div>
+              </div>
+              <label class="flex items-center gap-2 cursor-pointer select-none flex-shrink-0">
+                <input type="checkbox" v-model="dmPaymentBonus" class="w-4 h-4 accent-violet-500 rounded" />
+                <span class="text-[11px] font-medium text-slate-300">{{ t('lbl_payment_bonus') }}</span>
+                <span class="hidden sm:inline text-[9px] text-violet-400/50 font-mono">PayPal · Carta · Amazon</span>
+              </label>
+            </div>
+
+            <!-- Griglia tagli -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              <div v-for="pkg in dmPackages" :key="pkg.cost"
+                   class="rounded-xl border border-slate-700/25 bg-black/30 px-3 py-2.5 flex flex-col">
+                <div class="text-[13px] font-black text-slate-200">{{ pkg.cost }} €</div>
+                <div class="text-sm font-black font-mono text-violet-200 mt-1 leading-none">{{ formatNum(pkg.amount) }}<span class="text-[9px] opacity-50 ml-0.5">MO</span></div>
+                <div class="text-[9px] text-slate-500 font-mono mt-1">{{ formatNum(pkg.perEuro) }} MO/€</div>
+                <div v-if="pkg.gain > 0" class="text-[9px] text-emerald-400/70 font-mono mt-0.5">+{{ formatNum(pkg.gain) }}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

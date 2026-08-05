@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.9.0
+// @version      3.11.0
 // @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
 // @author       OValue
 // @license      MIT
@@ -114,6 +114,8 @@
             missingLf:      n => `⚠ Razze Mancanti (${n})`,
             activeLf:       n => `Razze Attive (${n})`,
             globalItems:    n => `Item Globali (${n})`,
+            crawlerOverload: (n, tot) => `⚡ Sovraccarico Crawler (${n}/${tot})`,
+            hintOverload: 'Il fattore crawler (sovraccarico >100%) non è nell\'API: apri le <b>Impostazioni risorse</b> di ogni pianeta (girando i pianeti) per leggerlo.',
             bonusMetal: 'Bonus Metallo', bonusClass: 'Bonus Classe',
             lfApiNote: 'Bonus e ricerche letti dall\'API — nessuna pagina da visitare.',
             lifeformLevels: 'Livelli Forme di Vita',
@@ -144,6 +146,8 @@
             missingLf:      n => `⚠ Missing Species (${n})`,
             activeLf:       n => `Active Species (${n})`,
             globalItems:    n => `Global Items (${n})`,
+            crawlerOverload: (n, tot) => `⚡ Crawler Overload (${n}/${tot})`,
+            hintOverload: 'The crawler factor (overload >100%) is not in the API: open each planet\'s <b>Resource Settings</b> (cycle through your planets) to read it.',
             bonusMetal: 'Metal Bonus', bonusClass: 'Class Bonus',
             lfApiNote: 'Bonuses and researches read from the API — no page to visit.',
             lifeformLevels: 'Lifeform Levels',
@@ -173,6 +177,8 @@
             missingLf:      n => `⚠ Fehlende Spezies (${n})`,
             activeLf:       n => `Aktive Spezies (${n})`,
             globalItems:    n => `Globale Items (${n})`,
+            crawlerOverload: (n, tot) => `⚡ Crawler-Überladung (${n}/${tot})`,
+            hintOverload: 'Der Crawler-Faktor (Überladung >100%) ist nicht in der API: öffne die <b>Ressourcen-Einstellungen</b> jedes Planeten (Planeten durchgehen), um ihn zu lesen.',
             bonusMetal: 'Metall-Bonus', bonusClass: 'Klassen-Bonus',
             lfApiNote: 'Boni und Forschungen aus der API — keine Seite nötig.',
             lifeformLevels: 'Lebensform-Stufen',
@@ -202,6 +208,8 @@
             missingLf:      n => `⚠ Espèces manquantes (${n})`,
             activeLf:       n => `Espèces actives (${n})`,
             globalItems:    n => `Items globaux (${n})`,
+            crawlerOverload: (n, tot) => `⚡ Surcharge Crawler (${n}/${tot})`,
+            hintOverload: 'Le facteur crawler (surcharge >100%) n\'est pas dans l\'API : ouvrez les <b>Paramètres de ressources</b> de chaque planète (parcourez vos planètes) pour le lire.',
             bonusMetal: 'Bonus métal', bonusClass: 'Bonus classe',
             lfApiNote: 'Bonus et recherches lus depuis l\'API — aucune page à visiter.',
             lifeformLevels: 'Niveaux des formes de vie',
@@ -277,7 +285,8 @@
         playerName: '', playerClass: 'none', allianceClass: 'none',
         universeName: '', universeSpeed: 1,
         officers: {}, lfBonuses: { metal: '0%', classBonus: '0%' },
-        settings: { plasma: 0 }, planets: [], planetLifeforms: {}, globalItems: []
+        settings: { plasma: 0 }, planets: [], planetLifeforms: {}, globalItems: [],
+        crawlerFactorByPlanet: {}
     };
     for (const [k, v] of Object.entries(DEFAULTS)) {
         if (d[k] === undefined)
@@ -371,6 +380,40 @@
         if (!detected) return;
         d.alliance_collected = true;
         if (d.allianceClass !== detected) d.allianceClass = detected;
+        save();
+        updatePanel();
+    }
+
+    // ── SOVRACCARICO CRAWLER ─────────────────────────────────────────────────
+    // Il fattore di produzione crawler (0..150%, il sovraccarico >100% solo per Collezionisti)
+    // NON è nell'API accountInfo: esiste solo sulla pagina Impostazioni risorse, come
+    // <select name="productionFactor[217]"> con l'opzione selezionata = fattore corrente.
+    // Lo leggiamo dal DOM della pagina che l'utente ha aperto (nessun fetch di background,
+    // nessun cp=: AGENTS.md §4). È per-pianeta → serve visitare ogni pianeta ("girare i pianeti").
+    // OValue modella l'overload come booleano (×1.5 = 150%): overload = fattore > 100%.
+    function detectCrawlerFactor() {
+        const sel = document.querySelector(
+            'select[name="productionFactor[217]"], [data-ipi-hint="ipiResourcesetting217"] select'
+        );
+        if (!sel) return null;
+        const raw = sel.value || (sel.querySelector('option[selected]') || {}).value;
+        const n = parseInt(raw);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function collectResourceSettings() {
+        if (getPlanetType() === 'moon') return;    // le lune non hanno crawler
+        const planetId = getPlanetId();
+        if (planetId == null) return;
+        const factor = detectCrawlerFactor();
+        if (factor === null) return;               // non rilevato → non sovrascrivere
+        d.crawlerFactorByPlanet = d.crawlerFactorByPlanet || {};
+        d.crawlerFactorByPlanet[planetId] = factor;
+        // Aggiorna anche il pianeta già letto dall'impero, se presente
+        if (Array.isArray(d.planets)) {
+            const p = d.planets.find(p => p.id === planetId);
+            if (p) p.overload = factor > 100;
+        }
         save();
         updatePanel();
     }
@@ -563,6 +606,75 @@
         return { lfResearch, lfBuildings };
     }
 
+    // ── ITEM: rilevamento amplificatori (condiviso DOM + buffs accountInfo) ───
+    // Amplificatore metallo → livello 10/20/30/40. Riconosce il nome nelle 4 lingue,
+    // sia dal tooltip DOM (.item_img) sia dal campo `name` dei buff v13 (stesso testo).
+    function metalAmpLevel(t) {
+        if (!t) return 0;
+        let lvl = 0;
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Bronzo|Bronze)\b/i.test(t) ||
+            /(?:Bronze)\s+(?:Metal|Metall)/i.test(t))                                lvl = Math.max(lvl, 10);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Argento|Silver|Silber|Argent)\b/i.test(t) ||
+            /(?:Silver)\s+(?:Metal|Metall)/i.test(t))                                lvl = Math.max(lvl, 20);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Oro|Gold|Or)\b/i.test(t) ||
+            /(?:Gold)\s+(?:Metal|Metall)/i.test(t))                                  lvl = Math.max(lvl, 30);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Platino|Platinum|Platin|Platine)\b/i.test(t) ||
+            /(?:Platinum)\s+(?:Metal|Metall)/i.test(t))                              lvl = Math.max(lvl, 40);
+        return lvl;
+    }
+    // Amplificatore risorse → percentuale (numero nel nome/tooltip).
+    function resourceAmpPct(t) {
+        const amp = (t || '').match(/(?:Amplificatore di risorse|Resource Amplifier|Ressourcenverst[äa]rker|Amplificateur de ressources)[^\d]*(\d+)/i);
+        return amp ? parseInt(amp[1]) : 0;
+    }
+
+    // Converte i timestamp di un buff (accountInfo v13) in { timeRemaining, totalDuration }.
+    // I campi effect/buff Start/End hanno unità epoch non documentata: auto-rileviamo s vs ms
+    // e validiamo una finestra plausibile (entro 3 anni). Se 0 / relativo / scaduto → null:
+    // l'item è permanente o non tracciabile in modo affidabile → NON lo tracciamo (come il DOM,
+    // che salta gli item permanenti), così non mostriamo mai una scadenza sbagliata.
+    function buffExpiry(b) {
+        let end   = Math.max(+((b && b.effectEnd)   || 0), +((b && b.buffEnd)   || 0));
+        let start = Math.max(+((b && b.effectStart) || 0), +((b && b.buffStart) || 0));
+        if (end   > 1e12) end   = Math.floor(end   / 1000);   // ms → s
+        if (start > 1e12) start = Math.floor(start / 1000);
+        const nowS = Math.floor(Date.now() / 1000);
+        const MAX  = nowS + 3 * 365 * 86400;
+        if (!(end > nowS && end < MAX)) return null;
+        const total = (start && start < end) ? (end - start) * 1000 : null;
+        return { timeRemaining: fmtDuration(end - nowS), totalDuration: total };
+    }
+    function fmtDuration(sec) {
+        sec = Math.max(0, Math.floor(sec));
+        const d = Math.floor(sec / 86400); sec -= d * 86400;
+        const h = Math.floor(sec / 3600);  sec -= h * 3600;
+        const m = Math.floor(sec / 60);    const s = sec - m * 60;
+        return `${d}d ${h}h ${m}m ${s}s`;
+    }
+
+    // Estrae gli item dall'array `buffs` di un pianeta accountInfo (v13):
+    //   - item        → livello amplificatore metallo (per-pianeta, come nel DOM)
+    //   - itemCustom  → percentuale amplificatore risorse (per-pianeta)
+    //   - globals     → altri item (booster impero) con scadenza, per il tracker.
+    // Gli amplificatori metallo/risorse sono esclusi da `globals` (come il DOM li esclude
+    // da .empireItems): sono già mappati come input di produzione per-pianeta.
+    function parseBuffs(buffs) {
+        let item = 0, itemCustom = 0;
+        const globals = [];
+        for (const b of (Array.isArray(buffs) ? buffs : [])) {
+            const name = (b && b.name) || '';
+            if (!name) continue;
+            const ml = metalAmpLevel(name);
+            if (ml) { item = Math.max(item, ml); continue; }
+            const rp = resourceAmpPct(name);
+            if (rp) { itemCustom = Math.max(itemCustom, rp); continue; }
+            const exp = buffExpiry(b);
+            if (!exp) continue;   // permanente/sconosciuto → non tracciato
+            globals.push({ name, timeRemaining: exp.timeRemaining, totalDuration: exp.totalDuration });
+        }
+        return { item, itemCustom, globals };
+    }
+
     // Chiama l'API empire (LEGACY, server pre-v13). Su OGame v13 questo endpoint
     // risponde 405 Method Not Allowed → usato solo come fallback dopo accountInfo.
     async function callEmpireAPI() {
@@ -606,6 +718,7 @@
         // selectedSpeciesId 703 → lifeform '3' (LF_NUM_MAP)
         flat.lifeform = p.selectedSpeciesId ? (p.selectedSpeciesId - 700) : 0;
         flat.coords = `${p.galaxy}:${p.system}:${p.position}`;
+        flat.buffs = Array.isArray(p.buffs) ? p.buffs : [];  // item attivi (amplificatori + booster impero)
         return flat;
     }
 
@@ -706,6 +819,8 @@
         const sidebar = getSidebarPlanets();
         if (!sidebar.length) return false;
 
+        const buffGlobals = new Map();  // name → item globale (dedup cross-pianeta, come .empireItems nel DOM)
+
         d.planets = sidebar.map(sp => {
             // Cerca per id o planetID (i due campi possono essere diversi nell'API)
             const ap = apiPlanets.find(a =>
@@ -717,6 +832,7 @@
                 : {};
 
             let lfResearch = existing.lfResearch || {}, lfBuildings = existing.lfBuildings || {};
+            let item = existing.item || 0, itemCustom = existing.itemCustom || 0;
             if (ap) {
                 ({ lfResearch, lfBuildings } = parseLfFromApi(ap));
                 // Salva razza dall'API se non già catturata via DOM
@@ -724,6 +840,12 @@
                 if (lfFromAPI && !d.planetLifeforms[sp.id]) {
                     d.planetLifeforms[sp.id] = lfFromAPI;
                 }
+                // Item da buffs accountInfo (v13): amplificatori per-pianeta + item globali,
+                // così su v13 gli item si idratano senza aprire la pagina Impero.
+                const parsed = parseBuffs(ap.buffs);
+                if (parsed.item)       item       = parsed.item;
+                if (parsed.itemCustom) itemCustom = parsed.itemCustom;
+                for (const g of parsed.globals) if (!buffGlobals.has(g.name)) buffGlobals.set(g.name, g);
             }
 
             return {
@@ -736,12 +858,19 @@
                 crawlers:  ap ? (ap['217'] || 0) : (existing.crawlers  || 0),
                 human:     ap ? (ap['11106'] || 0) : (existing.human   || 0),
                 magma:     ap ? (ap['12106'] || 0) : (existing.magma   || 0),
-                item: existing.item || 0, itemCustom: existing.itemCustom || 0,
-                overload: existing.overload || false,
+                item, itemCustom,
+                overload: (d.crawlerFactorByPlanet && d.crawlerFactorByPlanet[sp.id] !== undefined)
+                          ? d.crawlerFactorByPlanet[sp.id] > 100 : (existing.overload || false),
                 lifeformLevel: existing.lifeformLevel || 0,
                 lfResearch, lfBuildings
             };
         });
+
+        // Item globali dai buffs — solo finché la pagina Impero (DOM, fonte autorevole con
+        // durate complete) non li ha mai forniti: nessun clobber dei dati DOM più ricchi.
+        if (!d._itemsFromEmpireDom && buffGlobals.size) {
+            d.globalItems = [...buffGlobals.values()];
+        }
 
         // Plasma
         const firstWithPlasma = apiPlanets.find(ap => ap['122'] != null);
@@ -884,18 +1013,9 @@
             let item = 0, itemCustom = 0;
             p.querySelectorAll('.item_img').forEach(img => {
                 const t = img.getAttribute('data-tooltip-title') || '';
-                // Amplificatore metallo: IT/EN/DE/FR + livello (Bronzo/Bronze/Silber/Argent = 10%, ecc.)
-                if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Bronzo|Bronze)\b/i.test(t) ||
-                    /(?:Bronze)\s+(?:Metal|Metall)/i.test(t))                              item = Math.max(item, 10);
-                if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Argento|Silver|Silber|Argent)\b/i.test(t) ||
-                    /(?:Silver)\s+(?:Metal|Metall)/i.test(t))                              item = Math.max(item, 20);
-                if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Oro|Gold|Or)\b/i.test(t) ||
-                    /(?:Gold)\s+(?:Metal|Metall)/i.test(t))                                item = Math.max(item, 30);
-                if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Platino|Platinum|Platin|Platine)\b/i.test(t) ||
-                    /(?:Platinum)\s+(?:Metal|Metall)/i.test(t))                            item = Math.max(item, 40);
-                // Amplificatore risorse: IT/EN/DE/FR
-                const amp = t.match(/(?:Amplificatore di risorse|Resource Amplifier|Ressourcenverstärker|Amplificateur de ressources)[^\d]*(\d+)/i);
-                if (amp) itemCustom = parseInt(amp[1]);
+                item     = Math.max(item, metalAmpLevel(t));
+                const rp = resourceAmpPct(t);
+                if (rp) itemCustom = rp;
             });
 
             // Dati API per questo pianeta — cerca per id O per planetID (i due campi possono differire)
@@ -940,7 +1060,9 @@
                 coords, pos,
                 lifeform: lifeformName,
                 metal, crystal, deuterium, human, magma, crawlers,
-                item, itemCustom, overload: false,
+                item, itemCustom,
+                overload: (planetId != null && d.crawlerFactorByPlanet && d.crawlerFactorByPlanet[planetId] !== undefined)
+                          ? d.crawlerFactorByPlanet[planetId] > 100 : false,
                 lifeformLevel: getLifeformLevel(planetId, lifeformName),
                 lfResearch, lfBuildings
             });
@@ -983,6 +1105,7 @@
             globalItems.push({ name, timeRemaining, totalDuration });
         });
         d.globalItems = globalItems;
+        d._itemsFromEmpireDom = true;  // DOM Impero: fonte autorevole per gli item globali (durate complete)
         d.empire_collected = true;
         save();
         updatePanel();
@@ -1063,6 +1186,9 @@
     } else if (page === 'ingame' && component === 'alliance') {
         // Classe alleanza dal DOM della pagina Alleanza aperta dall'utente (nessun fetch)
         setTimeout(collectAllianceClass, 1000);
+    } else if (page === 'ingame' && component === 'resourcesettings') {
+        // Sovraccarico crawler dal DOM della pagina Impostazioni risorse (per-pianeta, nessun fetch)
+        setTimeout(collectResourceSettings, 1000);
     } else if (component === 'empire') {
         tryCollectEmpire();
     } else {
@@ -1229,6 +1355,29 @@
                         html += row(`<span class="ov_item_name">${it.name}</span>`,
                             `<span class="${perm ? 'ov_perm' : 'ov_warn'}">${it.timeRemaining}</span>`);
                     });
+                }
+
+                // Sovraccarico crawler — per-pianeta, solo Collezionista. Non è nell'API:
+                // va letto dalle Impostazioni risorse di OGNI pianeta → invita a "girare i pianeti".
+                if (d.playerClass === 'collector') {
+                    const facMap   = d.crawlerFactorByPlanet || {};
+                    const plist    = getSidebarPlanets();
+                    const readList = plist.filter(p => p.id != null && facMap[p.id] !== undefined);
+                    html += subTitle(L.crawlerOverload(readList.length, plist.length));
+                    readList.forEach(p => {
+                        const f  = facMap[p.id];
+                        const on = f > 100;
+                        html += `<div class="ov_row"><span class="ov_lbl">P${String(p.pos).padStart(2,'0')} · ${p.name||'—'}</span>` +
+                                `<span class="${on ? 'ov_ok_txt' : 'ov_dim'}">${f}%</span></div>`;
+                    });
+                    const ovMissing = plist.filter(p => p.id != null && facMap[p.id] === undefined);
+                    if (ovMissing.length) {
+                        html += `<div class="ov_hint">${L.hintOverload}</div>`;
+                        ovMissing.forEach(p => {
+                            const href = `?page=ingame&component=resourcesettings&cp=${p.id}`;
+                            html += `<div class="ov_row ov_dim"><span class="ov_lbl">✗ <a href="${href}" style="color:#5a9aca">${p.name || p.coords}</a></span><span>—</span></div>`;
+                        });
+                    }
                 }
 
                 empBody.innerHTML = html;

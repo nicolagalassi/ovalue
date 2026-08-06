@@ -94,9 +94,11 @@ const stockMet = createFormattedInput(stock, 'metal');
 const stockCry = createFormattedInput(stock, 'crystal');
 const stockDeu = createFormattedInput(stock, 'deuterium');
 
+
 // --- BUILDER & PARSER ---
 // --- BUILDER ---
 const builder = reactive({ cat: 'resources', item: 'metal_mine', level: 1, startLevel: 0, mult: 1 });
+const builderMult = createFormattedInput(builder, 'mult');
 const basePacks = DM_PACKAGES;  // fonte condivisa con la Shopping List (src/data/ogame_db.js)
 
 const currentItems = computed(() => { const catData = OGAME_DB[builder.cat]; return catData ? catData.items : {}; });
@@ -489,7 +491,8 @@ const copyShareText = async () => {
                         <label for="pc-builder-mult" class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ builder.cat === 'fleet' ? t('lbl_quantity') : t('lbl_planets') }}</label>
                         <div class="flex items-center">
                             <span v-if="builder.cat !== 'fleet'" class="absolute left-3 text-gray-500 text-sm font-bold">x</span>
-                            <input id="pc-builder-mult" type="number" v-model.number="builder.mult" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono" :class="{'pl-6': builder.cat !== 'fleet'}">
+                            <input v-if="builder.cat === 'fleet'" id="pc-builder-mult" type="text" inputmode="numeric" v-model="builderMult" @focus="$event.target.select()" class="input-glass w-full px-2 py-2 text-sm font-mono">
+                            <input v-else id="pc-builder-mult" type="number" v-model.number="builder.mult" @focus="$event.target.select()" min="1" class="input-glass w-full px-2 py-2 text-sm font-mono pl-6">
                         </div>
                     </div>
                 </div>

@@ -37,6 +37,17 @@ const lfResearchCount = computed(() =>
     Object.values(props.planet.lfResearch || {}).filter(v => v > 0).length
 );
 
+// Amplificatore di risorse: item unico OGame con tagli fissi 15/20/25/30/40%.
+// Un valore fuori scala salvato prima (quando il campo era libero) resta
+// selezionabile finché non si sceglie un taglio valido, così non si perde il dato.
+const RES_AMP_STEPS = [15, 20, 25, 30, 40];
+const resAmpOptions = computed(() => {
+    const v = parseInt(props.planet.itemCustom) || 0;
+    return (v > 0 && !RES_AMP_STEPS.includes(v))
+        ? [...RES_AMP_STEPS, v].sort((a, b) => a - b)
+        : RES_AMP_STEPS;
+});
+
 const SPECIES_COLORS = {
     humans:  { dot: 'bg-green-400',  text: 'text-green-400/80',  border: 'border-green-500/20',  bg: 'bg-green-500/[0.06]'  },
     rocktal: { dot: 'bg-orange-400', text: 'text-orange-400/80', border: 'border-orange-500/20', bg: 'bg-orange-500/[0.06]' },
@@ -252,10 +263,12 @@ const breakdown = computed(() => {
           </div>
           <div class="flex flex-col gap-0.5">
             <span class="text-[8px] text-slate-400 uppercase tracking-wider font-semibold text-center">{{ t('lbl_item_additional') }}</span>
-            <input type="number" v-model.number="planet.itemCustom" @focus="$event.target.select()"
-                   :aria-label="t('lbl_item_additional')"
-                   placeholder="+%"
-                 class="w-12 bg-ogame-bg/50 border border-slate-700/25 rounded-lg px-1.5 py-1 text-[11px] font-mono text-slate-400 text-center focus:outline-none focus:border-sky-500/40" />
+            <select v-model.number="planet.itemCustom"
+                    :aria-label="t('lbl_item_additional')"
+                    class="bg-ogame-bg/50 border border-slate-700/25 rounded-lg text-[11px] text-slate-400 px-1.5 py-1 focus:outline-none focus:border-sky-500/40 cursor-pointer">
+              <option value="0">&ndash;</option>
+              <option v-for="pct in resAmpOptions" :key="pct" :value="pct">+{{ pct }}%</option>
+            </select>
           </div>
         </div>
       </div>

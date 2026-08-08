@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.1.0
+// @version      4.2.0
 // @description  Raccoglie i dati dell'impero e mostra la produzione di metallo 24h con simulatore di classe (Production Core). Successore dell'exporter: le funzioni di esportazione restano intatte.
 // @author       OValue
 // @license      MIT
@@ -830,25 +830,49 @@
     }
 
     // ── ITEM: rilevamento amplificatori (condiviso DOM + buffs accountInfo) ───
+    // I tooltip DOM sono nella forma "Nome item|<html descrizione>": per riconoscere
+    // l'item si usa solo la parte prima della pipe, altrimenti il testo della
+    // descrizione (che cita spedizioni, percentuali, ecc.) falsa il match.
+    // I buff di accountInfo espongono già il solo nome → stessa funzione.
+    function itemName(t) {
+        return String(t || '').split('|')[0].trim();
+    }
+
+    // Item legati alle spedizioni: non toccano la produzione dei pianeti.
+    // Es. "Amplificatore risorse per spedizioni (25 %)" ha lo stesso prefisso
+    // dell'amplificatore di produzione → senza questo filtro verrebbe conteggiato.
+    const EXPEDITION_ITEM_RE = /spedizion|expedition|exp[ée]dition/i;
+
     // Amplificatore metallo → livello 10/20/30/40. Riconosce il nome nelle 4 lingue,
     // sia dal tooltip DOM (.item_img) sia dal campo `name` dei buff v13 (stesso testo).
     function metalAmpLevel(t) {
-        if (!t) return 0;
+        const n = itemName(t);
+        if (!n) return 0;
         let lvl = 0;
-        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Bronzo|Bronze)\b/i.test(t) ||
-            /(?:Bronze)\s+(?:Metal|Metall)/i.test(t))                                lvl = Math.max(lvl, 10);
-        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Argento|Silver|Silber|Argent)\b/i.test(t) ||
-            /(?:Silver)\s+(?:Metal|Metall)/i.test(t))                                lvl = Math.max(lvl, 20);
-        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Oro|Gold|Or)\b/i.test(t) ||
-            /(?:Gold)\s+(?:Metal|Metall)/i.test(t))                                  lvl = Math.max(lvl, 30);
-        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Platino|Platinum|Platin|Platine)\b/i.test(t) ||
-            /(?:Platinum)\s+(?:Metal|Metall)/i.test(t))                              lvl = Math.max(lvl, 40);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Bronzo|Bronze)\b/i.test(n) ||
+            /(?:Bronze)\s+(?:Metal|Metall)/i.test(n))                                lvl = Math.max(lvl, 10);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Argento|Silver|Silber|Argent)\b/i.test(n) ||
+            /(?:Silver)\s+(?:Metal|Metall)/i.test(n))                                lvl = Math.max(lvl, 20);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Oro|Gold|Or)\b/i.test(n) ||
+            /(?:Gold)\s+(?:Metal|Metall)/i.test(n))                                  lvl = Math.max(lvl, 30);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Platino|Platinum|Platin|Platine)\b/i.test(n) ||
+            /(?:Platinum)\s+(?:Metal|Metall)/i.test(n))                              lvl = Math.max(lvl, 40);
         return lvl;
     }
-    // Amplificatore risorse → percentuale (numero nel nome/tooltip).
+
+    // Amplificatore di risorse (produzione pianeta) → percentuale dal nome.
+    // Nome reale nello shop IT: "Amplificatore di risorse (20 %) Bronzo" — percentuale
+    // fra parentesi e suffisso di tier finale (tutti i tagli sono Bronzo). Il "di" è
+    // opzionale nel match perché l'omonimo item da spedizione ne fa a meno
+    // ("Amplificatore risorse per spedizioni (25 %)"), ed è comunque escluso a monte.
+    // Tagli attuali 15/20/25/30/40, ma la percentuale viene letta così com'è:
+    // se OGame ne aggiunge una, arriva comunque nel calcolatore.
     function resourceAmpPct(t) {
-        const amp = (t || '').match(/(?:Amplificatore di risorse|Resource Amplifier|Ressourcenverst[äa]rker|Amplificateur de ressources)[^\d]*(\d+)/i);
-        return amp ? parseInt(amp[1]) : 0;
+        const n = itemName(t);
+        if (!n || EXPEDITION_ITEM_RE.test(n)) return 0;
+        const amp = n.match(/(?:Amplificatore(?:\s+di)?\s+risorse|Resource\s+Amplifier|Ressourcenverst[äa]rker|Amplificateur\s+de\s+ressources)[^\d]*(\d+)\s*%/i);
+        const pct = amp ? parseInt(amp[1]) : 0;
+        return (pct > 0 && pct <= 100) ? pct : 0;
     }
 
     // Converte i timestamp di un buff (accountInfo v13) in { timeRemaining, totalDuration }.
@@ -1238,7 +1262,7 @@
                 const t = img.getAttribute('data-tooltip-title') || '';
                 item     = Math.max(item, metalAmpLevel(t));
                 const rp = resourceAmpPct(t);
-                if (rp) itemCustom = rp;
+                if (rp) itemCustom = Math.max(itemCustom, rp);
             });
 
             // Dati API per questo pianeta — cerca per id O per planetID (i due campi possono differire)

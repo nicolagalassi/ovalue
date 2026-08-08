@@ -119,6 +119,8 @@ const applyBulk = () => {
     planets.value.forEach(p => {
         if (target === 'overload') p.overload = (val === 1);
         else if (target === 'item') { if ([0,10,20,30,40].includes(val)) p.item = val; }
+        // Amplificatore di risorse: tagli fissi come nella scheda pianeta
+        else if (target === 'itemCustom') { if ([0,15,20,25,30,40].includes(val)) p.itemCustom = val; }
         else if (target === 'lifeform') p.lifeform = val;
         else if (p.hasOwnProperty(target)) p[target] = val;
     });
@@ -284,6 +286,7 @@ const collBreakdown = computed(() => {
             <option value="crystal">{{ t('lbl_mine_crystal') }}</option>
             <option value="deuterium">{{ t('lbl_mine_deuterium') }}</option>
             <option value="item">{{ t('lbl_item') }} (%)</option>
+            <option value="itemCustom">{{ t('lbl_item_additional') }} (%)</option>
             <option value="pos">{{ t('lbl_position') }}</option>
             <option value="magma">{{ t('lbl_magma') }}</option>
             <option value="human">{{ t('lbl_human') }}</option>
@@ -304,6 +307,14 @@ const collBreakdown = computed(() => {
             <option value="0">&ndash;</option>
             <option value="10">+10%</option>
             <option value="20">+20%</option>
+            <option value="30">+30%</option>
+            <option value="40">+40%</option>
+        </select>
+        <select v-else-if="bulkTarget === 'itemCustom'" v-model="bulkValue" class="input-glass px-2 py-1.5 text-sm flex-shrink-0">
+            <option value="0">&ndash;</option>
+            <option value="15">+15%</option>
+            <option value="20">+20%</option>
+            <option value="25">+25%</option>
             <option value="30">+30%</option>
             <option value="40">+40%</option>
         </select>

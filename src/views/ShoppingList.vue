@@ -50,52 +50,37 @@ const SHOP_ITEM_IMAGES = {
     exp_delay_50: '50_.png',
     exp_delay_75: '75_.png',
     exp_delay_100: '100_.png',
+    ingame_merchant: 'mercante.png',
+    ingame_relocate: 'reloc.png',
+    res_amp_15: 'res15.png',
+    res_amp_20: 'res20.png',
+    res_amp_25: 'res25.png',
+    res_amp_30: 'res30.png',
+    res_amp_40: 'res40.png',
+    exp_res_amp_10: 'expe10.png',
+    exp_res_amp_15: 'expe15.png',
+    exp_res_amp_20: 'expe20.png',
+    exp_res_amp_25: 'expe25.png',
+    exp_res_amp_30: 'expe30.png',
+    exp_res_amp_35: 'expe35.png',
+    exp_res_amp_40: 'expe40.png',
+    exp_computer: 'computer.png',
+    scrap_offer_77: 'scrap77.jpg',
+    scrap_offer_79: 'scrap79.jpg',
+    scrap_offer_81: 'scrap81.jpg',
+    scrap_offer_83: 'scrap83.jpg',
+    scrap_offer_85: 'scrap85.jpg',
 };
 
 const shopImgUrl = (f) => f ? `${SHOP_IMG}/${encodeURIComponent(f)}` : null;
 const shopItemImageSrc = (k) => shopImgUrl(SHOP_ITEM_IMAGES[k]);
 
-// ───── Glifi SVG per item senza immagine ─────────────────────────────────
-// Per gli item del catalogo che non hanno un'immagine OGame (es. utility
-// in-game) si disegna una tile con glifo vettoriale tintato, coerente col
-// resto del sistema: niente placeholder rotti né sole scritte.
-const ITEM_GLYPHS = {
-    ingame_merchant: {
-        paths: ['M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3'],
-        tint: 'text-amber-300 bg-amber-500/10 border-amber-400/20'
-    },
-    ingame_relocate: {
-        paths: ['M12 19l9 2-9-18-9 18 9-2zm0 0v-8'],
-        tint: 'text-sky-300 bg-sky-500/10 border-sky-400/20'
-    },
-    _res_amp: {
-        paths: ['M13 10V3L4 14h7v7l9-11h-7z'],
-        tint: 'text-emerald-300 bg-emerald-500/10 border-emerald-400/20'
-    },
-    _exp_res_amp: {
-        paths: ['M12 19l9 2-9-18-9 18 9-2zm0 0v-8'],
-        tint: 'text-sky-300 bg-sky-500/10 border-sky-400/20'
-    },
-    _exp_computer: {
-        paths: ['M9 3v18m6-18v18M3 9h18M3 15h18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z'],
-        tint: 'text-violet-300 bg-violet-500/10 border-violet-400/20'
-    },
-    _scrap_offer: {
-        paths: ['M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
-        tint: 'text-amber-300 bg-amber-500/10 border-amber-400/20'
-    },
-    _default: {
-        paths: ['M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
-        tint: 'text-slate-400 bg-slate-500/10 border-slate-500/20'
-    }
-};
-const itemGlyph = (k) => {
-    if (ITEM_GLYPHS[k]) return ITEM_GLYPHS[k];
-    if (/^res_amp_/.test(k))      return ITEM_GLYPHS._res_amp;
-    if (/^exp_res_amp_/.test(k))  return ITEM_GLYPHS._exp_res_amp;
-    if (k === 'exp_computer')     return ITEM_GLYPHS._exp_computer;
-    if (/^scrap_offer_/.test(k))  return ITEM_GLYPHS._scrap_offer;
-    return ITEM_GLYPHS._default;
+// ───── Glifo SVG di fallback ─────────────────────────────────────────────
+// Gli unici item senza immagine OGame sono gli avatar: per loro si disegna
+// una tile con glifo vettoriale tintato invece di un placeholder rotto.
+const DEFAULT_GLYPH = {
+    paths: ['M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
+    tint: 'text-slate-400 bg-slate-500/10 border-slate-500/20'
 };
 
 // State
@@ -110,9 +95,11 @@ const lastAddedId = ref(null);
 // ── Selettore Tagli di MO (pacchetti Materia Oscura) ──────────────────────
 // Riferimento in cima alla lista: mostra quanta MO rende ogni taglio in €,
 // con gli stessi bonus del Pack Exchange (bonus evento + bonus pagamento PayPal).
+// Il taglio selezionato alimenta la stima in € del carrello.
 const dmPanelOpen = ref(false);
 const dmEventBonus = ref(0);
 const dmPaymentBonus = ref(true);
+const dmSelectedCost = ref(null);
 const dmPackages = computed(() =>
     DM_PACKAGES.map(pkg => {
         const amount = dmPackageAmount(pkg, { paymentBonus: dmPaymentBonus.value, eventBonus: dmEventBonus.value });
@@ -125,14 +112,30 @@ const dmPackages = computed(() =>
         };
     })
 );
+// Default: il taglio con il miglior rapporto MO/€, finché l'utente non ne sceglie uno.
+const dmSelectedPackage = computed(() => {
+    const list = dmPackages.value;
+    return list.find(p => p.cost === dmSelectedCost.value)
+        || list.reduce((best, p) => (!best || p.perEuro > best.perEuro ? p : best), null);
+});
 
 // Sync with active profile
 watch(activeProfile, (newP) => {
     if (newP && newP.shoppingList) {
-        shopCart.value = JSON.parse(JSON.stringify(newP.shoppingList.cart || []));
+        shopCart.value = migrateCartTiers(JSON.parse(JSON.stringify(newP.shoppingList.cart || [])));
         activeDiscountEvent.value = newP.shoppingList.activeEvent || 'none';
     }
 }, { immediate: true });
+
+// Gli amplificatori risorse/spedizioni e il computer nascevano con tier "bronzo"
+// (etichetta in-game) ma sono item unici: i carrelli salvati vanno riallineati
+// al tier "none", altrimenti mostrerebbero ancora il badge Bronzo.
+function migrateCartTiers(cart) {
+    for (const entry of cart) {
+        if (entry.tier !== 'none' && SHOP_ITEMS.items[entry.id]?.tier === 'none') entry.tier = 'none';
+    }
+    return cart;
+}
 
 // Save changes back to profile
 watch([shopCart, activeDiscountEvent], () => {
@@ -322,6 +325,7 @@ const stepQty = (key, delta) => {
 };
 
 const formatNum = (n) => new Intl.NumberFormat('it-IT').format(Math.floor(n));
+const formatEuro = (n) => new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
 // Catalog Filtering & Sorting
 const visibleCategories = computed(() =>
@@ -453,6 +457,22 @@ const totalShopCartMO = computed(() => shopCart.value.reduce((s, i) => s + i.cos
 const totalShopCartCashback = computed(() => shopCart.value.reduce((s, i) => s + (i.cashback || 0), 0));
 const cartTotalQty = computed(() => shopCart.value.reduce((s, i) => s + i.mult, 0));
 const reversedCart = computed(() => [...shopCart.value].reverse());
+
+// ── Stima in € del carrello ───────────────────────────────────────────────
+// Converte il totale MO usando il taglio selezionato nel selettore MO:
+// `euro` è il pro-rata esatto, `packs`/`packsEuro` la spesa reale se si
+// comprano solo tagli interi di quel tipo.
+const cartEuroEstimate = computed(() => {
+    const pkg = dmSelectedPackage.value;
+    if (!pkg || !pkg.amount || totalShopCartMO.value <= 0) return null;
+    const packs = Math.ceil(totalShopCartMO.value / pkg.amount);
+    return {
+        pkgCost: pkg.cost,
+        euro: totalShopCartMO.value * pkg.cost / pkg.amount,
+        packs,
+        packsEuro: packs * pkg.cost
+    };
+});
 
 // Tiers & Labels
 const TIER_DISPLAY_ORDER = ['platinum', 'gold', 'silver', 'bronze', 'none'];
@@ -698,15 +718,20 @@ const getSwipeStyle = (idx) => {
               </label>
             </div>
 
-            <!-- Griglia tagli -->
+            <!-- Griglia tagli: il taglio selezionato guida la stima in € del carrello -->
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-              <div v-for="pkg in dmPackages" :key="pkg.cost"
-                   class="rounded-xl border border-slate-700/25 bg-black/30 px-3 py-2.5 flex flex-col">
+              <button v-for="pkg in dmPackages" :key="pkg.cost" type="button"
+                      @click="dmSelectedCost = pkg.cost"
+                      :aria-pressed="dmSelectedPackage?.cost === pkg.cost"
+                      class="rounded-xl border px-3 py-2.5 flex flex-col text-left transition-all"
+                      :class="dmSelectedPackage?.cost === pkg.cost
+                        ? 'border-violet-400/50 bg-violet-500/[0.12] shadow-[0_0_0_1px_rgba(167,139,250,0.25)]'
+                        : 'border-slate-700/25 bg-black/30 hover:border-slate-600/50'">
                 <div class="text-[13px] font-black text-slate-200">{{ pkg.cost }} €</div>
                 <div class="text-sm font-black font-mono text-violet-200 mt-1 leading-none">{{ formatNum(pkg.amount) }}<span class="text-[9px] opacity-50 ml-0.5">MO</span></div>
                 <div class="text-[9px] text-slate-500 font-mono mt-1">{{ formatNum(pkg.perEuro) }} MO/€</div>
                 <div v-if="pkg.gain > 0" class="text-[9px] text-emerald-400/70 font-mono mt-0.5">+{{ formatNum(pkg.gain) }}</div>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -761,9 +786,9 @@ const getSwipeStyle = (idx) => {
               >
                 <div class="relative flex items-center justify-center h-[80px] md:h-[108px] bg-black/30 border-b border-slate-700/15 overflow-hidden group">
                   <img v-if="shopItemImageSrc(entry.key)" :src="shopItemImageSrc(entry.key)" :alt="t(entry.key)" class="h-[80%] w-[80%] object-contain drop-shadow-lg transition-transform duration-500 group-hover:scale-110" loading="lazy" />
-                  <div v-else class="glyph-tile w-14 h-14 md:w-16 md:h-16 rounded-2xl border flex items-center justify-center transition-transform duration-500 group-hover:scale-110" :class="itemGlyph(entry.key).tint">
+                  <div v-else class="glyph-tile w-14 h-14 md:w-16 md:h-16 rounded-2xl border flex items-center justify-center transition-transform duration-500 group-hover:scale-110" :class="DEFAULT_GLYPH.tint">
                     <svg class="w-7 h-7 md:w-8 md:h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path v-for="(p, i) in itemGlyph(entry.key).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                      <path v-for="(p, i) in DEFAULT_GLYPH.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
                     </svg>
                   </div>
                   <div v-if="isItemEventRelated(entry.key, entry.val.costs)" class="absolute top-1.5 right-1.5 flex items-center gap-1 bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded-md leading-none shadow-sm">
@@ -850,9 +875,9 @@ const getSwipeStyle = (idx) => {
                     />
                     <div v-else
                          class="glyph-tile w-14 h-14 md:w-16 md:h-16 rounded-2xl border flex items-center justify-center transition-transform duration-500 group-hover:scale-110"
-                         :class="itemGlyph(entry.key).tint">
+                         :class="DEFAULT_GLYPH.tint">
                       <svg class="w-7 h-7 md:w-8 md:h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path v-for="(p, i) in itemGlyph(entry.key).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                        <path v-for="(p, i) in DEFAULT_GLYPH.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
                       </svg>
                     </div>
                     <div v-if="isItemEventRelated(entry.key, entry.val.costs)"
@@ -942,8 +967,8 @@ const getSwipeStyle = (idx) => {
 
     <!-- ════ SIDEBAR RIGHT: STICKY CART ════ -->
     <aside class="shop-sidebar-right hidden xl:flex flex-col">
-      <div class="cart-sticky-container custom-scrollbar">
-        <div class="panel-header flex items-center justify-between mb-6">
+      <div class="cart-sticky-container">
+        <div class="panel-header flex items-center justify-between mb-4">
           <div class="flex items-center gap-3">
             <div class="relative w-10 h-10 rounded-xl bg-ogame-accent/10 flex items-center justify-center text-ogame-accent border border-ogame-accent/20 shadow-[0_0_15px_rgba(0,240,255,0.08)]">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
@@ -954,14 +979,46 @@ const getSwipeStyle = (idx) => {
           <button @click="requestClearCart" class="text-[10px] font-bold text-red-500/40 hover:text-red-400 transition-colors uppercase tracking-tighter" v-if="shopCart.length > 0">{{ t('shop_cart_clear') }}</button>
         </div>
 
-        <div class="cart-scroll-area space-y-2">
+        <!-- Totale sopra la lista: leggibile senza dover scorrere il carrello -->
+        <div v-if="shopCart.length > 0" class="cart-total-card rounded-2xl border border-ogame-accent/20 bg-ogame-accent/[0.05] px-4 py-3.5 mb-4 flex-shrink-0">
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">{{ t('shopping_total_mo') }}</span>
+            <span class="text-[10px] font-mono text-slate-500">{{ cartTotalQty }} ×</span>
+          </div>
+          <div class="mt-1 flex items-baseline gap-1.5">
+            <span class="text-[26px] leading-none font-black font-mono tracking-tight text-white glow-white">{{ formatNum(totalShopCartMO) }}</span>
+            <span class="text-[11px] font-black text-slate-500">MO</span>
+          </div>
+
+          <!-- Stima in € sul taglio di MO selezionato nel selettore in cima alla pagina -->
+          <div v-if="cartEuroEstimate" class="mt-3 pt-3 border-t border-white/10">
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="text-[9px] font-black uppercase tracking-widest text-violet-300/70">{{ t('shopping_est_cost') }}</span>
+              <span class="text-lg leading-none font-black font-mono text-violet-200">≈ {{ formatEuro(cartEuroEstimate.euro) }} €</span>
+            </div>
+            <div class="text-[9px] text-slate-500 font-mono mt-1.5 text-right">
+              {{ cartEuroEstimate.packs }} × {{ cartEuroEstimate.pkgCost }} € = {{ formatNum(cartEuroEstimate.packsEuro) }} €
+            </div>
+          </div>
+
+          <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mt-3 px-2.5 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+            <span class="text-[9px] font-black uppercase text-green-500">{{ t('shopping_cashback') }}</span>
+            <span class="text-[11px] font-black text-green-400 font-mono">+{{ formatNum(totalShopCartCashback) }}</span>
+          </div>
+
+          <button @click="cartDrawerOpen = true" class="checkout-btn w-full mt-3.5">
+            {{ t('shopping_detail_btn') }}
+          </button>
+        </div>
+
+        <div class="cart-scroll-area custom-scrollbar space-y-2">
           <div v-for="item in reversedCart" :key="item.id + item.tier + item.duration + item.event"
                class="group cart-row flex items-start gap-2.5 p-2.5 rounded-xl bg-ogame-surface border border-slate-700/30 hover:border-slate-600/50 transition-all">
             <!-- Thumb -->
             <div class="w-10 h-10 rounded-lg bg-black/40 border border-slate-700/25 flex items-center justify-center flex-shrink-0 overflow-hidden">
               <img v-if="shopItemImageSrc(item.tKey)" :src="shopItemImageSrc(item.tKey)" :alt="t(item.tKey)" class="w-[85%] h-[85%] object-contain" loading="lazy" />
-              <svg v-else class="w-5 h-5" :class="itemGlyph(item.tKey).tint.split(' ')[0]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                <path v-for="(p, i) in itemGlyph(item.tKey).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+              <svg v-else class="w-5 h-5" :class="DEFAULT_GLYPH.tint.split(' ')[0]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path v-for="(p, i) in DEFAULT_GLYPH.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
               </svg>
             </div>
 
@@ -1006,20 +1063,6 @@ const getSwipeStyle = (idx) => {
             <span class="text-[10px] uppercase font-black tracking-widest text-slate-600">{{ t('shopping_cart_empty') }}</span>
             <span class="text-[10px] text-slate-700 mt-1.5 normal-case leading-relaxed">{{ t('shop_cart_empty_catalog_hint') }}</span>
           </div>
-        </div>
-
-        <div v-if="shopCart.length > 0" class="panel-total mt-10 pt-6 border-t border-white/10">
-          <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mb-3 px-2.5 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg">
-            <span class="text-[9px] font-black uppercase text-green-500">{{ t('shopping_cashback') }}</span>
-            <span class="text-[11px] font-black text-green-400 font-mono">+{{ formatNum(totalShopCartCashback) }}</span>
-          </div>
-          <div class="flex items-center justify-between mb-4">
-            <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{{ t('shopping_total_mo') }}</span>
-            <span class="text-2xl font-black text-white glow-white">{{ formatNum(totalShopCartMO) }}</span>
-          </div>
-          <button @click="cartDrawerOpen = true" class="checkout-btn w-full">
-            {{ t('shopping_detail_btn') }}
-          </button>
         </div>
       </div>
     </aside>
@@ -1084,8 +1127,8 @@ const getSwipeStyle = (idx) => {
                 <!-- Thumb -->
                 <div class="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-black/40 border border-slate-700/25 flex items-center justify-center flex-shrink-0 overflow-hidden">
                   <img v-if="shopItemImageSrc(item.tKey)" :src="shopItemImageSrc(item.tKey)" :alt="t(item.tKey)" class="w-[85%] h-[85%] object-contain" loading="lazy" />
-                  <svg v-else class="w-6 h-6" :class="itemGlyph(item.tKey).tint.split(' ')[0]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path v-for="(p, i) in itemGlyph(item.tKey).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                  <svg v-else class="w-6 h-6" :class="DEFAULT_GLYPH.tint.split(' ')[0]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path v-for="(p, i) in DEFAULT_GLYPH.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
                   </svg>
                 </div>
 
@@ -1137,9 +1180,17 @@ const getSwipeStyle = (idx) => {
                 </span>
                 <span class="text-xs font-black text-green-400 font-mono tracking-tight">+ {{ formatNum(totalShopCartCashback) }} MO</span>
              </div>
-             <div class="flex items-baseline justify-between gap-4 mb-6 md:mb-10 px-2">
+             <div class="flex items-baseline justify-between gap-4 px-2" :class="cartEuroEstimate ? 'mb-3' : 'mb-6 md:mb-10'">
                 <span class="text-xs font-black text-slate-500 uppercase tracking-widest text-[11px]">{{ t('shopping_order_total') }}</span>
                 <span class="text-4xl font-black text-white glow-white tracking-tighter">{{ formatNum(totalShopCartMO) }} <span class="text-sm opacity-40 font-normal">MO</span></span>
+             </div>
+             <!-- Stima in € sul taglio di MO selezionato nel selettore in cima alla pagina -->
+             <div v-if="cartEuroEstimate" class="flex items-baseline justify-between gap-4 mb-6 md:mb-10 px-2">
+                <span class="text-[10px] font-black uppercase tracking-widest text-violet-300/70">{{ t('shopping_est_cost') }}</span>
+                <span class="text-right">
+                  <span class="text-xl font-black font-mono text-violet-200">≈ {{ formatEuro(cartEuroEstimate.euro) }} €</span>
+                  <span class="block text-[10px] text-slate-500 font-mono mt-1">{{ cartEuroEstimate.packs }} × {{ cartEuroEstimate.pkgCost }} € = {{ formatNum(cartEuroEstimate.packsEuro) }} €</span>
+                </span>
              </div>
              <button @click="cartDrawerOpen = false" class="w-full py-4 bg-white text-black text-[11px] font-black uppercase tracking-[0.4em] rounded-2xl hover:bg-ogame-accent transition-all shadow-[0_15px_30px_rgba(0,0,0,0.4)] active:scale-95">{{ t('shopping_save_close') }}</button>
           </div>
@@ -1186,10 +1237,27 @@ const getSwipeStyle = (idx) => {
   z-index: 30;
 }
 
-.sidebar-scrollable, .cart-sticky-container {
+.sidebar-scrollable {
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem 1.25rem;
+}
+
+/* Header e totale restano fissi: scorre solo la lista degli articoli. */
+.cart-sticky-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1.25rem;
+}
+.cart-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-right: -0.35rem;
+  padding-right: 0.35rem;
 }
 
 .shop-main-content { flex: 1; min-width: 0; }

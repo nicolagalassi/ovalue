@@ -445,7 +445,7 @@ const copyShareText = async () => {
                 </div>
             </div>
 
-            <div class="card-glass p-6 relative overflow-hidden group">
+            <div class="card-glass p-6 relative">
                 <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2.5 uppercase tracking-wider">
                     <span class="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-[9px] font-black text-emerald-400 flex-shrink-0">2</span>
                     {{ t('builder_title') }}
@@ -475,8 +475,13 @@ const copyShareText = async () => {
                     </div>
                     <div class="md:col-span-1">
                         <label for="pc-builder-item" class="block text-[10px] uppercase font-bold text-gray-400 mb-1">{{ t('lbl_element') }}</label>
+                        <!-- v-memo: Vue riscrive l'attributo `value` di ogni <option> a ogni
+                             re-render del componente (patchProp → patchAttr, senza confronto).
+                             Una mutazione DOM dentro un <select> aperto fa chiudere e riaprire
+                             il popup nativo di Chrome: memoizzando su [key, currentLang] le
+                             option non vengono più toccate se non cambiano davvero. -->
                         <select id="pc-builder-item" v-model="builder.item" class="input-glass w-full px-2 py-2 text-sm bg-black/40">
-                            <option v-for="(val, key) in currentItems" :key="key" :value="key" class="bg-ogame-panel text-white">{{ t(key) }}</option>
+                            <option v-for="(val, key) in currentItems" :key="key" v-memo="[key, currentLang]" :value="key" class="bg-ogame-panel text-white">{{ t(key) }}</option>
                         </select>
                     </div>
                     <div class="md:col-span-1" v-if="builder.cat !== 'fleet'">

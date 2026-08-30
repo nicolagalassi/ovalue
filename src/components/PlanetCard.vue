@@ -267,7 +267,9 @@ const breakdown = computed(() => {
                     :aria-label="t('lbl_item_additional')"
                     class="bg-ogame-bg/50 border border-slate-700/25 rounded-lg text-[11px] text-slate-400 px-1.5 py-1 focus:outline-none focus:border-sky-500/40 cursor-pointer">
               <option value="0">&ndash;</option>
-              <option v-for="pct in resAmpOptions" :key="pct" :value="pct">+{{ pct }}%</option>
+              <!-- v-memo: evita che il re-render della scheda riscriva gli attributi delle
+                   option (Vue lo fa sempre) chiudendo la tendina nativa già aperta. -->
+              <option v-for="pct in resAmpOptions" :key="pct" v-memo="[pct]" :value="pct">+{{ pct }}%</option>
             </select>
           </div>
         </div>

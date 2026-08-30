@@ -268,7 +268,9 @@ const confirmImportOGame = () => {
               class="w-full text-sm bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-gray-300 focus:outline-none focus:border-sky-500/40 cursor-pointer"
             >
               <option value="" class="bg-gray-900 text-gray-500">{{ t('settings_server_none') }}</option>
-              <option v-for="srv in knownServers" :key="srv" :value="srv" class="bg-gray-900">
+              <!-- v-memo: come sopra, evita che il re-render riscriva gli attributi delle
+                   option e chiuda la tendina nativa mentre è aperta. -->
+              <option v-for="srv in knownServers" :key="srv" v-memo="[srv]" :value="srv" class="bg-gray-900">
                 {{ srv.split('.')[0] }} ({{ srv }})
               </option>
             </select>

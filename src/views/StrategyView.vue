@@ -102,21 +102,6 @@ const capLf = ref(0);
 const capLfResearch = ref(0);
 const lfChoice = ref([]);          // per pianeta: 'inherit' | 'rocktal' | 'humans' | 'mecha'
 
-// Sync con profilo attivo: inizializza form e produzione corrente.
-watch(activeProfile, (newP) => {
-    if (!newP) return;
-    const planets = newP.production?.planets || [];
-    // lfChoice — preserva selezioni esistenti se la lunghezza coincide
-    if (lfChoice.value.length !== planets.length) {
-        lfChoice.value = planets.map(() => 'inherit');
-    }
-    // Imposta target di default a current × 1.5 se vuoto
-    if (!target.value || target.value === 0) {
-        const current = newP.production?.daily || 0;
-        target.value = Math.floor(current * 1.5);
-    }
-    result.value = null;
-}, { immediate: true });
 
 // Carica config salvata al mount, poi avvia il watch per salvarla ad ogni cambio.
 onMounted(() => {
@@ -146,6 +131,126 @@ watch(
      capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
     _saveConfig
 );
+
+// ───── Stato del planner per profilo ─────────────────────────────────────
+// La configurazione sopra è globale (preferenze di calcolo). Target, selezioni
+// e risultato dipendono invece dai dati del profilo, quindi vivono in una cache
+// per profilo: cambiando pagina il piano non va più perso.
+//
+// Insieme al risultato si salva un'impronta del Production Core usato per
+// calcolarlo: se il core cambia dopo il calcolo, il piano resta visibile ma
+// viene segnalato come non più allineato — non si cancella da solo.
+const STRATEGY_STATE_KEY = 'ovalue_strategy_state';
+const MAX_CACHED_PROFILES = 5;
+
+// Hash stabile (djb2) sulla serializzazione dello stato iniziale, escludendo
+// gli override locali del planner: cambia solo se cambiano davvero i dati
+// del profilo (impostazioni account, pianeti, tassi di cambio).
+const coreFingerprint = (profile) => {
+    if (!profile) return null;
+    let str;
+    try {
+        str = JSON.stringify(buildInitialState(profile, []));
+    } catch { return null; }
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return `${str.length}:${h}`;
+};
+
+const coreHashAtPlan = ref(null);   // impronta del core al momento del calcolo
+
+const readStateStore = () => {
+    try { return JSON.parse(localStorage.getItem(STRATEGY_STATE_KEY)) || {}; }
+    catch { return {}; }
+};
+
+// Il piano serializzato pesa ~150 KB con qualche centinaio di step: la scrittura
+// è posticipata per non serializzarlo ad ogni spunta della roadmap.
+let saveStateDebounce = null;
+const saveProfileState = () => {
+    clearTimeout(saveStateDebounce);
+    saveStateDebounce = setTimeout(writeProfileState, 400);
+};
+const writeProfileState = () => {
+    const id = activeProfile.value?.id;
+    if (!id) return;
+    try {
+        const store = readStateStore();
+        store[id] = {
+            savedAt: Date.now(),
+            target: target.value,
+            lfResearchIds: [...lfResearchIds.value],
+            lfChoice: [...lfChoice.value],
+            doneSteps: [...doneSteps.value],
+            typeFilter: typeFilter.value,
+            coreHash: coreHashAtPlan.value,
+            result: result.value
+        };
+        // Pruning: si tengono solo i profili usati più di recente.
+        const ids = Object.keys(store)
+            .sort((a, b) => (store[b]?.savedAt || 0) - (store[a]?.savedAt || 0))
+            .slice(MAX_CACHED_PROFILES);
+        ids.forEach(k => delete store[k]);
+        localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify(store));
+    } catch {
+        // Quota superata (piani lunghi): si ripiega sullo stato senza risultato,
+        // così almeno target e selezioni sopravvivono al cambio pagina.
+        try {
+            const store = readStateStore();
+            if (store[activeProfile.value.id]) {
+                store[activeProfile.value.id].result = null;
+                localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify(store));
+            }
+        } catch {}
+    }
+};
+
+const restoreProfileState = (profile) => {
+    const saved = profile?.id ? readStateStore()[profile.id] : null;
+    const planets = profile?.production?.planets || [];
+
+    if (!saved) {
+        lfChoice.value = planets.map(() => 'inherit');
+        target.value = Math.floor((profile?.production?.daily || 0) * 1.5);
+        lfResearchIds.value = [...ALL_LF_IDS];
+        doneSteps.value = new Set();
+        typeFilter.value = 'all';
+        result.value = null;
+        coreHashAtPlan.value = null;
+        return;
+    }
+
+    // lfChoice è posizionale: se il numero di pianeti è cambiato non è più
+    // interpretabile e si riparte da 'inherit'.
+    lfChoice.value = Array.isArray(saved.lfChoice) && saved.lfChoice.length === planets.length
+        ? [...saved.lfChoice]
+        : planets.map(() => 'inherit');
+    target.value = saved.target || Math.floor((profile?.production?.daily || 0) * 1.5);
+    lfResearchIds.value = Array.isArray(saved.lfResearchIds) ? [...saved.lfResearchIds] : [...ALL_LF_IDS];
+    doneSteps.value = new Set(Array.isArray(saved.doneSteps) ? saved.doneSteps : []);
+    typeFilter.value = saved.typeFilter || 'all';
+    result.value = saved.result || null;
+    coreHashAtPlan.value = saved.coreHash || null;
+};
+
+// Il piano è disallineato se il core è cambiato dopo il calcolo.
+const planIsStale = computed(() => {
+    if (!result.value || !coreHashAtPlan.value) return false;
+    return coreFingerprint(activeProfile.value) !== coreHashAtPlan.value;
+});
+
+// Sync con profilo attivo: ripristina lo stato salvato per quel profilo.
+// Al cambio profilo si riparte dalla sua cache, non da zero.
+watch(activeProfile, (newP) => {
+    if (!newP) return;
+    restoreProfileState(newP);
+}, { immediate: true });
+
+// Persistenza dello stato per profilo. `result` e `doneSteps` sono sempre
+// riassegnati per intero, quindi non serve il deep watch (che su un piano da
+// centinaia di step costerebbe caro); solo lfChoice viene mutato in posizione.
+watch([target, lfResearchIds, doneSteps, typeFilter, result], saveProfileState);
+watch(lfChoice, saveProfileState, { deep: true });
 
 // Applica gli override locali (classe) allo stato iniziale.
 const applyOverrides = (state) => {
@@ -394,6 +499,8 @@ const finalizePlan = (planRes, initialState) => {
         lfChoiceSnapshot: [...lfChoice.value],
         targetSnapshot: parseInt(target.value) || 0
     };
+    // Impronta del core usata per questo calcolo: se cambia, il piano va segnalato.
+    coreHashAtPlan.value = coreFingerprint(activeProfile.value);
     doneSteps.value = new Set();
     typeFilter.value = 'all';
     isComputing.value = false;
@@ -995,6 +1102,23 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
 
         <!-- ────── RISULTATI ────── -->
         <div v-if="result" class="space-y-6">
+
+            <!-- Il piano resta visibile anche se il Production Core è cambiato:
+                 si avvisa soltanto, senza cancellare il lavoro dell'utente. -->
+            <div v-if="planIsStale"
+                 class="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-4 py-3">
+                <svg class="w-5 h-5 text-amber-400 shrink-0 mt-px" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                </svg>
+                <div class="flex-1 min-w-0">
+                    <div class="text-[12px] font-bold text-amber-200 leading-snug">{{ t('strategy_stale_title') }}</div>
+                    <div class="text-[11px] text-amber-400/70 leading-snug mt-0.5">{{ t('strategy_stale_hint') }}</div>
+                </div>
+                <button @click="computePlan" :disabled="isComputing"
+                        class="shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-200 border border-amber-400/35 hover:bg-amber-500/30 transition-colors disabled:opacity-40">
+                    {{ t('strategy_stale_recompute') }}
+                </button>
+            </div>
 
             <!-- Sommario top -->
             <div class="card-glass p-5">

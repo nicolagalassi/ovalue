@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeUnmount } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
@@ -166,42 +166,71 @@ const readStateStore = () => {
 
 // Il piano serializzato pesa ~150 KB con qualche centinaio di step: la scrittura
 // è posticipata per non serializzarlo ad ogni spunta della roadmap.
+// L'id del profilo viene catturato al momento della richiesta, non alla scadenza
+// del timer: altrimenti un cambio profilo in mezzo scriverebbe lo stato del
+// vecchio profilo sotto l'id del nuovo.
 let saveStateDebounce = null;
+let pendingSaveId = null;
 const saveProfileState = () => {
-    clearTimeout(saveStateDebounce);
-    saveStateDebounce = setTimeout(writeProfileState, 400);
-};
-const writeProfileState = () => {
     const id = activeProfile.value?.id;
+    if (!id) return;
+    pendingSaveId = id;
+    clearTimeout(saveStateDebounce);
+    saveStateDebounce = setTimeout(() => flushProfileState(), 400);
+};
+// Scrive subito l'eventuale salvataggio in sospeso. Va chiamata prima di
+// perdere lo stato corrente (smontaggio, chiusura pagina, cambio profilo),
+// altrimenti una modifica fatta meno di 400ms prima andrebbe persa — cioè
+// esattamente il bug che questa cache deve risolvere.
+const flushProfileState = (id = pendingSaveId) => {
+    clearTimeout(saveStateDebounce);
+    saveStateDebounce = null;
+    pendingSaveId = null;
+    if (id) writeProfileState(id);
+};
+// Costruisce la voce di cache dallo stato corrente. `withResult: false` produce
+// la versione leggera (solo target/selezioni) usata quando il piano non entra
+// nella quota di localStorage.
+const buildStateEntry = (withResult) => ({
+    savedAt: Date.now(),
+    target: target.value,
+    lfResearchIds: [...lfResearchIds.value],
+    lfChoice: [...lfChoice.value],
+    doneSteps: withResult ? [...doneSteps.value] : [],
+    typeFilter: typeFilter.value,
+    coreHash: withResult ? coreHashAtPlan.value : null,
+    result: withResult ? result.value : null
+});
+
+const persistStore = (store) => {
+    // Pruning: si tengono solo i profili usati più di recente.
+    Object.keys(store)
+        .sort((a, b) => (store[b]?.savedAt || 0) - (store[a]?.savedAt || 0))
+        .slice(MAX_CACHED_PROFILES)
+        .forEach(k => delete store[k]);
+    localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify(store));
+};
+
+const writeProfileState = (id) => {
     if (!id) return;
     try {
         const store = readStateStore();
-        store[id] = {
-            savedAt: Date.now(),
-            target: target.value,
-            lfResearchIds: [...lfResearchIds.value],
-            lfChoice: [...lfChoice.value],
-            doneSteps: [...doneSteps.value],
-            typeFilter: typeFilter.value,
-            coreHash: coreHashAtPlan.value,
-            result: result.value
-        };
-        // Pruning: si tengono solo i profili usati più di recente.
-        const ids = Object.keys(store)
-            .sort((a, b) => (store[b]?.savedAt || 0) - (store[a]?.savedAt || 0))
-            .slice(MAX_CACHED_PROFILES);
-        ids.forEach(k => delete store[k]);
-        localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify(store));
+        store[id] = buildStateEntry(true);
+        persistStore(store);
     } catch {
-        // Quota superata (piani lunghi): si ripiega sullo stato senza risultato,
-        // così almeno target e selezioni sopravvivono al cambio pagina.
+        // Quota superata (piani lunghi). Si riscrive la voce CORRENTE senza il
+        // piano: tenere quella vecchia letta da storage conserverebbe target e
+        // selezioni obsoleti, che è il contrario di quel che serve.
         try {
             const store = readStateStore();
-            if (store[activeProfile.value.id]) {
-                store[activeProfile.value.id].result = null;
-                localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify(store));
-            }
-        } catch {}
+            store[id] = buildStateEntry(false);
+            persistStore(store);
+        } catch {
+            // Ancora piena: si sacrificano le cache degli altri profili.
+            try {
+                localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify({ [id]: buildStateEntry(false) }));
+            } catch {}
+        }
     }
 };
 
@@ -240,11 +269,26 @@ const planIsStale = computed(() => {
 });
 
 // Sync con profilo attivo: ripristina lo stato salvato per quel profilo.
-// Al cambio profilo si riparte dalla sua cache, non da zero.
+// `activeProfile` ri-emette anche a ogni salvataggio del profilo (sync, modifiche
+// altrove): ripristinare in quei casi sovrascriverebbe il piano appena calcolato,
+// quindi si agisce solo quando cambia davvero l'id. Prima di cambiare profilo si
+// forza la scrittura di quello vecchio, altrimenti il timer in sospeso perderebbe
+// le sue ultime modifiche.
+let lastProfileId = null;
 watch(activeProfile, (newP) => {
-    if (!newP) return;
+    if (!newP || newP.id === lastProfileId) return;
+    if (lastProfileId) flushProfileState(lastProfileId);
+    lastProfileId = newP.id;
     restoreProfileState(newP);
 }, { immediate: true });
+
+// Smontaggio / chiusura pagina: scrittura immediata di quanto è in sospeso.
+onBeforeUnmount(() => {
+    window.removeEventListener('pagehide', onPageHide);
+    flushProfileState();
+});
+const onPageHide = () => flushProfileState();
+onMounted(() => window.addEventListener('pagehide', onPageHide));
 
 // Persistenza dello stato per profilo. `result` e `doneSteps` sono sempre
 // riassegnati per intero, quindi non serve il deep watch (che su un piano da
@@ -997,13 +1041,13 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         <button v-for="r in LF_RESEARCH_ALL" :key="r.id"
                                 @click="toggleLfRes(r.id)"
                                 :title="r.indirect ? r.name + ' — ' + t('strategy_lf_indirect_hint') : r.name"
-                                class="px-2 py-1 text-[10px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1"
+                                class="px-2.5 py-1.5 text-[11px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1.5"
                                 :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[r.species].on : LF_SPECIES_CHIP[r.species].off">
-                            <span class="font-mono font-bold">T{{ r.tier }}</span>
-                            <span class="max-w-[9rem] truncate">{{ r.name }}</span>
+                            <span class="font-mono font-bold text-[11px]">T{{ r.tier }}</span>
+                            <span class="max-w-[12rem] truncate">{{ r.name }}</span>
                             <!-- Nessun bonus metallo diretto: rende solo amplificando
                                  la classe Collezionista (bonus classe + crawler). -->
-                            <span v-if="r.indirect" class="px-1 rounded bg-amber-500/20 text-amber-300 text-[8px] font-bold uppercase tracking-wider">%</span>
+                            <span v-if="r.indirect" class="px-1 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">%</span>
                         </button>
                     </div>
                 </div>
@@ -1360,32 +1404,32 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                           :class="[stepBadgeClass(s), doneSteps.has(s.n) ? 'line-through' : '']">
                                         {{ stepTypeLabel(s) }}
                                     </span>
-                                    <span v-if="s.count > 1" class="ml-1.5 text-[9px] text-slate-600 font-mono">×{{ s.count }}</span>
+                                    <span v-if="s.count > 1" class="ml-1.5 text-[11px] text-slate-400 font-mono font-bold">&times;{{ s.count }}</span>
                                 </td>
                                 <td class="px-3 py-2 font-mono text-slate-400 align-top min-w-[180px] whitespace-normal">
-                                    <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5 flex items-center gap-1 flex-wrap">
-                                        <span class="px-1 rounded bg-slate-700/50 text-slate-500 font-mono font-bold text-[10px]">T{{ parseInt(s.researchId) % 100 }}</span>
-                                        {{ s.researchName }}
+                                    <div v-if="s.type === 'lf_research' && s.researchName" class="text-[11px] text-slate-400 leading-snug mb-1 flex items-center gap-1.5 flex-wrap">
+                                        <span class="px-1.5 py-px rounded bg-slate-700/60 text-slate-300 font-mono font-bold text-[11px]">T{{ parseInt(s.researchId) % 100 }}</span>
+                                        <span class="font-semibold">{{ s.researchName }}</span>
                                         <!-- Δ positivo senza bonus metallo diretto: senza questo
                                              badge la riga sembra un errore del planner. -->
                                         <span v-if="s.indirectBonus"
                                               :title="t('strategy_lf_indirect_hint')"
-                                              class="px-1 rounded bg-amber-500/15 text-amber-300/90 text-[8px] font-bold uppercase tracking-wider">
+                                              class="px-1 rounded bg-amber-500/15 text-amber-300/90 text-[9px] font-bold uppercase tracking-wider">
                                             {{ t('strategy_lf_indirect_badge') }}
                                         </span>
                                     </div>
                                     <template v-if="s.planetDetails && s.planetDetails.length > 1">
-                                        <div class="text-[10px] text-slate-500 mb-1">{{ s.planetName }}</div>
+                                        <div class="text-[11px] text-slate-400 mb-1">{{ s.planetName }}</div>
                                         <!-- Elenco esplicito: senza i nomi un blocco raggruppato
                                              non dice su quali pianeti vada fatto l'upgrade. -->
                                         <div class="flex flex-wrap gap-1">
                                             <span v-for="pd in s.planetDetails" :key="pd.idx"
-                                                  class="inline-flex items-center px-1.5 py-px rounded border border-slate-700/40 bg-black/30 text-[10px] leading-snug whitespace-nowrap text-slate-300">
+                                                  class="inline-flex items-center px-2 py-0.5 rounded border border-slate-700/50 bg-black/30 text-[12px] leading-snug whitespace-nowrap text-slate-200">
                                                 {{ pd.name }}
                                             </span>
                                         </div>
                                     </template>
-                                    <template v-else>{{ s.planetName || '—' }}</template>
+                                    <template v-else><span class="text-[12px] text-slate-200">{{ s.planetName || '—' }}</span></template>
                                 </td>
                                 <td class="px-3 py-2 text-center font-mono text-slate-300 whitespace-nowrap">{{ s.from }} &rarr; {{ s.to }}</td>
                                 <td class="px-3 py-2 text-right font-mono text-slate-300">{{ formatNum(s.costMSU) }}</td>
@@ -1420,20 +1464,23 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                        :aria-label="t('lbl_done') + ' #' + s.n"
                                        class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
                                 <span class="text-[10px] font-mono text-slate-600">#{{ s.n }}</span>
-                                <span v-if="s.count > 1" class="text-[9px] font-mono text-slate-700">×{{ s.count }}</span>
+                                <span v-if="s.count > 1" class="text-[11px] font-mono font-bold text-slate-400">&times;{{ s.count }}</span>
                                 <span v-if="s.n === nextStepN" class="px-1 py-px rounded bg-emerald-500/15 text-emerald-300 text-[8px] font-bold uppercase tracking-wider">{{ t('lbl_next') }}</span>
                             </div>
                             <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
                                   :class="stepBadgeClass(s)">{{ stepTypeLabel(s) }}</span>
                         </div>
                         <div class="text-[12px] text-slate-400 mb-2">
-                            <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5">{{ s.researchName }}</div>
+                            <div v-if="s.type === 'lf_research' && s.researchName" class="text-[11px] text-slate-400 font-semibold leading-snug mb-1 flex items-center gap-1.5 flex-wrap">
+                                <span class="px-1.5 py-px rounded bg-slate-700/60 text-slate-300 font-mono font-bold text-[10px]">T{{ parseInt(s.researchId) % 100 }}</span>
+                                <span>{{ s.researchName }}</span>
+                            </div>
                             <span v-if="s.planetName" class="font-mono">{{ s.planetName }}</span>
                             <span class="ml-2 font-mono text-slate-500">L{{ s.from }} → L{{ s.to }}</span>
                             <!-- Elenco esplicito dei pianeti del blocco raggruppato -->
                             <div v-if="s.planetDetails && s.planetDetails.length > 1" class="flex flex-wrap gap-1 mt-1.5">
                                 <span v-for="pd in s.planetDetails" :key="pd.idx"
-                                      class="inline-flex items-center px-1.5 py-px rounded border border-slate-700/40 bg-black/30 text-[10px] font-mono leading-snug whitespace-nowrap text-slate-300">
+                                      class="inline-flex items-center px-2 py-0.5 rounded border border-slate-700/50 bg-black/30 text-[12px] font-mono leading-snug whitespace-nowrap text-slate-200">
                                     {{ pd.name }}
                                 </span>
                             </div>

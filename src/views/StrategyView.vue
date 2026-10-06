@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeUnmount } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
@@ -166,13 +166,29 @@ const readStateStore = () => {
 
 // Il piano serializzato pesa ~150 KB con qualche centinaio di step: la scrittura
 // è posticipata per non serializzarlo ad ogni spunta della roadmap.
+// L'id del profilo viene catturato al momento della richiesta, non alla scadenza
+// del timer: altrimenti un cambio profilo in mezzo scriverebbe lo stato del
+// vecchio profilo sotto l'id del nuovo.
 let saveStateDebounce = null;
+let pendingSaveId = null;
 const saveProfileState = () => {
-    clearTimeout(saveStateDebounce);
-    saveStateDebounce = setTimeout(writeProfileState, 400);
-};
-const writeProfileState = () => {
     const id = activeProfile.value?.id;
+    if (!id) return;
+    pendingSaveId = id;
+    clearTimeout(saveStateDebounce);
+    saveStateDebounce = setTimeout(() => flushProfileState(), 400);
+};
+// Scrive subito l'eventuale salvataggio in sospeso. Va chiamata prima di
+// perdere lo stato corrente (smontaggio, chiusura pagina, cambio profilo),
+// altrimenti una modifica fatta meno di 400ms prima andrebbe persa — cioè
+// esattamente il bug che questa cache deve risolvere.
+const flushProfileState = (id = pendingSaveId) => {
+    clearTimeout(saveStateDebounce);
+    saveStateDebounce = null;
+    pendingSaveId = null;
+    if (id) writeProfileState(id);
+};
+const writeProfileState = (id) => {
     if (!id) return;
     try {
         const store = readStateStore();
@@ -197,8 +213,8 @@ const writeProfileState = () => {
         // così almeno target e selezioni sopravvivono al cambio pagina.
         try {
             const store = readStateStore();
-            if (store[activeProfile.value.id]) {
-                store[activeProfile.value.id].result = null;
+            if (store[id]) {
+                store[id].result = null;
                 localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify(store));
             }
         } catch {}
@@ -240,11 +256,26 @@ const planIsStale = computed(() => {
 });
 
 // Sync con profilo attivo: ripristina lo stato salvato per quel profilo.
-// Al cambio profilo si riparte dalla sua cache, non da zero.
+// `activeProfile` ri-emette anche a ogni salvataggio del profilo (sync, modifiche
+// altrove): ripristinare in quei casi sovrascriverebbe il piano appena calcolato,
+// quindi si agisce solo quando cambia davvero l'id. Prima di cambiare profilo si
+// forza la scrittura di quello vecchio, altrimenti il timer in sospeso perderebbe
+// le sue ultime modifiche.
+let lastProfileId = null;
 watch(activeProfile, (newP) => {
-    if (!newP) return;
+    if (!newP || newP.id === lastProfileId) return;
+    if (lastProfileId) flushProfileState(lastProfileId);
+    lastProfileId = newP.id;
     restoreProfileState(newP);
 }, { immediate: true });
+
+// Smontaggio / chiusura pagina: scrittura immediata di quanto è in sospeso.
+onBeforeUnmount(() => {
+    window.removeEventListener('pagehide', onPageHide);
+    flushProfileState();
+});
+const onPageHide = () => flushProfileState();
+onMounted(() => window.addEventListener('pagehide', onPageHide));
 
 // Persistenza dello stato per profilo. `result` e `doneSteps` sono sempre
 // riassegnati per intero, quindi non serve il deep watch (che su un piano da
@@ -997,13 +1028,13 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         <button v-for="r in LF_RESEARCH_ALL" :key="r.id"
                                 @click="toggleLfRes(r.id)"
                                 :title="r.indirect ? r.name + ' — ' + t('strategy_lf_indirect_hint') : r.name"
-                                class="px-2 py-1 text-[10px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1"
+                                class="px-2.5 py-1.5 text-[11px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1.5"
                                 :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[r.species].on : LF_SPECIES_CHIP[r.species].off">
-                            <span class="font-mono font-bold">T{{ r.tier }}</span>
-                            <span class="max-w-[9rem] truncate">{{ r.name }}</span>
+                            <span class="font-mono font-bold text-[11px]">T{{ r.tier }}</span>
+                            <span class="max-w-[12rem] truncate">{{ r.name }}</span>
                             <!-- Nessun bonus metallo diretto: rende solo amplificando
                                  la classe Collezionista (bonus classe + crawler). -->
-                            <span v-if="r.indirect" class="px-1 rounded bg-amber-500/20 text-amber-300 text-[8px] font-bold uppercase tracking-wider">%</span>
+                            <span v-if="r.indirect" class="px-1 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">%</span>
                         </button>
                     </div>
                 </div>
@@ -1363,9 +1394,9 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                     <span v-if="s.count > 1" class="ml-1.5 text-[9px] text-slate-600 font-mono">×{{ s.count }}</span>
                                 </td>
                                 <td class="px-3 py-2 font-mono text-slate-400 align-top min-w-[180px] whitespace-normal">
-                                    <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5 flex items-center gap-1 flex-wrap">
-                                        <span class="px-1 rounded bg-slate-700/50 text-slate-500 font-mono font-bold text-[10px]">T{{ parseInt(s.researchId) % 100 }}</span>
-                                        {{ s.researchName }}
+                                    <div v-if="s.type === 'lf_research' && s.researchName" class="text-[11px] text-slate-400 leading-snug mb-1 flex items-center gap-1.5 flex-wrap">
+                                        <span class="px-1.5 py-px rounded bg-slate-700/60 text-slate-300 font-mono font-bold text-[11px]">T{{ parseInt(s.researchId) % 100 }}</span>
+                                        <span class="font-semibold">{{ s.researchName }}</span>
                                         <!-- Δ positivo senza bonus metallo diretto: senza questo
                                              badge la riga sembra un errore del planner. -->
                                         <span v-if="s.indirectBonus"
@@ -1427,7 +1458,10 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                   :class="stepBadgeClass(s)">{{ stepTypeLabel(s) }}</span>
                         </div>
                         <div class="text-[12px] text-slate-400 mb-2">
-                            <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5">{{ s.researchName }}</div>
+                            <div v-if="s.type === 'lf_research' && s.researchName" class="text-[11px] text-slate-400 font-semibold leading-snug mb-1 flex items-center gap-1.5 flex-wrap">
+                                <span class="px-1.5 py-px rounded bg-slate-700/60 text-slate-300 font-mono font-bold text-[10px]">T{{ parseInt(s.researchId) % 100 }}</span>
+                                <span>{{ s.researchName }}</span>
+                            </div>
                             <span v-if="s.planetName" class="font-mono">{{ s.planetName }}</span>
                             <span class="ml-2 font-mono text-slate-500">L{{ s.from }} → L{{ s.to }}</span>
                             <!-- Elenco esplicito dei pianeti del blocco raggruppato -->

@@ -219,8 +219,14 @@ const buildCandidates = (state, options) => {
     // delta calcolato pari al beneficio di TUTTI i livelli accumulati — ROI falso.
     if (options.includeLfResearch) {
         const capRes = caps?.lfResearch ?? Infinity;
+        // Il Potenziamento Collezionista (bonus[6]) non dà metallo diretto: amplifica
+        // il collFactor, che agisce su bonus di classe (+25%), moltiplicatore crawler
+        // e cap crawler del Geologo. Rende solo da Collezionista, quindi è candidabile
+        // unicamente quando la classe simulata è quella; altrimenti sarebbero N
+        // candidati con delta 0 valutati ad ogni step.
+        const isCollector = settings.playerClass === 'collector';
         // Selezione per-ricerca: Set di ID abilitati. Se non fornito → tutte le
-        // ricerche con bonus metallo sono candidabili (retro-compatibilità).
+        // ricerche candidabili (retro-compatibilità).
         const allowedIds = Array.isArray(options.lfResearchIds)
             ? new Set(options.lfResearchIds.map(String))
             : null;
@@ -229,7 +235,10 @@ const buildCandidates = (state, options) => {
             if (!catData) continue;
             for (const [idStr, itemData] of Object.entries(catData.items || {})) {
                 const bonus = itemData.bonus;
-                if (!bonus || (bonus[0] || 0) <= 0) continue;
+                if (!bonus) continue;
+                const givesMetal     = (bonus[0] || 0) > 0;
+                const givesCollector = (bonus[6] || 0) > 0 && isCollector;
+                if (!givesMetal && !givesCollector) continue;
                 if (allowedIds && !allowedIds.has(idStr)) continue;
                 planets.forEach((p, planetIdx) => {
                     const currentLevel = parseInt((p.lfResearch || {})[idStr]) || 0;
@@ -246,6 +255,8 @@ const buildCandidates = (state, options) => {
                         species,
                         researchId: idStr,
                         researchName: itemData.name || idStr,
+                        // true = nessun bonus metallo diretto, rende solo via collFactor
+                        indirectBonus: !givesMetal,
                         planetIdx,
                         from: currentLevel,
                         to: currentLevel + 1,
@@ -452,6 +463,7 @@ export const runPlanner = (initialState, options = {}) => {
             researchId:   best.cand.researchId   ?? null,
             researchName: best.cand.researchName ?? null,
             species:      best.cand.species      ?? null,
+            indirectBonus: best.cand.indirectBonus === true,
             from: best.cand.from,
             to: best.cand.to,
             cost: best.cand.cost,

@@ -1037,17 +1037,20 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     </div>
                 </div>
                 <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
-                    <div class="flex flex-wrap gap-1.5">
+                    <!-- Griglia a colonne fisse invece di flex-wrap: i nomi hanno
+                         lunghezze molto diverse e a capo libero le chip risultavano
+                         sfalsate. Le colonne allineano sia i tagliandi T che i nomi. -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-1.5">
                         <button v-for="r in LF_RESEARCH_ALL" :key="r.id"
                                 @click="toggleLfRes(r.id)"
                                 :title="r.indirect ? r.name + ' — ' + t('strategy_lf_indirect_hint') : r.name"
-                                class="px-2.5 py-1.5 text-[11px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1.5"
+                                class="w-full min-w-0 px-2.5 py-1.5 text-[11px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1.5 text-left"
                                 :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[r.species].on : LF_SPECIES_CHIP[r.species].off">
-                            <span class="font-mono font-bold text-[11px]">T{{ r.tier }}</span>
-                            <span class="max-w-[12rem] truncate">{{ r.name }}</span>
+                            <span class="font-mono font-bold text-[11px] w-7 shrink-0">T{{ r.tier }}</span>
+                            <span class="flex-1 min-w-0 truncate">{{ r.name }}</span>
                             <!-- Nessun bonus metallo diretto: rende solo amplificando
                                  la classe Collezionista (bonus classe + crawler). -->
-                            <span v-if="r.indirect" class="px-1 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">%</span>
+                            <span v-if="r.indirect" class="shrink-0 px-1 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">%</span>
                         </button>
                     </div>
                 </div>

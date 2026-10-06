@@ -188,36 +188,49 @@ const flushProfileState = (id = pendingSaveId) => {
     pendingSaveId = null;
     if (id) writeProfileState(id);
 };
+// Costruisce la voce di cache dallo stato corrente. `withResult: false` produce
+// la versione leggera (solo target/selezioni) usata quando il piano non entra
+// nella quota di localStorage.
+const buildStateEntry = (withResult) => ({
+    savedAt: Date.now(),
+    target: target.value,
+    lfResearchIds: [...lfResearchIds.value],
+    lfChoice: [...lfChoice.value],
+    doneSteps: withResult ? [...doneSteps.value] : [],
+    typeFilter: typeFilter.value,
+    coreHash: withResult ? coreHashAtPlan.value : null,
+    result: withResult ? result.value : null
+});
+
+const persistStore = (store) => {
+    // Pruning: si tengono solo i profili usati più di recente.
+    Object.keys(store)
+        .sort((a, b) => (store[b]?.savedAt || 0) - (store[a]?.savedAt || 0))
+        .slice(MAX_CACHED_PROFILES)
+        .forEach(k => delete store[k]);
+    localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify(store));
+};
+
 const writeProfileState = (id) => {
     if (!id) return;
     try {
         const store = readStateStore();
-        store[id] = {
-            savedAt: Date.now(),
-            target: target.value,
-            lfResearchIds: [...lfResearchIds.value],
-            lfChoice: [...lfChoice.value],
-            doneSteps: [...doneSteps.value],
-            typeFilter: typeFilter.value,
-            coreHash: coreHashAtPlan.value,
-            result: result.value
-        };
-        // Pruning: si tengono solo i profili usati più di recente.
-        const ids = Object.keys(store)
-            .sort((a, b) => (store[b]?.savedAt || 0) - (store[a]?.savedAt || 0))
-            .slice(MAX_CACHED_PROFILES);
-        ids.forEach(k => delete store[k]);
-        localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify(store));
+        store[id] = buildStateEntry(true);
+        persistStore(store);
     } catch {
-        // Quota superata (piani lunghi): si ripiega sullo stato senza risultato,
-        // così almeno target e selezioni sopravvivono al cambio pagina.
+        // Quota superata (piani lunghi). Si riscrive la voce CORRENTE senza il
+        // piano: tenere quella vecchia letta da storage conserverebbe target e
+        // selezioni obsoleti, che è il contrario di quel che serve.
         try {
             const store = readStateStore();
-            if (store[id]) {
-                store[id].result = null;
-                localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify(store));
-            }
-        } catch {}
+            store[id] = buildStateEntry(false);
+            persistStore(store);
+        } catch {
+            // Ancora piena: si sacrificano le cache degli altri profili.
+            try {
+                localStorage.setItem(STRATEGY_STATE_KEY, JSON.stringify({ [id]: buildStateEntry(false) }));
+            } catch {}
+        }
     }
 };
 
@@ -1391,7 +1404,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                           :class="[stepBadgeClass(s), doneSteps.has(s.n) ? 'line-through' : '']">
                                         {{ stepTypeLabel(s) }}
                                     </span>
-                                    <span v-if="s.count > 1" class="ml-1.5 text-[9px] text-slate-600 font-mono">×{{ s.count }}</span>
+                                    <span v-if="s.count > 1" class="ml-1.5 text-[11px] text-slate-400 font-mono font-bold">&times;{{ s.count }}</span>
                                 </td>
                                 <td class="px-3 py-2 font-mono text-slate-400 align-top min-w-[180px] whitespace-normal">
                                     <div v-if="s.type === 'lf_research' && s.researchName" class="text-[11px] text-slate-400 leading-snug mb-1 flex items-center gap-1.5 flex-wrap">
@@ -1401,22 +1414,22 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                              badge la riga sembra un errore del planner. -->
                                         <span v-if="s.indirectBonus"
                                               :title="t('strategy_lf_indirect_hint')"
-                                              class="px-1 rounded bg-amber-500/15 text-amber-300/90 text-[8px] font-bold uppercase tracking-wider">
+                                              class="px-1 rounded bg-amber-500/15 text-amber-300/90 text-[9px] font-bold uppercase tracking-wider">
                                             {{ t('strategy_lf_indirect_badge') }}
                                         </span>
                                     </div>
                                     <template v-if="s.planetDetails && s.planetDetails.length > 1">
-                                        <div class="text-[10px] text-slate-500 mb-1">{{ s.planetName }}</div>
+                                        <div class="text-[11px] text-slate-400 mb-1">{{ s.planetName }}</div>
                                         <!-- Elenco esplicito: senza i nomi un blocco raggruppato
                                              non dice su quali pianeti vada fatto l'upgrade. -->
                                         <div class="flex flex-wrap gap-1">
                                             <span v-for="pd in s.planetDetails" :key="pd.idx"
-                                                  class="inline-flex items-center px-1.5 py-px rounded border border-slate-700/40 bg-black/30 text-[10px] leading-snug whitespace-nowrap text-slate-300">
+                                                  class="inline-flex items-center px-2 py-0.5 rounded border border-slate-700/50 bg-black/30 text-[12px] leading-snug whitespace-nowrap text-slate-200">
                                                 {{ pd.name }}
                                             </span>
                                         </div>
                                     </template>
-                                    <template v-else>{{ s.planetName || '—' }}</template>
+                                    <template v-else><span class="text-[12px] text-slate-200">{{ s.planetName || '—' }}</span></template>
                                 </td>
                                 <td class="px-3 py-2 text-center font-mono text-slate-300 whitespace-nowrap">{{ s.from }} &rarr; {{ s.to }}</td>
                                 <td class="px-3 py-2 text-right font-mono text-slate-300">{{ formatNum(s.costMSU) }}</td>
@@ -1451,7 +1464,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                        :aria-label="t('lbl_done') + ' #' + s.n"
                                        class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
                                 <span class="text-[10px] font-mono text-slate-600">#{{ s.n }}</span>
-                                <span v-if="s.count > 1" class="text-[9px] font-mono text-slate-700">×{{ s.count }}</span>
+                                <span v-if="s.count > 1" class="text-[11px] font-mono font-bold text-slate-400">&times;{{ s.count }}</span>
                                 <span v-if="s.n === nextStepN" class="px-1 py-px rounded bg-emerald-500/15 text-emerald-300 text-[8px] font-bold uppercase tracking-wider">{{ t('lbl_next') }}</span>
                             </div>
                             <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
@@ -1467,7 +1480,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             <!-- Elenco esplicito dei pianeti del blocco raggruppato -->
                             <div v-if="s.planetDetails && s.planetDetails.length > 1" class="flex flex-wrap gap-1 mt-1.5">
                                 <span v-for="pd in s.planetDetails" :key="pd.idx"
-                                      class="inline-flex items-center px-1.5 py-px rounded border border-slate-700/40 bg-black/30 text-[10px] font-mono leading-snug whitespace-nowrap text-slate-300">
+                                      class="inline-flex items-center px-2 py-0.5 rounded border border-slate-700/50 bg-black/30 text-[12px] font-mono leading-snug whitespace-nowrap text-slate-200">
                                     {{ pd.name }}
                                 </span>
                             </div>

@@ -74,17 +74,21 @@ const includePlasma = ref(true);
 const includeLf = ref(true);
 const includeLfResearch = ref(false);
 
-// Elenco completo delle ricerche LF con bonus metallo (le uniche candidabili
-// dal planner). Sostituisce i vecchi gruppi-tier T1-6/T7-12/T13-18: ora ogni
-// ricerca si attiva/disattiva singolarmente.
+// Elenco delle ricerche LF candidabili dal planner: quelle con bonus metallo
+// diretto, più quelle che alzano il Potenziamento Collezionista (bonus[6]), che
+// non danno metallo ma amplificano bonus di classe e crawler. Queste ultime sono
+// marcate `indirect` per segnalarlo in UI e rendono solo da Collezionista.
 const LF_RESEARCH_ALL = (() => {
     const out = [];
     for (const sp of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
         const cat = OGAME_DB[`lf_${sp}_res`];
         if (!cat) continue;
         for (const [id, item] of Object.entries(cat.items || {})) {
-            if (item.bonus && (item.bonus[0] || 0) > 0)
-                out.push({ id, name: item.name || id, species: sp, tier: parseInt(id) % 100 });
+            if (!item.bonus) continue;
+            const metal     = (item.bonus[0] || 0) > 0;
+            const collector = (item.bonus[6] || 0) > 0;
+            if (!metal && !collector) continue;
+            out.push({ id, name: item.name || id, species: sp, tier: parseInt(id) % 100, indirect: !metal });
         }
     }
     return out.sort((a, b) => a.tier - b.tier);
@@ -178,6 +182,26 @@ const hasLfResearchData = computed(() =>
     planets.value.some(p => Object.values(p.lfResearch || {}).some(v => v > 0))
 );
 
+// Doppio conteggio: il campo manuale "Potenziamento Collezionista" di Production
+// Core e le ricerche con bonus[6] si sommano nello stesso collFactor. Se l'utente
+// ha compilato il campo a mano E lascia candidabile la ricerca, il bonus vale due
+// volte. Scelta: li sommiamo comunque (stesso comportamento di Production Core) e
+// lo segnaliamo, invece di ignorare in silenzio un dato già inserito dall'utente.
+const collectorDoubleCount = computed(() =>
+    includeLfResearch.value
+    && (currentSimState.value?.settings?.playerClass === 'collector')
+    && (parseFloat(currentSimState.value?.settings?.rocktalEnhancement) || 0) > 0
+    && LF_RESEARCH_ALL.some(r => r.indirect && lfResearchIds.value.includes(r.id))
+);
+
+// La classe "other" del profilo (Generale/Esploratore) non ha una chiave `opt_other`:
+// in MetalCalc la stessa opzione usa `opt_general`. Senza la mappa qui veniva
+// stampata la chiave grezza.
+const playerClassLabelKey = computed(() => {
+    const cls = currentSimState.value?.settings?.playerClass || 'none';
+    return cls === 'other' ? 'opt_general' : `opt_${cls}`;
+});
+
 // ID delle ricerche LF (con bonus metallo) già ATTIVE nel profilo corrente:
 // attive su almeno un pianeta (lfActive === true) e con livello > 0.
 const profileActiveLfIds = computed(() => {
@@ -252,12 +276,14 @@ const groupedSteps = computed(() => {
         const cheap = s.costMSU < packVal;
 
         if (cheap) {
-            // Raccogli step consecutivi economici dello stesso tipo.
-            // Per lf_research raggruppa per researchId+from: step allo stesso livello
-            // su pianeti diversi vengono uniti, ma livelli diversi restano blocchi separati.
+            // Raccogli step consecutivi economici dello stesso tipo E dello stesso
+            // salto di livello. Unire livelli diversi (es. 15→16 con 16→17) produce
+            // un range aggregato 15→17 che non corrisponde a nessun upgrade reale:
+            // si raggruppa solo ciò che è identico.
             const sameGroup = (a, b) => {
                 if (a.type !== b.type) return false;
-                if (a.type === 'lf_research') return a.researchId === b.researchId && a.from === b.from;
+                if (a.from !== b.from || a.to !== b.to) return false;
+                if (a.type === 'lf_research') return a.researchId === b.researchId;
                 return true;
             };
             let j = i + 1;
@@ -269,24 +295,34 @@ const groupedSteps = computed(() => {
             const last = grp[grp.length - 1];
             const totalCost = grp.reduce((a, b) => a + b.costMSU, 0);
 
-            // Pianeti univoci nel blocco (per step con pianeta)
-            const planetSet = new Set(
-                grp.filter(x => x.planetIdx != null).map(x => x.planetName || `#${x.planetIdx}`)
-            );
+            // Pianeti del blocco: tutti fanno lo stesso salto (garantito da sameGroup),
+            // quindi basta il nome — il livello sta nella colonna Livello.
+            const planetDetails = [];
+            const seenPlanets = new Set();
+            grp.forEach(x => {
+                if (x.planetIdx == null || seenPlanets.has(x.planetIdx)) return;
+                seenPlanets.add(x.planetIdx);
+                planetDetails.push({
+                    idx: x.planetIdx,
+                    name: x.planetName || `#${x.planetIdx + 1}`
+                });
+            });
             const planetLabel = s.planetIdx == null
                 ? null
-                : planetSet.size === 1
-                    ? [...planetSet][0]
-                    : `${planetSet.size} pianeti`;
+                : planetDetails.length === 1
+                    ? planetDetails[0].name
+                    : `${planetDetails.length} ${t('strategy_planets_plural')}`;
 
             blocks.push({
                 type:        s.type,
                 species:     s.species     ?? null,
                 researchId:  s.researchId  ?? null,
                 researchName: s.researchName ?? null,
+                indirectBonus: s.indirectBonus === true,
                 from:       s.from,
-                to:         last.to,
+                to:         s.to,
                 planetName: planetLabel,
+                planetDetails,
                 cost:       grp.reduce((a, b) => [a[0]+b.cost[0], a[1]+b.cost[1], a[2]+b.cost[2]], [0,0,0]),
                 costMSU:    totalCost,
                 packs:      Math.ceil(totalCost / packVal),
@@ -301,6 +337,9 @@ const groupedSteps = computed(() => {
             // Step costoso: mostralo singolarmente, ricalcola pack senza credit
             blocks.push({
                 ...s,
+                planetDetails: s.planetIdx == null
+                    ? []
+                    : [{ idx: s.planetIdx, name: s.planetName || `#${s.planetIdx + 1}` }],
                 packs:   Math.ceil(s.costMSU / packVal),
                 isBlock: false,
                 count:   1
@@ -822,7 +861,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     </div>
                     <p class="text-[9px] text-slate-700 mt-2 leading-tight">
                         {{ playerClassOverride === 'inherit'
-                            ? t('opt_' + (currentSimState?.settings?.playerClass || 'none'))
+                            ? t(playerClassLabelKey)
                             : t('opt_collector') }}
                     </p>
                 </div>
@@ -850,14 +889,23 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <div class="flex flex-wrap gap-1.5">
                         <button v-for="r in LF_RESEARCH_ALL" :key="r.id"
                                 @click="toggleLfRes(r.id)"
-                                :title="r.name"
+                                :title="r.indirect ? r.name + ' — ' + t('strategy_lf_indirect_hint') : r.name"
                                 class="px-2 py-1 text-[10px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1"
                                 :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[r.species].on : LF_SPECIES_CHIP[r.species].off">
                             <span class="font-mono font-bold">T{{ r.tier }}</span>
                             <span class="max-w-[9rem] truncate">{{ r.name }}</span>
+                            <!-- Nessun bonus metallo diretto: rende solo amplificando
+                                 la classe Collezionista (bonus classe + crawler). -->
+                            <span v-if="r.indirect" class="px-1 rounded bg-amber-500/20 text-amber-300 text-[8px] font-bold uppercase tracking-wider">%</span>
                         </button>
                     </div>
                 </div>
+                <!-- Il campo manuale "Potenziamento Collezionista" di Production Core e
+                     questa ricerca si sommano nello stesso collFactor: se sono entrambi
+                     valorizzati il bonus viene contato due volte. -->
+                <p v-if="collectorDoubleCount" class="mt-2 text-[10px] text-amber-400/80 leading-snug">
+                    {{ t('strategy_collector_double_warn') }}
+                </p>
             </div>
 
             <!-- LF override per pianeta -->
@@ -1190,14 +1238,32 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                     </span>
                                     <span v-if="s.count > 1" class="ml-1.5 text-[9px] text-slate-600 font-mono">×{{ s.count }}</span>
                                 </td>
-                                <td class="px-3 py-2 font-mono text-slate-400">
-                                    <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5 flex items-center gap-1">
+                                <td class="px-3 py-2 font-mono text-slate-400 align-top min-w-[180px] whitespace-normal">
+                                    <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5 flex items-center gap-1 flex-wrap">
                                         <span class="px-1 rounded bg-slate-700/50 text-slate-500 font-mono font-bold text-[10px]">T{{ parseInt(s.researchId) % 100 }}</span>
                                         {{ s.researchName }}
+                                        <!-- Δ positivo senza bonus metallo diretto: senza questo
+                                             badge la riga sembra un errore del planner. -->
+                                        <span v-if="s.indirectBonus"
+                                              :title="t('strategy_lf_indirect_hint')"
+                                              class="px-1 rounded bg-amber-500/15 text-amber-300/90 text-[8px] font-bold uppercase tracking-wider">
+                                            {{ t('strategy_lf_indirect_badge') }}
+                                        </span>
                                     </div>
-                                    {{ s.planetName || '—' }}
+                                    <template v-if="s.planetDetails && s.planetDetails.length > 1">
+                                        <div class="text-[10px] text-slate-500 mb-1">{{ s.planetName }}</div>
+                                        <!-- Elenco esplicito: senza i nomi un blocco raggruppato
+                                             non dice su quali pianeti vada fatto l'upgrade. -->
+                                        <div class="flex flex-wrap gap-1">
+                                            <span v-for="pd in s.planetDetails" :key="pd.idx"
+                                                  class="inline-flex items-center px-1.5 py-px rounded border border-slate-700/40 bg-black/30 text-[10px] leading-snug whitespace-nowrap text-slate-300">
+                                                {{ pd.name }}
+                                            </span>
+                                        </div>
+                                    </template>
+                                    <template v-else>{{ s.planetName || '—' }}</template>
                                 </td>
-                                <td class="px-3 py-2 text-center font-mono text-slate-300">{{ s.from }} → {{ s.to }}</td>
+                                <td class="px-3 py-2 text-center font-mono text-slate-300 whitespace-nowrap">{{ s.from }} &rarr; {{ s.to }}</td>
                                 <td class="px-3 py-2 text-right font-mono text-slate-300">{{ formatNum(s.costMSU) }}</td>
                                 <td class="px-3 py-2 text-right font-mono text-amber-300/90">{{ s.packs }}</td>
                                 <td class="px-3 py-2 text-right font-mono text-emerald-300">+{{ formatNum(s.deltaProd) }}</td>
@@ -1240,6 +1306,13 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             <div v-if="s.type === 'lf_research' && s.researchName" class="text-[9px] text-slate-600 leading-tight mb-0.5">{{ s.researchName }}</div>
                             <span v-if="s.planetName" class="font-mono">{{ s.planetName }}</span>
                             <span class="ml-2 font-mono text-slate-500">L{{ s.from }} → L{{ s.to }}</span>
+                            <!-- Elenco esplicito dei pianeti del blocco raggruppato -->
+                            <div v-if="s.planetDetails && s.planetDetails.length > 1" class="flex flex-wrap gap-1 mt-1.5">
+                                <span v-for="pd in s.planetDetails" :key="pd.idx"
+                                      class="inline-flex items-center px-1.5 py-px rounded border border-slate-700/40 bg-black/30 text-[10px] font-mono leading-snug whitespace-nowrap text-slate-300">
+                                    {{ pd.name }}
+                                </span>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
                             <div class="flex justify-between"><span class="text-slate-600">MSU</span><span class="font-mono text-slate-300">{{ formatNum(s.costMSU) }}</span></div>

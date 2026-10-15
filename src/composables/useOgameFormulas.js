@@ -73,11 +73,13 @@ export function useOgameFormulas() {
         if (lf === 'rocktal') totPerc += (parseInt(planet.magma) || 0) * 2;
         else if (lf === 'humans') totPerc += (parseInt(planet.human) || 0) * 1.5;
 
-        totPerc += lfResearchPct?.metal || 0;
-        // Fallback manuale per-pianeta: si applica solo se questo pianeta non ha
-        // ricerche LF con livello > 0 (stessa logica di MetalCalc e PlanetCard).
-        const planetHasLfResearch = Object.values(planet.lfResearch || {}).some(v => v > 0);
-        if (!planetHasLfResearch) totPerc += settings.lfBonus || 0;
+        // Bonus LF: o calcolato dalle ricerche (globale, account-wide) o il totale
+        // manuale settings.lfBonus — mai entrambi. Il totale manuale (o quello
+        // importato dalla pagina Bonus LF) include già tutte le ricerche, quindi
+        // sommarlo a lfResearchPct.metal conterebbe le ricerche due volte.
+        totPerc += lfResearchPct?.fromResearch
+            ? (lfResearchPct.metal || 0)
+            : (settings.lfBonus || 0);
 
         const maxCraw  = calcCrawlerCap(met, planet.crystal, planet.deuterium,
                                         isCollector, settings.geologist, settings.rocktalEnhancement);
@@ -200,9 +202,14 @@ export function useOgameFormulas() {
         return contrib;
     };
 
+    // True se almeno un pianeta ha livelli di ricerca LF (anche non attivi):
+    // in quel caso il bonus LF arriva dalle ricerche e il campo manuale è ignorato.
+    const hasLFResearchData = (planets) =>
+        Array.isArray(planets) && planets.some(p => Object.values(p.lfResearch || {}).some(v => v > 0));
+
     const calcLFResearchBonus = (planets) => {
         if (!Array.isArray(planets) || planets.length === 0)
-            return { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
+            return { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0, fromResearch: false };
 
         const bonusPerc = { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
 
@@ -218,7 +225,8 @@ export function useOgameFormulas() {
             metal:          bonusPerc.metal * 100,
             crystal:        bonusPerc.crystal * 100,
             deuterium:      bonusPerc.deuterium * 100,
-            collectorBonus: bonusPerc.collectorBonus * 100
+            collectorBonus: bonusPerc.collectorBonus * 100,
+            fromResearch:   hasLFResearchData(planets)
         };
     };
 
@@ -301,6 +309,7 @@ export function useOgameFormulas() {
         getBuildCostLF,
         calcLFResearchBonus,
         calcPlanetLFContribution,
+        hasLFResearchData,
         parseDurationToTimestamp
     };
 }

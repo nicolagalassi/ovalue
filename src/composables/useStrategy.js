@@ -19,7 +19,7 @@
 import { OGAME_DB } from '../data/ogame_db';
 import { useOgameFormulas } from './useOgameFormulas';
 
-const { calcPlanetMetalProduction, getBuildCostLF, calcLFResearchBonus, calcPlanetLFContribution } = useOgameFormulas();
+const { calcPlanetMetalProduction, getBuildCostLF, calcLFResearchBonus, calcPlanetLFContribution, hasLFResearchData } = useOgameFormulas();
 
 // ───── Helpers di base ─────────────────────────────────────────────────────
 
@@ -320,6 +320,9 @@ export const runPlanner = (initialState, options = {}) => {
 
     // ─ Cache incrementali ─
     const lfContribs = state.planets.map(p => calcPlanetLFContribution(p));
+    // Sorgente del bonus LF fissata sullo stato iniziale: se l'account parte dal
+    // totale manuale, le ricerche simulate non devono "spegnerlo" a metà piano.
+    const lfFromResearch = hasLFResearchData(state.planets);
     const sumLfPct = () => {
         const t = { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
         lfContribs.forEach(c => {
@@ -328,7 +331,8 @@ export const runPlanner = (initialState, options = {}) => {
         });
         return {
             metal: t.metal * 100, crystal: t.crystal * 100,
-            deuterium: t.deuterium * 100, collectorBonus: t.collectorBonus * 100
+            deuterium: t.deuterium * 100, collectorBonus: t.collectorBonus * 100,
+            fromResearch: lfFromResearch
         };
     };
     let lfPct = sumLfPct();
@@ -400,6 +404,7 @@ export const runPlanner = (initialState, options = {}) => {
                 newContrib = calcPlanetLFContribution(state.planets[cand.planetIdx]);
                 const old = lfContribs[cand.planetIdx];
                 const pct = {
+                    ...lfPct,
                     metal:          lfPct.metal          + (newContrib.metal          - old.metal)          * 100,
                     crystal:        lfPct.crystal        + (newContrib.crystal        - old.crystal)        * 100,
                     deuterium:      lfPct.deuterium      + (newContrib.deuterium      - old.deuterium)      * 100,

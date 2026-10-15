@@ -121,10 +121,13 @@ const breakdown = computed(() => {
     if (magma > 0 && p.lifeform === 'rocktal') bonuses.push({ n: `${t('lbl_magma')} (${magma})`, v: magma * 2 });
     const human = parseInt(p.human) || 0;
     if (human > 0 && p.lifeform === 'humans') bonuses.push({ n: `${t('lbl_human')} (${human})`, v: human * 1.5 });
-    const lfMetal = props.lfResearchPct?.metal || 0;
-    if (lfMetal > 0) bonuses.push({ n: t('lbl_lf_research_abbr'), v: lfMetal });
-    const hasLfResearch = Object.values(p.lfResearch || {}).some(v => v);
-    if (!hasLfResearch && (g.lfBonus || 0) > 0) bonuses.push({ n: t('lbl_lf_tech_abbr'), v: g.lfBonus });
+    // Stessa regola di calcPlanetMetalProduction: ricerche LF oppure totale manuale, mai entrambi
+    if (props.lfResearchPct?.fromResearch) {
+        const lfMetal = props.lfResearchPct.metal || 0;
+        if (lfMetal > 0) bonuses.push({ n: t('lbl_lf_research_abbr'), v: lfMetal });
+    } else if ((g.lfBonus || 0) > 0) {
+        bonuses.push({ n: t('lbl_lf_tech_abbr'), v: g.lfBonus });
+    }
     if (actCraw > 0) {
         let mult = 0.02;
         if (g.playerClass === 'collector') {

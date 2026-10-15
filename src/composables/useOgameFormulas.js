@@ -73,11 +73,13 @@ export function useOgameFormulas() {
         if (lf === 'rocktal') totPerc += (parseInt(planet.magma) || 0) * 2;
         else if (lf === 'humans') totPerc += (parseInt(planet.human) || 0) * 1.5;
 
-        totPerc += lfResearchPct?.metal || 0;
-        // Fallback manuale per-pianeta: si applica solo se questo pianeta non ha
-        // ricerche LF con livello > 0 (stessa logica di MetalCalc e PlanetCard).
-        const planetHasLfResearch = Object.values(planet.lfResearch || {}).some(v => v > 0);
-        if (!planetHasLfResearch) totPerc += settings.lfBonus || 0;
+        // Bonus LF: o calcolato dalle ricerche (globale, account-wide) o il totale
+        // manuale settings.lfBonus — mai entrambi. Il totale manuale (o quello
+        // importato dalla pagina Bonus LF) include già tutte le ricerche, quindi
+        // sommarlo a lfResearchPct.metal conterebbe le ricerche due volte.
+        totPerc += lfResearchPct?.fromResearch
+            ? (lfResearchPct.metal || 0)
+            : (settings.lfBonus || 0);
 
         const maxCraw  = calcCrawlerCap(met, planet.crystal, planet.deuterium,
                                         isCollector, settings.geologist, settings.rocktalEnhancement);
@@ -156,26 +158,35 @@ export function useOgameFormulas() {
     // Le ricerche LF sono account-wide: ogni pianeta contribuisce al pool globale.
     // Il totale si applica ugualmente a tutti i pianeti (non è per-pianeta).
     // Cross-species: un pianeta Mecha può avere ricerche Umani/Rocktal/Kaelesh attive.
-    // Building mult per-specie: ogni edificio amplifica solo le ricerche della sua specie.
     // Contributo del SINGOLO pianeta al bonus globale (frazioni raw, non %).
     // Il cap di ogni ricerca è applicato per-termine dentro il loop pianeta,
     // quindi il bonus totale è esattamente la somma dei contributi per-pianeta:
     // questo permette al planner di aggiornare un solo pianeta in modo incrementale.
+    // Moltiplicatore delle ricerche LF di un pianeta (formula ADDITIVA OGame):
+    //   1 + livello specie attiva × 0.1% + boost edifici della specie attiva.
+    // Vale per TUTTE le ricerche del pianeta (anche cross-species), ma contano solo
+    // gli edifici della specie ATTIVA: quelli di specie usate in passato restano sul
+    // pianeta ma sono inattivi e non amplificano nulla.
+    // Rates: Metropolis 0.5%/lvl, HPT 0.3%/lvl, CMP 0.4%/lvl, Clone 0.25%/lvl
+    const LF_RESEARCH_BOOST_BUILDINGS = {
+        humans:  { '1011': 0.005 },                  // Metropolis
+        rocktal: {},
+        mecha:   { '3007': 0.003, '3011': 0.004 },   // Trasformatore alta potenza, Produzione massa chip
+        kaelesh: { '4007': 0.0025 }                  // Laboratorio Clonazione
+    };
+    const calcPlanetResearchMult = (p) => {
+        const lfLevel = parseInt(p.lifeformLevel) || 0;
+        const bld     = p.lfBuildings || {};
+        const rates   = LF_RESEARCH_BOOST_BUILDINGS[p.lifeform || 'humans'] || {};
+        let mult = 1 + lfLevel * 0.001;
+        for (const [id, rate] of Object.entries(rates)) mult += (parseInt(bld[id]) || 0) * rate;
+        return mult;
+    };
+
     const calcPlanetLFContribution = (p) => {
         const contrib = { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
         const lfData   = p.lfResearch || {};
-        const lfLevel  = parseInt(p.lifeformLevel) || 0;
-
-        const bld      = p.lfBuildings || {};
-        const metroLvl = parseInt(bld['1011']) || 0;  // Metropolis (Humans)
-        const hptLvl   = parseInt(bld['3007']) || 0;  // Trasformatore alta potenza (Mecha)
-        const cmpLvl   = parseInt(bld['3011']) || 0;  // Produzione massa chip (Mecha)
-        const cloneLvl = parseInt(bld['4007']) || 0;  // Laboratorio Clonazione (Kaelesh)
-
-        // Formula OGame ADDITIVA: tutti i bonus si sommano (non si moltiplicano tra loro).
-        // Gli edifici del pianeta amplificano TUTTE le ricerche sul pianeta (cross-species).
-        // Rates verificati: Metropolis 0.5%/lvl, HPT 0.3%/lvl, CMP 0.4%/lvl, Clone 0.25%/lvl
-        const mult = 1 + lfLevel*0.001 + metroLvl*0.005 + hptLvl*0.003 + cmpLvl*0.004 + cloneLvl*0.0025;
+        const mult     = calcPlanetResearchMult(p);
 
         const lfActive = p.lfActive || {};
 
@@ -200,9 +211,14 @@ export function useOgameFormulas() {
         return contrib;
     };
 
+    // True se almeno un pianeta ha livelli di ricerca LF (anche non attivi):
+    // in quel caso il bonus LF arriva dalle ricerche e il campo manuale è ignorato.
+    const hasLFResearchData = (planets) =>
+        Array.isArray(planets) && planets.some(p => Object.values(p.lfResearch || {}).some(v => v > 0));
+
     const calcLFResearchBonus = (planets) => {
         if (!Array.isArray(planets) || planets.length === 0)
-            return { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
+            return { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0, fromResearch: false };
 
         const bonusPerc = { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
 
@@ -218,7 +234,8 @@ export function useOgameFormulas() {
             metal:          bonusPerc.metal * 100,
             crystal:        bonusPerc.crystal * 100,
             deuterium:      bonusPerc.deuterium * 100,
-            collectorBonus: bonusPerc.collectorBonus * 100
+            collectorBonus: bonusPerc.collectorBonus * 100,
+            fromResearch:   hasLFResearchData(planets)
         };
     };
 
@@ -301,6 +318,8 @@ export function useOgameFormulas() {
         getBuildCostLF,
         calcLFResearchBonus,
         calcPlanetLFContribution,
+        calcPlanetResearchMult,
+        hasLFResearchData,
         parseDurationToTimestamp
     };
 }

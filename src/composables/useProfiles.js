@@ -55,51 +55,16 @@ const createDefaultExpirations = () => ({
 });
 
 // Calcola la produzione giornaliera di metallo dato un profilo production completo.
-// Replica la stessa formula di MetalCalc.vue per aggiornare production.daily al momento dell'import.
+// Delega a calcPlanetMetalProduction (stessa formula di MetalCalc.vue) per aggiornare
+// production.daily al momento dell'import.
 const calcDailyProduction = (settings, planets) => {
     if (!Array.isArray(planets) || planets.length === 0) return 0;
-    const ecoSpeed = settings.ecoSpeed || 1;
-    const { calcLFResearchBonus } = useOgameFormulas();
+    const { calcLFResearchBonus, calcPlanetMetalProduction } = useOgameFormulas();
     // Bonus globale: somma di tutti i pianeti, applicato ugualmente a ciascuno
     const lfResearchPct = calcLFResearchBonus(planets);
-    const collFactor = 1 + ((settings.rocktalEnhancement || 0) / 100) + ((lfResearchPct.collectorBonus || 0) / 100);
     let hourly = 0;
     planets.forEach(p => {
-        const met = parseInt(p.metal) || 0;
-        const pos = parseInt(p.pos) || 8;
-        let posMult = 1.0;
-        if (pos === 8) posMult = 1.35;
-        else if (pos === 7 || pos === 9) posMult = 1.23;
-        else if (pos === 6 || pos === 10) posMult = 1.17;
-        const natProd  = Math.floor(30 * ecoSpeed * posMult);
-        const mineBase = met <= 0 ? 0 : Math.floor(30 * ecoSpeed * posMult * met * Math.pow(1.1, met));
-        let totPerc = (settings.plasma || 0) * 1;
-        if (settings.geologist) totPerc += 10;
-        if (settings.staff)     totPerc += 2;
-        if (settings.playerClass === 'collector') totPerc += 25 * collFactor;
-        if (settings.allyClass  === 'trader')     totPerc += 5;
-        totPerc += (parseInt(p.item) || 0) + (parseInt(p.itemCustom) || 0);
-        if (p.lifeform === 'rocktal') totPerc += (parseInt(p.magma) || 0) * 2;
-        else if (p.lifeform === 'humans') totPerc += (parseInt(p.human) || 0) * 1.5;
-        totPerc += lfResearchPct.metal;
-        if (Object.values(p.lfResearch || {}).every(v => !v)) {
-            totPerc += settings.lfBonus || 0;
-        }
-        const isCollector = settings.playerClass === 'collector';
-        const mineSum = met + (parseInt(p.crystal) || 0) + (parseInt(p.deuterium) || 0);
-        let maxCraw = mineSum * 8;
-        if (isCollector && settings.geologist)
-            maxCraw = Math.floor(maxCraw * (1 + 0.1 * collFactor));
-        const actCraw = Math.min(parseInt(p.crawlers) || 0, maxCraw);
-        if (actCraw > 0) {
-            let mult = 0.02;
-            if (isCollector) {
-                mult *= (1 + (50 * collFactor) / 100);
-                if (p.overload) mult *= 1.5;
-            }
-            totPerc += Math.min(actCraw * mult, 50);
-        }
-        hourly += natProd + mineBase + Math.floor(mineBase * (totPerc / 100));
+        hourly += calcPlanetMetalProduction(p, settings, lfResearchPct).total;
     });
     return Math.floor(hourly * 24);
 };

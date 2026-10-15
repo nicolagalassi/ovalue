@@ -18,6 +18,9 @@ const isComputing = ref(false);
 const result = ref(null);
 const progress = ref(null);        // { step, maxSteps, currentProd, initialProd, target } dal worker
 const doneSteps = ref(new Set());  // blocchi spuntati come "fatto" nella roadmap
+// Versione del raggruppamento roadmap: se cambia, cambia la numerazione dei blocchi
+// e i doneSteps salvati (per numero) non sono più validi.
+const ROADMAP_GROUPING_VERSION = 2;
 const typeFilter = ref('all');     // filtro tipo nella roadmap
 
 // Form
@@ -197,6 +200,7 @@ const buildStateEntry = (withResult) => ({
     lfResearchIds: [...lfResearchIds.value],
     lfChoice: [...lfChoice.value],
     doneSteps: withResult ? [...doneSteps.value] : [],
+    roadmapVersion: ROADMAP_GROUPING_VERSION,
     typeFilter: typeFilter.value,
     coreHash: withResult ? coreHashAtPlan.value : null,
     result: withResult ? result.value : null
@@ -256,7 +260,11 @@ const restoreProfileState = (profile) => {
         : planets.map(() => 'inherit');
     target.value = saved.target || Math.floor((profile?.production?.daily || 0) * 1.5);
     lfResearchIds.value = Array.isArray(saved.lfResearchIds) ? [...saved.lfResearchIds] : [...ALL_LF_IDS];
-    doneSteps.value = new Set(Array.isArray(saved.doneSteps) ? saved.doneSteps : []);
+    // I blocchi spuntati sono salvati per numero: se il raggruppamento è cambiato
+    // la numerazione non corrisponde più e le spunte finirebbero su blocchi sbagliati.
+    doneSteps.value = new Set(
+        saved.roadmapVersion === ROADMAP_GROUPING_VERSION && Array.isArray(saved.doneSteps) ? saved.doneSteps : []
+    );
     typeFilter.value = saved.typeFilter || 'all';
     result.value = saved.result || null;
     coreHashAtPlan.value = saved.coreHash || null;
@@ -401,100 +409,85 @@ const lfBadgeClass = (eff) => {
 };
 
 // ───── Raggruppamento step roadmap ───────────────────────────────────────
-// Strategia di raggruppamento in due regimi:
+// Si uniscono in un blocco gli step CONSECUTIVI identici: stesso tipo, stesso
+// salto di livello e (per le ricerche LF) stessa ricerca. Unire livelli diversi
+// (es. 15→16 con 16→17) darebbe un range 15→17 che non corrisponde a nessun
+// upgrade reale; unire solo step consecutivi non altera l'ordine del piano.
+// Tipico caso: la stessa ricerca LF allo stesso livello su tutti i pianeti.
 //
-// STEP ECONOMICI (costMSU < packValue → meno di 1 pacchetto ciascuno):
-//   Tutti gli step consecutivi dello stesso tipo vengono uniti in un unico blocco.
-//   Il piano gira su tutti i pianeti a livello N prima di salire a N+1, quindi
-//   questi step si interlacciano tra pianeti e non possono essere raggruppati
-//   per pianeta. Il pack del blocco si ricalcola come ceil(totalCost / packValue).
-//
-// STEP COSTOSI (costMSU >= packValue → almeno 1 pacchetto):
-//   Mostrati singolarmente per non falsare l'ordine e il conteggio pack.
+// Conteggio pacchetti del blocco:
+//   STEP ECONOMICI (costMSU < packValue): ceil(costoTotale / packValue) — più
+//     upgrade piccoli si pagano insieme con gli stessi pacchetti.
+//   STEP COSTOSI (costMSU >= packValue): somma dei pack dei singoli step, così
+//     il conteggio resta identico a quello degli step mostrati uno per uno.
 //
 // cumulativePacks è ricalcolato da zero sull'intera lista blocchi risultante.
 const groupedSteps = computed(() => {
     if (!result.value) return [];
     const steps = result.value.steps;
     const blocks = [];
+    const packValOf = (x) => Math.max(1, x.packValue || 1);
+    const isCheap = (x) => x.costMSU < packValOf(x);
+    const sameGroup = (a, b) => {
+        if (a.type !== b.type) return false;
+        if (a.from !== b.from || a.to !== b.to) return false;
+        if (isCheap(a) !== isCheap(b)) return false;
+        if (a.type === 'lf_research') return a.researchId === b.researchId;
+        return true;
+    };
     let i = 0;
 
     while (i < steps.length) {
         const s = steps[i];
-        const packVal = Math.max(1, s.packValue || 1);
-        const cheap = s.costMSU < packVal;
+        const packVal = packValOf(s);
+        const cheap = isCheap(s);
 
-        if (cheap) {
-            // Raccogli step consecutivi economici dello stesso tipo E dello stesso
-            // salto di livello. Unire livelli diversi (es. 15→16 con 16→17) produce
-            // un range aggregato 15→17 che non corrisponde a nessun upgrade reale:
-            // si raggruppa solo ciò che è identico.
-            const sameGroup = (a, b) => {
-                if (a.type !== b.type) return false;
-                if (a.from !== b.from || a.to !== b.to) return false;
-                if (a.type === 'lf_research') return a.researchId === b.researchId;
-                return true;
-            };
-            let j = i + 1;
-            while (j < steps.length &&
-                   sameGroup(s, steps[j]) &&
-                   steps[j].costMSU < Math.max(1, steps[j].packValue || 1)) j++;
+        let j = i + 1;
+        while (j < steps.length && sameGroup(s, steps[j])) j++;
 
-            const grp = steps.slice(i, j);
-            const last = grp[grp.length - 1];
-            const totalCost = grp.reduce((a, b) => a + b.costMSU, 0);
+        const grp = steps.slice(i, j);
+        const last = grp[grp.length - 1];
+        const totalCost = grp.reduce((a, b) => a + b.costMSU, 0);
 
-            // Pianeti del blocco: tutti fanno lo stesso salto (garantito da sameGroup),
-            // quindi basta il nome — il livello sta nella colonna Livello.
-            const planetDetails = [];
-            const seenPlanets = new Set();
-            grp.forEach(x => {
-                if (x.planetIdx == null || seenPlanets.has(x.planetIdx)) return;
-                seenPlanets.add(x.planetIdx);
-                planetDetails.push({
-                    idx: x.planetIdx,
-                    name: x.planetName || `#${x.planetIdx + 1}`
-                });
+        // Pianeti del blocco: tutti fanno lo stesso salto (garantito da sameGroup),
+        // quindi basta il nome — il livello sta nella colonna Livello.
+        const planetDetails = [];
+        const seenPlanets = new Set();
+        grp.forEach(x => {
+            if (x.planetIdx == null || seenPlanets.has(x.planetIdx)) return;
+            seenPlanets.add(x.planetIdx);
+            planetDetails.push({
+                idx: x.planetIdx,
+                name: x.planetName || `#${x.planetIdx + 1}`
             });
-            const planetLabel = s.planetIdx == null
-                ? null
-                : planetDetails.length === 1
-                    ? planetDetails[0].name
-                    : `${planetDetails.length} ${t('strategy_planets_plural')}`;
+        });
+        const planetLabel = s.planetIdx == null
+            ? null
+            : planetDetails.length === 1
+                ? planetDetails[0].name
+                : `${planetDetails.length} ${t('strategy_planets_plural')}`;
 
-            blocks.push({
-                type:        s.type,
-                species:     s.species     ?? null,
-                researchId:  s.researchId  ?? null,
-                researchName: s.researchName ?? null,
-                indirectBonus: s.indirectBonus === true,
-                from:       s.from,
-                to:         s.to,
-                planetName: planetLabel,
-                planetDetails,
-                cost:       grp.reduce((a, b) => [a[0]+b.cost[0], a[1]+b.cost[1], a[2]+b.cost[2]], [0,0,0]),
-                costMSU:    totalCost,
-                packs:      Math.ceil(totalCost / packVal),
-                deltaProd:  grp.reduce((a, b) => a + b.deltaProd, 0),
-                cumulativeProd: last.cumulativeProd,
-                count:  grp.length,
-                isBlock: grp.length > 1
-            });
-            i = j;
-
-        } else {
-            // Step costoso: mostralo singolarmente, ricalcola pack senza credit
-            blocks.push({
-                ...s,
-                planetDetails: s.planetIdx == null
-                    ? []
-                    : [{ idx: s.planetIdx, name: s.planetName || `#${s.planetIdx + 1}` }],
-                packs:   Math.ceil(s.costMSU / packVal),
-                isBlock: false,
-                count:   1
-            });
-            i++;
-        }
+        blocks.push({
+            type:        s.type,
+            species:     s.species     ?? null,
+            researchId:  s.researchId  ?? null,
+            researchName: s.researchName ?? null,
+            indirectBonus: s.indirectBonus === true,
+            from:       s.from,
+            to:         s.to,
+            planetName: planetLabel,
+            planetDetails,
+            cost:       grp.reduce((a, b) => [a[0]+b.cost[0], a[1]+b.cost[1], a[2]+b.cost[2]], [0,0,0]),
+            costMSU:    totalCost,
+            packs:      cheap
+                ? Math.ceil(totalCost / packVal)
+                : grp.reduce((a, b) => a + Math.ceil(b.costMSU / packValOf(b)), 0),
+            deltaProd:  grp.reduce((a, b) => a + b.deltaProd, 0),
+            cumulativeProd: last.cumulativeProd,
+            count:  grp.length,
+            isBlock: grp.length > 1
+        });
+        i = j;
     }
 
     // Ricalcola cumulativePacks da zero sull'intera lista blocchi

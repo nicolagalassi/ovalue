@@ -14,7 +14,7 @@ const props = defineProps({
 
 const emit = defineEmits(['clone', 'remove', 'toggle-lf-research']);
 const { t } = useLanguage();
-const { formatNum, calcPlanetMetalProduction } = useOgameFormulas();
+const { formatNum, calcPlanetMetalProduction, calcPlanetResearchMult } = useOgameFormulas();
 
 // Ricerche LF ordinate per tier (T1→T18), solo quelle con bonus metallo o collector.
 // Il colore identifica la specie; nessun raggruppamento per specie.
@@ -77,15 +77,7 @@ const lfMetalBuildings = computed(() => {
 // Moltiplicatore combinato (lifeform level + edifici amplificatori) per il display nella card.
 // Gli edifici del pianeta amplificano tutte le ricerche, indipendentemente dalla specie.
 // Formula additiva OGame: lf_level + tutti gli edifici sommati, non moltiplicati
-const planetResearchMult = computed(() => {
-    const bld      = props.planet.lfBuildings || {};
-    const metroLvl = parseInt(bld['1011']) || 0;
-    const hptLvl   = parseInt(bld['3007']) || 0;
-    const cmpLvl   = parseInt(bld['3011']) || 0;
-    const cloneLvl = parseInt(bld['4007']) || 0;
-    const lfLevel  = parseInt(props.planet.lifeformLevel) || 0;
-    return 1 + lfLevel*0.001 + metroLvl*0.005 + hptLvl*0.003 + cmpLvl*0.004 + cloneLvl*0.0025;
-});
+const planetResearchMult = computed(() => calcPlanetResearchMult(props.planet));
 
 // Verifica se una ricerca LF è attiva. Default: inattiva (deve essere true esplicito)
 const isLfActive = (id) => props.planet.lfActive?.[id] === true;

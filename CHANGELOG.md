@@ -3,10 +3,24 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.2.1]
+
+### Modificato
+- **Un solo script.** La v4 è confluita in `util/OValue_Exporter_v3.user.js` (stesso
+  script su Greasy Fork, versione 4.2.1) e il file `OValue_Exporter_v4.user.js` è stato
+  rimosso.
+
+### Corretto
+- **Bonus ricerche LF nel Production Core** allineato all'app: contano solo gli edifici
+  amplificatori della specie attiva, e il totale della pagina Bonus LF non viene più
+  sommato al bonus calcolato dalle ricerche.
+- Rimosse 2109 (Concentratore astrale) e 2113 (Moduli cristalli ionici) dalla tabella
+  bonus metallo: non danno metallo diretto.
+
 ## OValue Exporter — [4.0.0]
 
 ### Aggiunto
-- **Production Core dentro lo script** (`util/OValue_Exporter_v4.user.js`). Un riquadro
+- **Production Core dentro lo script** (ora in `util/OValue_Exporter_v3.user.js`). Un riquadro
   riassuntivo in **cima al pannello** (sotto nick e classe) mostra la **produzione di
   metallo su 24h** calcolata dai pianeti già raccolti, **senza aprire l'app**.
 - **Simulatore di classe con un solo toggle.** Due pulsanti — Collezionista ⟷

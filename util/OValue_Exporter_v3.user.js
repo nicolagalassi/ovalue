@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      3.11.0
-// @description  Raccoglie i dati dell'impero navigando per le pagine e li sincronizza con OValue
+// @version      4.2.1
+// @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
 // @match        https://*.ogame.gameforge.com/game/index.php*
@@ -132,6 +132,11 @@
             export: '⬇ Esporta Dati OValue', reset: '🗑 Svuota Cache Universo', close: '✕',
             refresh: '↻ Aggiorna Dati',
             refreshing: '↻ Aggiornamento…',
+            prod24h: 'Metallo / 24h',
+            prodSim: 'simulato',
+            prodVsCurrent: 'vs attuale',
+            prodOtherClass: 'Gen. / Espl.',
+            hintProd: 'Leggi prima l\'Impero: la produzione si calcola dai pianeti raccolti.',
             exportOk: '✅ Dati OValue copiati negli appunti!',
             resetConfirm: srv => `Svuotare la cache per "${srv}"?`,
             resetDone: 'Cache azzerata! Ricarica la pagina per ricominciare.'
@@ -163,6 +168,11 @@
             hintMissingLf: 'Click each planet to register its species.',
             export: '⬇ Export OValue Data', reset: '🗑 Clear Universe Cache', close: '✕',
             refresh: '↻ Refresh Data', refreshing: '↻ Refreshing…',
+            prod24h: 'Metal / 24h',
+            prodSim: 'simulated',
+            prodVsCurrent: 'vs current',
+            prodOtherClass: 'Gen. / Expl.',
+            hintProd: 'Read the Empire first: production is computed from the collected planets.',
             exportOk: '✅ OValue data copied to clipboard!',
             resetConfirm: srv => `Clear cache for "${srv}"?`,
             resetDone: 'Cache cleared! Reload the page to start over.'
@@ -194,6 +204,11 @@
             hintMissingLf: 'Klicke jeden Planeten an, um seine Spezies zu registrieren.',
             export: '⬇ OValue-Daten exportieren', reset: '🗑 Universum-Cache leeren', close: '✕',
             refresh: '↻ Daten aktualisieren', refreshing: '↻ Wird geladen…',
+            prod24h: 'Metall / 24h',
+            prodSim: 'simuliert',
+            prodVsCurrent: 'vs aktuell',
+            prodOtherClass: 'Allg. / Entd.',
+            hintProd: 'Zuerst das Imperium lesen: die Produktion wird aus den erfassten Planeten berechnet.',
             exportOk: '✅ OValue-Daten in die Zwischenablage kopiert!',
             resetConfirm: srv => `Cache leeren für "${srv}"?`,
             resetDone: 'Cache geleert! Seite neu laden.'
@@ -225,6 +240,11 @@
             hintMissingLf: 'Cliquez sur chaque planète pour enregistrer son espèce.',
             export: '⬇ Exporter les données OValue', reset: '🗑 Vider le cache univers', close: '✕',
             refresh: '↻ Actualiser les données', refreshing: '↻ Chargement…',
+            prod24h: 'Métal / 24h',
+            prodSim: 'simulé',
+            prodVsCurrent: 'vs actuelle',
+            prodOtherClass: 'Gén. / Expl.',
+            hintProd: 'Lisez d\'abord l\'Empire : la production est calculée à partir des planètes collectées.',
             exportOk: '✅ Données OValue copiées dans le presse-papiers !',
             resetConfirm: srv => `Vider le cache pour "${srv}" ?`,
             resetDone: 'Cache vidé ! Rechargez la page.'
@@ -277,6 +297,214 @@
     // 'trader' (Commerciante), che dà +5% alla produzione mineraria.
     const ALLIANCE_CLASS_CSS = ['warrior', 'trader', 'researcher'];
 
+    // ── PRODUCTION CORE ───────────────────────────────────────────────────────
+    // Porta la matematica di produzione del "production core" di OValue DENTRO lo script,
+    // così il pannello può mostrare la produzione di metallo su 24h e simulare il cambio
+    // di classe (es. da Esploratore a Collezionista) SENZA aprire l'app.
+    //
+    // CONFORMITÀ (AGENTS.md): questa è pura visualizzazione/calcolo "what-if" sui dati GIÀ
+    // raccolti (nessuna nuova chiamata al server, nessun timer/loop, nessuna azione di gioco,
+    // 1 nessun cambio pianeta). Non tocca monetizzazione né UI di gioco. Non richiede feature
+    // premium. Riusa esattamente le formule di src/composables (calcDailyProduction /
+    // calcLFResearchBonus) per restare coerente con ciò che l'app mostrerebbe dopo l'import.
+
+    // Tabella compatta dei bonus produzione METALLO delle ricerche LF.
+    // Estratta da src/data/ogame_db.js (solo le ricerche con bonus[0] > 0):
+    //   id → [frazionePerLivello, capFrazione]  (cap 0 = nessun cap)
+    // I bonus crystal/deut non incidono sul metallo → esclusi per leggerezza.
+    const LF_RES_METAL = {
+        // Humans
+        '1102': [0.0006, 0], '1108': [0.0006, 0],
+        // Rocktal
+        // 2109 (costo Plasma) e 2113 (cap crawler) non danno metallo diretto: esclusi
+        '2105': [0.0008, 0], '2107': [0.0008, 0], '2110': [0.0008, 0],
+        // Mecha
+        '3106': [0.0006, 0], '3113': [0.0006, 0],
+        // Kaelesh
+        '4112': [0.0006, 0]
+    };
+    // Ricerche che aumentano il bonus Collezionista (bonus[6] > 0): id → frazionePerLivello.
+    const LF_RES_COLL = { '2118': 0.002 };
+
+    // Contributo LF (frazioni raw) di UN pianeta al bonus globale metallo + collector.
+    // Replica src/composables/useOgameFormulas.js#calcPlanetLFContribution, limitato a
+    // metallo e collectorBonus (gli unici termini che incidono sulla produzione di metallo).
+    // Moltiplicatore (formula additiva OGame): 1 + livello specie attiva × 0.1% + boost
+    // degli edifici della specie ATTIVA. Vale per TUTTE le ricerche del pianeta, ma gli
+    // edifici di specie usate in passato restano sul pianeta inattivi e non contano.
+    // Replica src/composables/useOgameFormulas.js#calcPlanetResearchMult.
+    const LF_RESEARCH_BOOST_BUILDINGS = {
+        humans:  { '1011': 0.005 },                  // Metropolis            0.5%/lvl
+        rocktal: {},
+        mecha:   { '3007': 0.003, '3011': 0.004 },   // HPT 0.3%/lvl, Chip Mass 0.4%/lvl
+        kaelesh: { '4007': 0.0025 }                  // Cloning Lab           0.25%/lvl
+    };
+    function lfContribMetal(p) {
+        const contrib = { metal: 0, collectorBonus: 0 };
+        const lfData   = p.lfResearch || {};
+        const lfActive = p.lfActive || {};
+        const lfLevel  = parseInt(p.lifeformLevel) || 0;
+
+        const bld   = p.lfBuildings || {};
+        const rates = LF_RESEARCH_BOOST_BUILDINGS[p.lifeform || 'humans'] || {};
+        let mult = 1 + lfLevel * 0.001;
+        for (const [id, rate] of Object.entries(rates)) mult += (parseInt(bld[id]) || 0) * rate;
+
+        for (const [idStr, level] of Object.entries(lfData)) {
+            const lvl = parseInt(level) || 0;
+            if (lvl <= 0) continue;
+            if (lfActive[idStr] !== true) continue;   // solo ricerche ATTIVE, come nell'app
+            const m = LF_RES_METAL[idStr];
+            if (m) contrib.metal += Math.min(lvl * m[0] * mult, m[1] || Infinity);
+            const c = LF_RES_COLL[idStr];
+            if (c) contrib.collectorBonus += lvl * c * mult;
+        }
+        return contrib;
+    }
+
+    // Bonus globale ricerche LF (in %) su tutto l'account. Le ricerche LF sono account-wide:
+    // ogni pianeta contribuisce al pool globale, applicato ugualmente a tutti i pianeti.
+    // Replica calcLFResearchBonus (solo metallo + collectorBonus).
+    function lfResearchPercent(planets) {
+        const acc = { metal: 0, collectorBonus: 0 };
+        (planets || []).forEach(p => {
+            const c = lfContribMetal(p);
+            acc.metal += c.metal;
+            acc.collectorBonus += c.collectorBonus;
+        });
+        // fromResearch: c'è almeno un livello di ricerca LF → il totale manuale/importato
+        // (lfBonus) è ignorato, altrimenti le ricerche verrebbero contate due volte.
+        const fromResearch = (planets || []).some(p => Object.values(p.lfResearch || {}).some(v => v > 0));
+        return { metal: acc.metal * 100, collectorBonus: acc.collectorBonus * 100, fromResearch };
+    }
+
+    const getPosMult = (pos) => {
+        pos = parseInt(pos);
+        if (pos === 8) return 1.35;
+        if (pos === 7 || pos === 9) return 1.23;
+        if (pos === 6 || pos === 10) return 1.17;
+        return 1.0;
+    };
+
+    // Produzione oraria di metallo di un singolo pianeta.
+    // Replica esattamente la formula di src/composables/useProfiles.js#calcDailyProduction
+    // (ciclo per-pianeta). `settings.playerClass` è 'collector' | 'other' (general/explorer
+    // danno lo stesso metallo → mappati entrambi a 'other').
+    function planetHourlyMetal(p, settings, lfResearchPct) {
+        const ecoSpeed  = settings.ecoSpeed || 1;
+        const isCollector = settings.playerClass === 'collector';
+        const collFactor = 1 + ((settings.rocktalEnhancement || 0) / 100) + ((lfResearchPct.collectorBonus || 0) / 100);
+
+        const met     = parseInt(p.metal) || 0;
+        const posMult = getPosMult(p.pos || 8);
+        const natProd  = Math.floor(30 * ecoSpeed * posMult);
+        const mineBase = met <= 0 ? 0 : Math.floor(30 * ecoSpeed * posMult * met * Math.pow(1.1, met));
+
+        let totPerc = (settings.plasma || 0) * 1;
+        if (settings.geologist) totPerc += 10;
+        if (settings.staff)     totPerc += 2;
+        if (isCollector)                        totPerc += 25 * collFactor;
+        if (settings.allyClass === 'trader')    totPerc += 5;
+        totPerc += (parseInt(p.item) || 0) + (parseInt(p.itemCustom) || 0);
+        if (p.lifeform === 'rocktal')      totPerc += (parseInt(p.magma) || 0) * 2;
+        else if (p.lifeform === 'humans')  totPerc += (parseInt(p.human) || 0) * 1.5;
+        // Bonus LF: dalle ricerche (globale) oppure il totale della pagina Bonus LF, mai entrambi
+        totPerc += lfResearchPct.fromResearch ? (lfResearchPct.metal || 0) : (settings.lfBonus || 0);
+
+        const mineSum = met + (parseInt(p.crystal) || 0) + (parseInt(p.deuterium) || 0);
+        let maxCraw = mineSum * 8;
+        if (isCollector && settings.geologist) maxCraw = Math.floor(maxCraw * (1 + 0.1 * collFactor));
+        const actCraw = Math.min(parseInt(p.crawlers) || 0, maxCraw);
+        if (actCraw > 0) {
+            let mult = 0.02;
+            if (isCollector) {
+                mult *= (1 + (50 * collFactor) / 100);
+                if (p.overload) mult *= 1.5;
+            }
+            totPerc += Math.min(actCraw * mult, 50);
+        }
+        return natProd + mineBase + Math.floor(mineBase * (totPerc / 100));
+    }
+
+    // Costruisce il modello { settings, planets } dai dati raccolti `d`, con la STESSA
+    // mappatura di src/composables/useProfiles.js#importFromExporter (classi, ufficiali,
+    // lfActive/lfResearch da planetResearches/activeResearches). Così i numeri mostrati
+    // qui coincidono con quelli che l'app calcolerebbe dopo l'import.
+    const LF_NAME_TO_APP = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'kaelesh' };
+    const LF_APP_TO_NUM  = { humans: 1, rocktal: 2, mecha: 3, kaelesh: 4 };
+    function buildProductionModel() {
+        // Classe giocatore reale: solo 'collector' conta per il metallo; il resto → 'other'.
+        const realClass = d.playerClass === 'collector' ? 'collector' : 'other';
+
+        // Ufficiali → geologo + staff completo (5 su 5)
+        const officers = d.officers || {};
+        const geologist = officers.geologist?.active === true;
+        const ROLES = ['commander', 'admiral', 'engineer', 'geologist', 'technocrat'];
+        const staff = ROLES.every(r => officers[r]?.active === true);
+
+        const settings = {
+            ecoSpeed: Number(d.universeSpeed) || 1,
+            playerClass: realClass,
+            rocktalEnhancement: 0,
+            allyClass: d.allianceClass === 'trader' ? 'trader' : 'none',
+            plasma: Number(d.settings?.plasma) || 0,
+            geologist,
+            staff,
+            lfBonus: parseFloat(String(d.lfBonuses?.metal || '0').replace(',', '.')) || 0
+        };
+
+        const planetResearches = d.planetResearches || {};
+        const activeResearches = Array.isArray(d.activeResearches) ? d.activeResearches : [];
+        const planets = (Array.isArray(d.planets) ? d.planets : []).map(p => {
+            const rawLf   = p.lifeform || d.planetLifeforms?.[p.id] || null;
+            const lifeform = LF_NAME_TO_APP[rawLf] || 'humans';
+            const lfNumber = LF_APP_TO_NUM[lifeform];
+            const lifeformLevel = d.lfLevels?.[String(lfNumber)] || p.lifeformLevel || 0;
+
+            // lfActive/lfResearch: priorità planetResearches (pagina lfresearch) > activeResearches
+            const lfActive = {};
+            const perPlanet = planetResearches[String(p.id)];
+            let lfResearch = p.lfResearch || {};
+            if (perPlanet) {
+                Object.keys(perPlanet).forEach(k => { lfActive[k] = true; });
+                lfResearch = { ...(p.lfResearch || {}), ...perPlanet };
+            } else if (d.lf_collected) {
+                activeResearches.forEach(numId => {
+                    const k = String(numId);
+                    if (k in (p.lfResearch || {})) lfActive[k] = true;
+                });
+            }
+
+            return {
+                name: p.name || '', pos: p.pos ?? 8,
+                metal: p.metal ?? 0, crystal: p.crystal ?? 0, deuterium: p.deuterium ?? 0,
+                magma: p.magma ?? 0, human: p.human ?? 0, crawlers: p.crawlers ?? 0,
+                item: p.item ?? 0, itemCustom: p.itemCustom ?? 0,
+                lifeform, overload: p.overload ?? false,
+                lifeformLevel, lfResearch, lfActive,
+                lfBuildings: p.lfBuildings || {}
+            };
+        });
+
+        return { settings, planets, realClass };
+    }
+
+    // Produzione 24h totale (e per-pianeta) per una data classe simulata.
+    // classOverride: 'collector' | 'other' | null (usa la classe reale).
+    function computeProduction(model, classOverride) {
+        const settings = classOverride
+            ? { ...model.settings, playerClass: classOverride }
+            : model.settings;
+        const lfPct = lfResearchPercent(model.planets);
+        let hourly = 0;
+        const perPlanet = model.planets.map(p => {
+            const h = planetHourlyMetal(p, settings, lfPct);
+            hourly += h;
+            return { name: p.name, pos: p.pos, lifeform: p.lifeform, daily: h * 24 };
+        });
+        return { daily: Math.floor(hourly * 24), perPlanet };
+    }
+
     // ── STATO ────────────────────────────────────────────────────────────────
     let d = GM_getValue(STORAGE_KEY, {});
     const DEFAULTS = {
@@ -298,6 +526,10 @@
         knownServers.push(SERVER_KEY);
         GM_setValue('ovalue_servers', knownServers);
     }
+
+    // Classe attualmente selezionata nel simulatore di produzione (null = classe reale).
+    // Valori: 'collector' | 'general' | 'explorer' | null.
+    let simClass = null;
 
     // ── HELPERS DOM ──────────────────────────────────────────────────────────
     const meta          = (name) => document.querySelector(`meta[name="${name}"]`)?.content ?? null;
@@ -607,25 +839,49 @@
     }
 
     // ── ITEM: rilevamento amplificatori (condiviso DOM + buffs accountInfo) ───
+    // I tooltip DOM sono nella forma "Nome item|<html descrizione>": per riconoscere
+    // l'item si usa solo la parte prima della pipe, altrimenti il testo della
+    // descrizione (che cita spedizioni, percentuali, ecc.) falsa il match.
+    // I buff di accountInfo espongono già il solo nome → stessa funzione.
+    function itemName(t) {
+        return String(t || '').split('|')[0].trim();
+    }
+
+    // Item legati alle spedizioni: non toccano la produzione dei pianeti.
+    // Es. "Amplificatore risorse per spedizioni (25 %)" ha lo stesso prefisso
+    // dell'amplificatore di produzione → senza questo filtro verrebbe conteggiato.
+    const EXPEDITION_ITEM_RE = /spedizion|expedition|exp[ée]dition/i;
+
     // Amplificatore metallo → livello 10/20/30/40. Riconosce il nome nelle 4 lingue,
     // sia dal tooltip DOM (.item_img) sia dal campo `name` dei buff v13 (stesso testo).
     function metalAmpLevel(t) {
-        if (!t) return 0;
+        const n = itemName(t);
+        if (!n) return 0;
         let lvl = 0;
-        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Bronzo|Bronze)\b/i.test(t) ||
-            /(?:Bronze)\s+(?:Metal|Metall)/i.test(t))                                lvl = Math.max(lvl, 10);
-        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Argento|Silver|Silber|Argent)\b/i.test(t) ||
-            /(?:Silver)\s+(?:Metal|Metall)/i.test(t))                                lvl = Math.max(lvl, 20);
-        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Oro|Gold|Or)\b/i.test(t) ||
-            /(?:Gold)\s+(?:Metal|Metall)/i.test(t))                                  lvl = Math.max(lvl, 30);
-        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Platino|Platinum|Platin|Platine)\b/i.test(t) ||
-            /(?:Platinum)\s+(?:Metal|Metall)/i.test(t))                              lvl = Math.max(lvl, 40);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Bronzo|Bronze)\b/i.test(n) ||
+            /(?:Bronze)\s+(?:Metal|Metall)/i.test(n))                                lvl = Math.max(lvl, 10);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Argento|Silver|Silber|Argent)\b/i.test(n) ||
+            /(?:Silver)\s+(?:Metal|Metall)/i.test(n))                                lvl = Math.max(lvl, 20);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Oro|Gold|Or)\b/i.test(n) ||
+            /(?:Gold)\s+(?:Metal|Metall)/i.test(n))                                  lvl = Math.max(lvl, 30);
+        if (/(?:metallo?|m[eé]tal|Metall)\s+(?:Platino|Platinum|Platin|Platine)\b/i.test(n) ||
+            /(?:Platinum)\s+(?:Metal|Metall)/i.test(n))                              lvl = Math.max(lvl, 40);
         return lvl;
     }
-    // Amplificatore risorse → percentuale (numero nel nome/tooltip).
+
+    // Amplificatore di risorse (produzione pianeta) → percentuale dal nome.
+    // Nome reale nello shop IT: "Amplificatore di risorse (20 %) Bronzo" — percentuale
+    // fra parentesi e suffisso di tier finale (tutti i tagli sono Bronzo). Il "di" è
+    // opzionale nel match perché l'omonimo item da spedizione ne fa a meno
+    // ("Amplificatore risorse per spedizioni (25 %)"), ed è comunque escluso a monte.
+    // Tagli attuali 15/20/25/30/40, ma la percentuale viene letta così com'è:
+    // se OGame ne aggiunge una, arriva comunque nel calcolatore.
     function resourceAmpPct(t) {
-        const amp = (t || '').match(/(?:Amplificatore di risorse|Resource Amplifier|Ressourcenverst[äa]rker|Amplificateur de ressources)[^\d]*(\d+)/i);
-        return amp ? parseInt(amp[1]) : 0;
+        const n = itemName(t);
+        if (!n || EXPEDITION_ITEM_RE.test(n)) return 0;
+        const amp = n.match(/(?:Amplificatore(?:\s+di)?\s+risorse|Resource\s+Amplifier|Ressourcenverst[äa]rker|Amplificateur\s+de\s+ressources)[^\d]*(\d+)\s*%/i);
+        const pct = amp ? parseInt(amp[1]) : 0;
+        return (pct > 0 && pct <= 100) ? pct : 0;
     }
 
     // Converte i timestamp di un buff (accountInfo v13) in { timeRemaining, totalDuration }.
@@ -1015,7 +1271,7 @@
                 const t = img.getAttribute('data-tooltip-title') || '';
                 item     = Math.max(item, metalAmpLevel(t));
                 const rp = resourceAmpPct(t);
-                if (rp) itemCustom = rp;
+                if (rp) itemCustom = Math.max(itemCustom, rp);
             });
 
             // Dati API per questo pianeta — cerca per id O per planetID (i due campi possono differire)
@@ -1201,8 +1457,6 @@
     const lfColor = (name) =>
         ({ Humans: '#6aafdf', Rocktal: '#df8a6a', Mechas: '#a08ad0', Kaelesh: '#8adf6a' }[name] || '#a0bcd4');
 
-    const classColor = { collector: '#6aafdf', general: '#df8a6a', explorer: '#8adf6a' };
-
     const row      = (l, r) => `<div class="ov_row"><span class="ov_lbl">${l}</span><span>${r}</span></div>`;
     const subTitle = (t)    => `<div class="ov_sub">${t}</div>`;
 
@@ -1243,10 +1497,9 @@
             if (!d.overview_collected) {
                 ovBody.innerHTML = `<div class="ov_hint">${L.hintOverview}</div>`;
             } else {
-                const cc = classColor[d.playerClass] || '#7a9ab2';
-                const cn = CLASS_NAMES[d.playerClass] || d.playerClass;
-                let html = row(L.player, `<span style="color:#a0bcd4">${d.playerName || '—'}</span>`);
-                html    += row(L.pclass, `<span style="color:${cc};font-weight:bold">${d.playerClass !== 'none' ? cn : '—'}</span>`);
+                // Nick e classe giocatore vivono ora nell'hero in cima al pannello;
+                // qui la Panoramica resta focalizzata su classe alleanza + ufficiali.
+                let html = '';
                 if (d.allianceClass && d.allianceClass !== 'none') {
                     const an = ALLY_NAMES[d.allianceClass] || d.allianceClass;
                     html += row(L.allyClass, `<span style="color:#ffb800;font-weight:bold">${an}</span>`);
@@ -1389,7 +1642,74 @@
             a.rel = 'noopener noreferrer';
         });
 
+        renderProduction();
         updateMenuStatus();
+    }
+
+    // ── RENDER PRODUZIONE (hero in cima al pannello) ────────────────────────────
+    // Blocco riassuntivo sempre visibile: nick + classe, produzione metallo 24h e un
+    // toggle di classe (Collezionista ⟷ Generale/Esploratore — un solo tasto perché
+    // Generale ed Esploratore danno la stessa produzione mineraria).
+    // Pura visualizzazione "what-if": non modifica nulla nel gioco (AGENTS.md).
+    const fmtNum   = (n) => new Intl.NumberFormat().format(Math.floor(n || 0));
+    const CLASS_COL = { collector: '#6aafdf', general: '#df8a6a', explorer: '#8adf6a' };
+
+    function renderProduction() {
+        const hero = document.getElementById('ov_hero');
+        if (!hero) return;
+
+        if (!d.empire_collected || !Array.isArray(d.planets) || d.planets.length === 0) {
+            hero.innerHTML = `<div class="ov_hint">${L.hintProd}</div>`;
+            return;
+        }
+
+        const model = buildProductionModel();                 // realClass: 'collector' | 'other'
+        const real  = computeProduction(model, null);         // produzione classe reale
+        // Un solo tasto per Generale/Esploratore → valori neutri 'collector' | 'other'.
+        const selPc = simClass || model.realClass;
+        const sim   = computeProduction(model, selPc);
+        const delta = sim.daily - real.daily;
+        const isReal = selPc === model.realClass;
+
+        // Identità (nick + classe reale) — la produzione va "sotto al nick e classe".
+        const pc = d.playerClass;
+        const className = pc && pc !== 'none' ? (CLASS_NAMES[pc] || pc) : '—';
+        const classCol  = CLASS_COL[pc] || '#7a9ab2';
+        let html = `<div class="ov_hero_id">` +
+                   `<span class="ov_hero_nick">${d.playerName || '—'}</span>` +
+                   `<span class="ov_hero_class" style="color:${classCol};border-color:${classCol}33">${className}</span>` +
+                   `</div>`;
+
+        // Produzione grande (classe selezionata). Se sto simulando, mostro anche il delta.
+        html += `<div class="ov_hero_label">${L.prod24h}${isReal ? '' : ` · ${L.prodSim}`}</div>`;
+        html += `<div class="ov_hero_val">${fmtNum(sim.daily)}</div>`;
+        if (!isReal) {
+            const up = delta >= 0;
+            const dCol = up ? '#00ff9d' : '#ff2a6d';
+            const sign = up ? '+' : '';
+            const pct  = real.daily > 0 ? ` (${sign}${(delta / real.daily * 100).toFixed(1)}%)` : '';
+            html += `<div class="ov_hero_delta" style="color:${dCol}">${sign}${fmtNum(delta)}${pct} <span class="ov_dim">${L.prodVsCurrent}</span></div>`;
+        }
+
+        // Toggle classe: Collezionista ⟷ Generale/Esploratore
+        html += `<div class="ov_pc_row">`;
+        for (const opt of [{ pc: 'collector', label: CLASS_NAMES.collector }, { pc: 'other', label: L.prodOtherClass }]) {
+            const on = opt.pc === selPc;
+            const col = opt.pc === 'collector' ? CLASS_COL.collector : '#df8a6a';
+            html += `<button class="ov_pc_btn${on ? ' ov_pc_on' : ''}" data-pc="${opt.pc}" ` +
+                    `style="${on ? `border-color:${col};color:${col}` : ''}">${opt.label}</button>`;
+        }
+        html += `</div>`;
+
+        hero.innerHTML = html;
+
+        // Handler dei pulsanti classe (nodi freschi ad ogni render → nessun leak)
+        hero.querySelectorAll('.ov_pc_btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                simClass = btn.getAttribute('data-pc');
+                renderProduction();
+            });
+        });
     }
 
     function updateMenuStatus() {
@@ -1491,6 +1811,27 @@
         #ov_export:hover { background:rgba(0,240,255,.13); border-color:rgba(0,240,255,.25); }
         #ov_reset { background:rgba(255,42,109,.07); border:1px solid rgba(255,42,109,.15); color:#ff2a6d; }
         #ov_reset:hover { background:rgba(255,42,109,.13); border-color:rgba(255,42,109,.25); }
+        #ov_hero { padding:9px 10px 10px; margin:-6px -8px 6px; background:#0f131c;
+            border-bottom:1px solid rgba(255,255,255,.07); }
+        #ov_hero .ov_hint { padding:6px 2px; }
+        .ov_hero_id { display:flex; align-items:center; gap:6px; margin-bottom:8px; min-width:0; }
+        .ov_hero_nick { color:#e2e8f0; font-weight:700; font-size:12px; flex:1; min-width:0;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .ov_hero_class { flex-shrink:0; font-size:9px; font-weight:700; padding:2px 6px; border-radius:4px;
+            border:1px solid transparent; text-transform:uppercase; letter-spacing:.05em;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+        .ov_hero_label { font-size:9px; color:#64748b; text-transform:uppercase; letter-spacing:.1em;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-bottom:1px; }
+        .ov_hero_val { font-size:22px; font-weight:800; color:#00ff9d; line-height:1.15;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:-.02em; }
+        .ov_hero_delta { font-size:11px; font-weight:700; margin-top:2px; }
+        .ov_pc_row { display:flex; gap:5px; margin-top:8px; }
+        .ov_pc_btn { flex:1; padding:6px 0; font-size:10px; font-family:inherit; font-weight:600;
+            color:#94a3b8; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.1);
+            border-radius:6px; cursor:pointer; transition:background 150ms,border-color 150ms,color 150ms;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .ov_pc_btn:hover { background:rgba(255,255,255,.07); }
+        .ov_pc_btn.ov_pc_on { background:rgba(0,240,255,.06); font-weight:700; }
     `);
 
     function injectUI() {
@@ -1557,6 +1898,7 @@
                 <button id="ov_close" title="${L.close}">${L.close}</button>
             </div>
             <div id="ov_content">
+                <div id="ov_hero"><div class="ov_hint">${L.hintProd}</div></div>
                 ${mkSec('ov', '?page=ingame&component=overview', L.overview, 'ov_bdg_ov', 'ov_body_ov', `<div class="ov_hint">${L.hintOverview}</div>`)}
                 ${mkSec('lf', '?page=ingame&component=lfbonuses', L.lifeform, 'ov_bdg_lf', 'ov_body_lf', `<div class="ov_hint">${L.hintLf}</div>`)}
                 ${mkSec('lfr', '?page=ingame&component=lfresearch', L.lfResearch, 'ov_bdg_lfr', 'ov_body_lfr', `<div class="ov_hint">${L.hintLfResearch}</div>`)}

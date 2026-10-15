@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.2.0
+// @version      4.2.1
 // @description  Raccoglie i dati dell'impero e mostra la produzione di metallo 24h con simulatore di classe (Production Core). Successore dell'exporter: le funzioni di esportazione restano intatte.
 // @author       OValue
 // @license      MIT
@@ -329,19 +329,26 @@
     // Contributo LF (frazioni raw) di UN pianeta al bonus globale metallo + collector.
     // Replica src/composables/useOgameFormulas.js#calcPlanetLFContribution, limitato a
     // metallo e collectorBonus (gli unici termini che incidono sulla produzione di metallo).
-    // Il moltiplicatore edifici amplifica TUTTE le ricerche del pianeta (formula additiva OGame).
+    // Moltiplicatore (formula additiva OGame): 1 + livello specie attiva × 0.1% + boost
+    // degli edifici della specie ATTIVA. Vale per TUTTE le ricerche del pianeta, ma gli
+    // edifici di specie usate in passato restano sul pianeta inattivi e non contano.
+    // Replica src/composables/useOgameFormulas.js#calcPlanetResearchMult.
+    const LF_RESEARCH_BOOST_BUILDINGS = {
+        humans:  { '1011': 0.005 },                  // Metropolis            0.5%/lvl
+        rocktal: {},
+        mecha:   { '3007': 0.003, '3011': 0.004 },   // HPT 0.3%/lvl, Chip Mass 0.4%/lvl
+        kaelesh: { '4007': 0.0025 }                  // Cloning Lab           0.25%/lvl
+    };
     function lfContribMetal(p) {
         const contrib = { metal: 0, collectorBonus: 0 };
         const lfData   = p.lfResearch || {};
         const lfActive = p.lfActive || {};
         const lfLevel  = parseInt(p.lifeformLevel) || 0;
 
-        const bld      = p.lfBuildings || {};
-        const metroLvl = parseInt(bld['1011']) || 0;  // Metropolis (Humans)   0.5%/lvl
-        const hptLvl   = parseInt(bld['3007']) || 0;  // HPT (Mecha)            0.3%/lvl
-        const cmpLvl   = parseInt(bld['3011']) || 0;  // Chip Mass (Mecha)      0.4%/lvl
-        const cloneLvl = parseInt(bld['4007']) || 0;  // Cloning Lab (Kaelesh)  0.25%/lvl
-        const mult = 1 + lfLevel * 0.001 + metroLvl * 0.005 + hptLvl * 0.003 + cmpLvl * 0.004 + cloneLvl * 0.0025;
+        const bld   = p.lfBuildings || {};
+        const rates = LF_RESEARCH_BOOST_BUILDINGS[p.lifeform || 'humans'] || {};
+        let mult = 1 + lfLevel * 0.001;
+        for (const [id, rate] of Object.entries(rates)) mult += (parseInt(bld[id]) || 0) * rate;
 
         for (const [idStr, level] of Object.entries(lfData)) {
             const lvl = parseInt(level) || 0;
@@ -365,7 +372,10 @@
             acc.metal += c.metal;
             acc.collectorBonus += c.collectorBonus;
         });
-        return { metal: acc.metal * 100, collectorBonus: acc.collectorBonus * 100 };
+        // fromResearch: c'è almeno un livello di ricerca LF → il totale manuale/importato
+        // (lfBonus) è ignorato, altrimenti le ricerche verrebbero contate due volte.
+        const fromResearch = (planets || []).some(p => Object.values(p.lfResearch || {}).some(v => v > 0));
+        return { metal: acc.metal * 100, collectorBonus: acc.collectorBonus * 100, fromResearch };
     }
 
     const getPosMult = (pos) => {
@@ -398,9 +408,8 @@
         totPerc += (parseInt(p.item) || 0) + (parseInt(p.itemCustom) || 0);
         if (p.lifeform === 'rocktal')      totPerc += (parseInt(p.magma) || 0) * 2;
         else if (p.lifeform === 'humans')  totPerc += (parseInt(p.human) || 0) * 1.5;
-        totPerc += lfResearchPct.metal || 0;
-        // Fallback manuale (lfBonus) solo se il pianeta non ha ricerche LF con livello > 0
-        if (Object.values(p.lfResearch || {}).every(v => !v)) totPerc += settings.lfBonus || 0;
+        // Bonus LF: dalle ricerche (globale) oppure il totale della pagina Bonus LF, mai entrambi
+        totPerc += lfResearchPct.fromResearch ? (lfResearchPct.metal || 0) : (settings.lfBonus || 0);
 
         const mineSum = met + (parseInt(p.crystal) || 0) + (parseInt(p.deuterium) || 0);
         let maxCraw = mineSum * 8;

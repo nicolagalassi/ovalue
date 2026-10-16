@@ -815,6 +815,13 @@ const planCost = computed(() => {
         hasProgress: doneCount > 0
     };
 });
+// Avanzamento della produzione: quota del salto iniziale → finale già raggiunta
+const planProgressPct = computed(() => {
+    if (!result.value) return 0;
+    const start = result.value.initialProd, end = result.value.finalProd;
+    if (end <= start) return 0;
+    return Math.max(0, Math.min(100, Math.round((currentProd.value - start) / (end - start) * 100)));
+});
 // Tipi presenti nel piano, per i chip filtro
 const presentTypes = computed(() => {
     const seen = new Set();
@@ -1343,10 +1350,18 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
 
             <!-- Sommario top -->
             <div class="card-glass p-5">
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_initial') }}</div>
                         <div class="text-lg font-black text-slate-200 font-mono">{{ formatNum(result.initialProd) }}</div>
+                    </div>
+                    <!-- Produzione attuale (dati del core di adesso) e avanzamento verso la finale -->
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-sky-500/20 text-center">
+                        <div class="text-[9px] text-sky-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_current_prod') }}</div>
+                        <div class="text-lg font-black text-sky-200 font-mono">{{ formatNum(currentProd) }}</div>
+                        <div v-if="planProgressPct > 0" class="text-[10px] font-mono text-sky-300/70 mt-0.5">
+                            {{ t('strategy_progress_pct').replace('{n}', planProgressPct) }}
+                        </div>
                     </div>
                     <div class="bg-ogame-surface rounded-xl p-3 border border-emerald-500/25 text-center">
                         <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_final') }}</div>
@@ -1373,7 +1388,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             {{ planCost.hasProgress ? t('strategy_remaining_msu') : t('strategy_total_msu') }}
                         </div>
                         <div class="text-base font-black text-amber-200 font-mono">{{ formatNum(planCost.msu) }}</div>
-                        <div v-if="planCost.hasProgress" class="text-[9px] font-mono text-slate-600 mt-0.5">
+                        <div v-if="planCost.hasProgress" class="text-[10px] font-mono text-amber-300/70 mt-0.5">
                             {{ t('strategy_of_total').replace('{n}', formatNum(planCost.totalMSU)) }}
                         </div>
                     </div>

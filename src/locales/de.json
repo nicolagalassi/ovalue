@@ -137,6 +137,7 @@
     "res_metal": "Metall",
     "res_crystal": "Kristall",
     "res_deuterium": "Deuterium",
+    "strategy_total_msu": "MSU gesamt",
     "lbl_mine_metal": "Metallmine",
     "lbl_mine_crystal": "Kristallmine",
     "lbl_mine_deuterium": "Deuterium-Synthetisierer",

@@ -706,6 +706,7 @@
     "strategy_final": "Final production",
     "strategy_total_packs": "Total packs",
     "strategy_total_mo": "Total DM",
+    "strategy_total_msu": "Total MSU",
     "strategy_total_euro": "Cost €",
     "strategy_target_reached": "✓ Target reached",
     "strategy_stop_max_steps": "Step limit reached",

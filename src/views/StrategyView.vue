@@ -653,6 +653,15 @@ const nextStepN = computed(() => {
     const blk = groupedSteps.value.find(b => !doneSteps.value.has(b.n));
     return blk ? blk.n : null;
 });
+// Costo totale del piano: MSU e risorse grezze (somma dei costi dei singoli step)
+const planCost = computed(() => {
+    if (!result.value) return null;
+    const res = [0, 0, 0];
+    result.value.steps.forEach(st => {
+        res[0] += st.cost?.[0] || 0; res[1] += st.cost?.[1] || 0; res[2] += st.cost?.[2] || 0;
+    });
+    return { msu: result.value.cumulativeMSU || 0, metal: res[0], crystal: res[1], deuterium: res[2] };
+});
 // Tipi presenti nel piano, per i chip filtro
 const presentTypes = computed(() => {
     const seen = new Set();
@@ -1189,6 +1198,26 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_euro') }}</div>
                         <div class="text-lg font-black text-green-300 font-mono">€{{ formatNum(result.euro.totalEuro) }}</div>
+                    </div>
+                </div>
+
+                <!-- Costo del piano: MSU totali e ripartizione per risorsa -->
+                <div v-if="planCost" class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-amber-500/20 text-center">
+                        <div class="text-[9px] text-amber-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_msu') }}</div>
+                        <div class="text-base font-black text-amber-200 font-mono">{{ formatNum(planCost.msu) }}</div>
+                    </div>
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
+                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_metal') }}</div>
+                        <div class="text-base font-black text-slate-300 font-mono">{{ formatNum(planCost.metal) }}</div>
+                    </div>
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
+                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_crystal') }}</div>
+                        <div class="text-base font-black text-sky-300 font-mono">{{ formatNum(planCost.crystal) }}</div>
+                    </div>
+                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
+                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_deuterium') }}</div>
+                        <div class="text-base font-black text-ogame-success font-mono">{{ formatNum(planCost.deuterium) }}</div>
                     </div>
                 </div>
 

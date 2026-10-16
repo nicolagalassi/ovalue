@@ -137,6 +137,7 @@
     "res_metal": "Métal",
     "res_crystal": "Cristal",
     "res_deuterium": "Deutérium",
+    "strategy_total_msu": "MSU totaux",
     "lbl_mine_metal": "Mine de métal",
     "lbl_mine_crystal": "Mine de cristal",
     "lbl_mine_deuterium": "Synthétiseur de deutérium",

@@ -3,7 +3,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeUnmount
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
-import { useStrategy, toMSU, isStepDoneInProfile, rewindPlanProgress } from '../composables/useStrategy';
+import { useStrategy, toMSU, isStepDoneInProfile, rewindPlanProgress, applyStepToState } from '../composables/useStrategy';
 import { useToast } from '../composables/useToast';
 import { OGAME_DB } from '../data/ogame_db';
 
@@ -494,6 +494,7 @@ const planBlocks = computed(() => {
             // si raggruppa solo ciò che è identico.
             const sameGroup = (a, b) => {
                 if (a.type !== b.type) return false;
+                if (!!a.fromPrevPlan !== !!b.fromPrevPlan) return false;
                 if (a.from !== b.from || a.to !== b.to) return false;
                 if (a.type === 'lf_research') return a.researchId === b.researchId;
                 return true;
@@ -579,7 +580,7 @@ const autoDoneSteps = computed(() => {
 
 // Step da non contare più nei costi: completati nel profilo o in un blocco spuntato a mano.
 const stepDone = computed(() => {
-    const done = autoDoneSteps.value.slice();
+    const done = autoDoneSteps.value.map((d, i) => d || result.value.steps[i].doneManual === true);
     planBlocks.value.forEach(b => {
         if (doneSteps.value.has(b.n)) b.stepIdxs.forEach(i => { done[i] = true; });
     });
@@ -595,7 +596,12 @@ const groupedSteps = computed(() => {
     let stockLeft = stockMSU.value;
     let cumPacks = 0;
     return planBlocks.value.map(b => {
-        const autoCount   = b.stepIdxs.filter(i => auto[i]).length;
+        const autoCount   = b.stepIdxs.filter(i => auto[i] || result.value.steps[i].doneManual === true).length;
+        // Pianeti del blocco già completati nel profilo (per evidenziarli nei chip)
+        const donePlanets = new Set(
+            b.stepIdxs.filter(i => auto[i]).map(i => result.value.steps[i].planetIdx)
+        );
+        const planetDetails = b.planetDetails.map(pd => ({ ...pd, done: donePlanets.has(pd.idx) }));
         const autoDone    = autoCount === b.count;
         const isDone      = autoDone || doneSteps.value.has(b.n);
         const remainingMSU = b.stepIdxs.reduce((a, i) => a + (done[i] ? 0 : result.value.steps[i].costMSU), 0);
@@ -603,7 +609,7 @@ const groupedSteps = computed(() => {
         stockLeft -= covered;
         const packs = Math.ceil((remainingMSU - covered) / b.packVal);
         cumPacks += packs;
-        return { ...b, autoCount, autoDone, isDone, remainingMSU, packs, cumulativePacks: cumPacks };
+        return { ...b, planetDetails, autoCount, autoDone, isDone, remainingMSU, packs, cumulativePacks: cumPacks };
     });
 });
 
@@ -632,60 +638,94 @@ const buildPlannerOptions = () => ({
     }
 });
 
-const finalizePlan = (planRes, initialState) => {
-    const euro = computeEuroCost(planRes.cumulativePacks, {
+// `kept`: step già fatti del piano precedente ("Ricalcola il resto"). Restano in
+// testa alla roadmap come fatti e il piano nuovo prosegue da lì.
+const finalizePlan = (planRes, initialState, kept = null) => {
+    let res = planRes;
+    if (kept) {
+        const steps = [...kept, ...planRes.steps].map((st, i) => ({ ...st, n: i + 1 }));
+        res = {
+            ...planRes,
+            steps,
+            initialProd: result.value?.initialProd ?? planRes.initialProd,
+            cumulativeMSU: steps.reduce((a, st) => a + (st.costMSU || 0), 0),
+            cumulativePacks: steps.reduce((a, st) => a + (st.packs || 0), 0)
+        };
+    }
+    const euro = computeEuroCost(res.cumulativePacks, {
         ...initialState.shop,
         shopDiscount: shopDiscount.value,
         moBonus: moBonus.value,
     });
     result.value = {
-        ...planRes, euro,
+        ...res, euro,
         lfChoiceSnapshot: [...lfChoice.value],
         targetSnapshot: parseInt(target.value) || 0
     };
     // Impronta del core usata per questo calcolo: se cambia, il piano va segnalato.
-    coreHashAtPlan.value = coreFingerprint(activeProfile.value);
+    // Con step tenuti si riavvolge anche il loro avanzamento, come fa planIsStale.
+    coreHashAtPlan.value = coreFingerprint(activeProfile.value, kept ? res.steps : null);
     doneSteps.value = new Set();
     typeFilter.value = 'all';
     isComputing.value = false;
     progress.value = null;
 };
 
-const runPlannerSync = (initialState, options) => {
+const runPlannerSync = (initialState, options, kept = null) => {
     try {
-        finalizePlan(runPlanner(initialState, options), initialState);
+        finalizePlan(runPlanner(initialState, options), initialState, kept);
     } catch {
         isComputing.value = false;
         progress.value = null;
     }
 };
 
-const computePlan = () => {
+// mode 'new'  → piano da zero (sostituisce quello in corso, con conferma).
+// mode 'rest' → "Ricalcola il resto": tiene gli step già fatti e ripianifica il
+//               resto dai dati attuali (pianeti nuovi, classe, item, …).
+const computePlan = (mode = 'new') => {
     if (!activeProfile.value || isComputing.value) return;
-    // Il piano in corso è il riferimento: sostituirlo fa perdere avanzamento e spunte.
-    if (result.value && doneCount.value > 0 && !window.confirm(t('strategy_new_plan_confirm'))) return;
-    isComputing.value = true;
-    result.value = null;
-    progress.value = null;
+    const isRest = mode === 'rest' && !!result.value;
+    // Un nuovo piano sostituisce quello in corso: avanzamento e spunte vanno persi.
+    if (!isRest && result.value && !window.confirm(t('strategy_new_plan_confirm'))) return;
 
     const initialState = applyOverrides(buildInitialState(activeProfile.value, lfChoice.value));
     const options = buildPlannerOptions();
+
+    let kept = null;
+    if (isRest) {
+        const auto = autoDoneSteps.value;
+        const done = stepDone.value;
+        kept = result.value.steps.flatMap((st, i) => {
+            if (!done[i]) return [];
+            // Spuntato a mano ma non ancora importato: per il planner è già fatto,
+            // altrimenti lo riproporrebbe.
+            const manual = !auto[i];
+            if (manual) applyStepToState(initialState, st);
+            return [{ ...st, fromPrevPlan: true, doneManual: manual || st.doneManual === true }];
+        });
+    }
+
+    isComputing.value = true;
+    // Il piano precedente resta visibile finché il nuovo calcolo non è pronto.
+    if (!isRest) result.value = null;
+    progress.value = null;
 
     try {
         plannerWorker?.terminate();
         plannerWorker = new Worker(new URL('../workers/planner.worker.js', import.meta.url), { type: 'module' });
         plannerWorker.onmessage = ({ data }) => {
             if (data.type === 'progress')   progress.value = data.progress;
-            else if (data.type === 'done')  finalizePlan(data.result, initialState);
-            else                            runPlannerSync(initialState, options);
+            else if (data.type === 'done')  finalizePlan(data.result, initialState, kept);
+            else                            runPlannerSync(initialState, options, kept);
         };
         plannerWorker.onerror = (e) => {
             e.preventDefault();
-            runPlannerSync(initialState, options);
+            runPlannerSync(initialState, options, kept);
         };
         plannerWorker.postMessage({ initialState, options });
     } catch {
-        runPlannerSync(initialState, options);
+        runPlannerSync(initialState, options, kept);
     }
 };
 
@@ -1239,14 +1279,25 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
 
             <!-- Bottone calcolo -->
             <div class="mt-5 pt-4 border-t border-slate-700/20 flex justify-end gap-2">
-                <button @click="computePlan" :disabled="isComputing || target <= profileDailyProd"
+                <!-- Con un piano in corso: "Nuovo piano" (secondario, con conferma) e
+                     "Ricalcola il resto" (tiene gli step fatti). Senza piano: "Calcola". -->
+                <button v-if="result" @click="computePlan('new')" :disabled="isComputing || target <= profileDailyProd"
+                        :title="t('strategy_new_plan_hint')"
+                        class="px-4 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wider transition-all border"
+                        :class="isComputing || target <= profileDailyProd
+                                ? 'border-slate-700/40 text-slate-600 cursor-not-allowed'
+                                : 'border-slate-600/50 text-slate-300 hover:border-slate-500 hover:text-slate-100'">
+                    {{ t('strategy_new_plan') }}
+                </button>
+                <button @click="computePlan(result ? 'rest' : 'new')" :disabled="isComputing || target <= profileDailyProd"
+                        :title="result ? t('strategy_recompute_rest_hint') : null"
                         class="px-6 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wider transition-all flex items-center gap-2"
                         :class="isComputing || target <= profileDailyProd
                                 ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                                 : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-lg'">
                     <svg v-if="isComputing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                     <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    {{ isComputing ? t('strategy_computing') : t('strategy_compute') }}
+                    {{ isComputing ? t('strategy_computing') : (result ? t('strategy_recompute_rest') : t('strategy_compute')) }}
                 </button>
             </div>
             <!-- Progresso calcolo (dal worker): % verso il target + step correnti -->
@@ -1283,9 +1334,10 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <div class="text-[12px] font-bold text-amber-200 leading-snug">{{ t('strategy_stale_title') }}</div>
                     <div class="text-[11px] text-amber-400/70 leading-snug mt-0.5">{{ t('strategy_stale_hint') }}</div>
                 </div>
-                <button @click="computePlan" :disabled="isComputing"
+                <button @click="computePlan('rest')" :disabled="isComputing"
+                        :title="t('strategy_recompute_rest_hint')"
                         class="shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-200 border border-amber-400/35 hover:bg-amber-500/30 transition-colors disabled:opacity-40">
-                    {{ t('strategy_stale_recompute') }}
+                    {{ t('strategy_recompute_rest') }}
                 </button>
             </div>
 
@@ -1606,8 +1658,12 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                              non dice su quali pianeti vada fatto l'upgrade. -->
                                         <div class="flex flex-wrap gap-1">
                                             <span v-for="pd in s.planetDetails" :key="pd.idx"
-                                                  class="inline-flex items-center px-2 py-0.5 rounded border border-slate-700/50 bg-black/30 text-[12px] leading-snug whitespace-nowrap text-slate-200">
-                                                {{ pd.name }}
+                                                  :title="pd.done ? t('strategy_planet_done_hint') : null"
+                                                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[12px] leading-snug whitespace-nowrap"
+                                                  :class="pd.done
+                                                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                                                      : 'border-slate-700/50 bg-black/30 text-slate-200'">
+                                                <span v-if="pd.done" aria-hidden="true">✓</span>{{ pd.name }}
                                             </span>
                                         </div>
                                     </template>
@@ -1666,8 +1722,12 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             <!-- Elenco esplicito dei pianeti del blocco raggruppato -->
                             <div v-if="s.planetDetails && s.planetDetails.length > 1" class="flex flex-wrap gap-1 mt-1.5">
                                 <span v-for="pd in s.planetDetails" :key="pd.idx"
-                                      class="inline-flex items-center px-2 py-0.5 rounded border border-slate-700/50 bg-black/30 text-[12px] font-mono leading-snug whitespace-nowrap text-slate-200">
-                                    {{ pd.name }}
+                                      :title="pd.done ? t('strategy_planet_done_hint') : null"
+                                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[12px] font-mono leading-snug whitespace-nowrap"
+                                      :class="pd.done
+                                          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                                          : 'border-slate-700/50 bg-black/30 text-slate-200'">
+                                    <span v-if="pd.done" aria-hidden="true">✓</span>{{ pd.name }}
                                 </span>
                             </div>
                         </div>

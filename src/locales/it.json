@@ -704,6 +704,7 @@
     "strategy_final": "Produzione finale",
     "strategy_total_packs": "Pacchetti totali",
     "strategy_total_mo": "MO totali",
+    "strategy_total_msu": "MSU totali",
     "strategy_total_euro": "Costo €",
     "strategy_target_reached": "✓ Target raggiunto",
     "strategy_stop_max_steps": "Limite step raggiunto",

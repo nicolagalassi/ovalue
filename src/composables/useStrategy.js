@@ -618,7 +618,7 @@ const rewindPlanProgress = (state, steps) => {
     steps.forEach(st => {
         const key = st.type === 'plasma_technology'
             ? 'plasma'
-            : `${st.type}|${st.planetIdx}|${st.researchId ?? ''}`;
+            : `${st.type}|${st.planetName ?? st.planetIdx}|${st.researchId ?? ''}`;
         const r = ranges.get(key);
         if (!r) ranges.set(key, { from: st.from, to: st.to, step: st });
         else r.to = Math.max(r.to, st.to);
@@ -633,7 +633,7 @@ const rewindPlanProgress = (state, steps) => {
             if (inRange(v, r)) state.settings.plasma = r.from;
             return;
         }
-        const p = state.planets?.[st.planetIdx];
+        const p = findPlanPlanet(state.planets, st);
         if (!p) return;
         if (st.type === 'lf_research') {
             const v = parseInt((p.lfResearch || {})[st.researchId]) || 0;
@@ -655,12 +655,34 @@ const rewindPlanProgress = (state, steps) => {
     return state;
 };
 
+// Applica uno step a uno stato (forma di buildInitialState), come se fosse già
+// stato fatto in gioco. Usato da "Ricalcola il resto" per gli step spuntati a
+// mano ma non ancora importati, così il planner non li ripropone.
+const applyStepToState = (state, step) => {
+    if (step.type === 'plasma_technology') {
+        state.settings.plasma = Math.max(parseInt(state.settings.plasma) || 0, step.to);
+        return;
+    }
+    const p = findPlanPlanet(state.planets, step);
+    if (!p) return;
+    if (step.type === 'lf_research') {
+        if (!p.lfResearch) p.lfResearch = {};
+        if (!p.lfActive)   p.lfActive   = {};
+        p.lfResearch[step.researchId] = Math.max(parseInt(p.lfResearch[step.researchId]) || 0, step.to);
+        p.lfActive[step.researchId] = true;
+        return;
+    }
+    const field = STEP_FIELD[step.type];
+    if (field) p[field] = Math.max(parseInt(p[field]) || 0, step.to);
+};
+
 export {
     simulateDailyProduction,
     findPlanPlanet,
     currentStepLevel,
     isStepDoneInProfile,
     rewindPlanProgress,
+    applyStepToState,
     buildingCumulativeCost,
     lfBuildingCost,
     toMSU,

@@ -3,7 +3,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeUnmount
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
-import { useStrategy, toMSU } from '../composables/useStrategy';
+import { useStrategy, toMSU, isStepDoneInProfile, rewindPlanProgress } from '../composables/useStrategy';
 import { useToast } from '../composables/useToast';
 import { OGAME_DB } from '../data/ogame_db';
 
@@ -163,11 +163,13 @@ const MAX_CACHED_PROFILES = 5;
 // Hash stabile (djb2) sulla serializzazione dello stato iniziale, escludendo
 // gli override locali del planner: cambia solo se cambiano davvero i dati
 // del profilo (impostazioni account, pianeti, tassi di cambio).
-const coreFingerprint = (profile) => {
+// Con `steps` l'avanzamento del piano viene "riavvolto" prima dell'impronta:
+// gli upgrade previsti dal piano e già fatti non contano come cambiamento.
+const coreFingerprint = (profile, steps = null) => {
     if (!profile) return null;
     let str;
     try {
-        str = JSON.stringify(buildInitialState(profile, []));
+        str = JSON.stringify(rewindPlanProgress(buildInitialState(profile, []), steps));
     } catch { return null; }
     let h = 5381;
     for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
@@ -289,7 +291,7 @@ const restoreProfileState = (profile) => {
 // Il piano è disallineato se il core è cambiato dopo il calcolo.
 const planIsStale = computed(() => {
     if (!result.value || !coreHashAtPlan.value) return false;
-    return coreFingerprint(activeProfile.value) !== coreHashAtPlan.value;
+    return coreFingerprint(activeProfile.value, result.value.steps) !== coreHashAtPlan.value;
 });
 
 // Sync con profilo attivo: ripristina lo stato salvato per quel profilo.
@@ -351,7 +353,9 @@ const totalPacks = computed(() => {
     if (!result.value) return 0;
     let credit = stockMSU.value;
     let packs = 0;
-    for (const st of result.value.steps) {
+    const done = stepDone.value;
+    for (const [i, st] of result.value.steps.entries()) {
+        if (done[i]) continue;   // già fatto: non si compra più
         const pv = Math.max(1, st.packValue || 1);
         const net = Math.max(0, st.costMSU - credit);
         const need = Math.ceil(net / pv);
@@ -472,7 +476,7 @@ const lfBadgeClass = (eff) => {
 //   Mostrati singolarmente per non falsare l'ordine e il conteggio pack.
 //
 // cumulativePacks è ricalcolato da zero sull'intera lista blocchi risultante.
-const groupedSteps = computed(() => {
+const planBlocks = computed(() => {
     if (!result.value) return [];
     const steps = result.value.steps;
     const blocks = [];
@@ -538,7 +542,8 @@ const groupedSteps = computed(() => {
                 deltaProd:  grp.reduce((a, b) => a + b.deltaProd, 0),
                 cumulativeProd: last.cumulativeProd,
                 count:  grp.length,
-                isBlock: grp.length > 1
+                isBlock: grp.length > 1,
+                stepIdxs: grp.map((_, k) => i + k)
             });
             i = j;
 
@@ -552,30 +557,54 @@ const groupedSteps = computed(() => {
                 packs:   Math.ceil(s.costMSU / packVal),
                 packVal,
                 isBlock: false,
-                count:   1
+                count:   1,
+                stepIdxs: [i]
             });
             i++;
         }
     }
 
-    // Le risorse possedute coprono i primi blocchi del piano: si scalano dal
-    // costo prima di calcolare i pacchetti, come in Pack Exchange.
-    let stockLeft = stockMSU.value;
-    blocks.forEach(b => {
-        if (stockLeft <= 0) return;
-        const covered = Math.min(stockLeft, b.costMSU);
-        stockLeft -= covered;
-        b.packs = Math.ceil((b.costMSU - covered) / b.packVal);
-    });
-
-    // Ricalcola cumulativePacks da zero sull'intera lista blocchi
-    let cumPacks = 0;
-    blocks.forEach(b => {
-        cumPacks += b.packs;
-        b.cumulativePacks = cumPacks;
-    });
-
     return blocks.map((b, idx) => ({ ...b, n: idx + 1 }));
+});
+
+// ───── Avanzamento del piano ────────────────────────────────────────────
+// Il piano resta quello calcolato; i dati del Production Core dicono quali step
+// sono già fatti (livello attuale >= livello "to"). La spunta manuale resta per
+// gli upgrade fatti ma non ancora importati.
+const autoDoneSteps = computed(() => {
+    if (!result.value) return [];
+    const production = activeProfile.value?.production;
+    return result.value.steps.map(st => isStepDoneInProfile(st, production));
+});
+
+// Step da non contare più nei costi: completati nel profilo o in un blocco spuntato a mano.
+const stepDone = computed(() => {
+    const done = autoDoneSteps.value.slice();
+    planBlocks.value.forEach(b => {
+        if (doneSteps.value.has(b.n)) b.stepIdxs.forEach(i => { done[i] = true; });
+    });
+    return done;
+});
+
+// Blocchi con stato di avanzamento e pacchetti RIMANENTI: le risorse possedute
+// coprono i primi blocchi ancora da fare (come in Pack Exchange), quelli fatti
+// valgono 0 pacchetti.
+const groupedSteps = computed(() => {
+    const auto = autoDoneSteps.value;
+    const done = stepDone.value;
+    let stockLeft = stockMSU.value;
+    let cumPacks = 0;
+    return planBlocks.value.map(b => {
+        const autoCount   = b.stepIdxs.filter(i => auto[i]).length;
+        const autoDone    = autoCount === b.count;
+        const isDone      = autoDone || doneSteps.value.has(b.n);
+        const remainingMSU = b.stepIdxs.reduce((a, i) => a + (done[i] ? 0 : result.value.steps[i].costMSU), 0);
+        const covered = Math.min(stockLeft, remainingMSU);
+        stockLeft -= covered;
+        const packs = Math.ceil((remainingMSU - covered) / b.packVal);
+        cumPacks += packs;
+        return { ...b, autoCount, autoDone, isDone, remainingMSU, packs, cumulativePacks: cumPacks };
+    });
 });
 
 // ───── Esecuzione planner ───────────────────────────────────────────────
@@ -633,6 +662,8 @@ const runPlannerSync = (initialState, options) => {
 
 const computePlan = () => {
     if (!activeProfile.value || isComputing.value) return;
+    // Il piano in corso è il riferimento: sostituirlo fa perdere avanzamento e spunte.
+    if (result.value && doneCount.value > 0 && !window.confirm(t('strategy_new_plan_confirm'))) return;
     isComputing.value = true;
     result.value = null;
     progress.value = null;
@@ -714,24 +745,35 @@ const stepBadgeClass = (s) => STEP_BADGE_CLASSES[stepTypeColor(s)] || STEP_BADGE
 
 // ───── Roadmap: stato "fatto", filtro tipo, prossimo step ───────────────
 const toggleDone = (n) => {
+    // Un blocco completato nel profilo non si può "despuntare": lo dicono i dati.
+    if (groupedSteps.value.find(b => b.n === n)?.autoDone) return;
     const next = new Set(doneSteps.value);
     next.has(n) ? next.delete(n) : next.add(n);
     doneSteps.value = next;
 };
-const doneCount = computed(() => doneSteps.value.size);
+const doneCount = computed(() => groupedSteps.value.filter(b => b.isDone).length);
 // Primo blocco non ancora spuntato (in ordine di piano, ignora il filtro)
 const nextStepN = computed(() => {
-    const blk = groupedSteps.value.find(b => !doneSteps.value.has(b.n));
+    const blk = groupedSteps.value.find(b => !b.isDone);
     return blk ? blk.n : null;
 });
 // Costo totale del piano: MSU e risorse grezze (somma dei costi dei singoli step)
+// Esclude gli step già fatti: mostra quanto manca, con il totale del piano a fianco.
 const planCost = computed(() => {
     if (!result.value) return null;
+    const done = stepDone.value;
     const res = [0, 0, 0];
-    result.value.steps.forEach(st => {
+    let msu = 0, doneCount = 0;
+    result.value.steps.forEach((st, i) => {
+        if (done[i]) { doneCount++; return; }
         res[0] += st.cost?.[0] || 0; res[1] += st.cost?.[1] || 0; res[2] += st.cost?.[2] || 0;
+        msu += st.costMSU || 0;
     });
-    return { msu: result.value.cumulativeMSU || 0, metal: res[0], crystal: res[1], deuterium: res[2] };
+    return {
+        msu, metal: res[0], crystal: res[1], deuterium: res[2],
+        totalMSU: result.value.cumulativeMSU || 0,
+        hasProgress: doneCount > 0
+    };
 });
 // Tipi presenti nel piano, per i chip filtro
 const presentTypes = computed(() => {
@@ -1259,15 +1301,15 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         <div class="text-lg font-black text-emerald-300 font-mono">{{ formatNum(result.finalProd) }}</div>
                     </div>
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_packs') }}</div>
+                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ planCost?.hasProgress ? t('strategy_remaining_packs') : t('strategy_total_packs') }}</div>
                         <div class="text-lg font-black text-amber-300 font-mono">{{ formatNum(totalPacks) }}</div>
                     </div>
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_mo') }}</div>
+                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ planCost?.hasProgress ? t('strategy_remaining_mo') : t('strategy_total_mo') }}</div>
                         <div class="text-lg font-black text-purple-300 font-mono">{{ formatNum(planEuro.totalMO) }}</div>
                     </div>
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_euro') }}</div>
+                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ planCost?.hasProgress ? t('strategy_remaining_euro') : t('strategy_total_euro') }}</div>
                         <div class="text-lg font-black text-green-300 font-mono">€{{ formatNum(planEuro.totalEuro) }}</div>
                     </div>
                 </div>
@@ -1275,8 +1317,13 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 <!-- Costo del piano: MSU totali e ripartizione per risorsa -->
                 <div v-if="planCost" class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div class="bg-ogame-surface rounded-xl p-3 border border-amber-500/20 text-center">
-                        <div class="text-[9px] text-amber-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_msu') }}</div>
+                        <div class="text-[9px] text-amber-400/80 uppercase tracking-wider font-semibold mb-1">
+                            {{ planCost.hasProgress ? t('strategy_remaining_msu') : t('strategy_total_msu') }}
+                        </div>
                         <div class="text-base font-black text-amber-200 font-mono">{{ formatNum(planCost.msu) }}</div>
+                        <div v-if="planCost.hasProgress" class="text-[9px] font-mono text-slate-600 mt-0.5">
+                            {{ t('strategy_of_total').replace('{n}', formatNum(planCost.totalMSU)) }}
+                        </div>
                     </div>
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_metal') }}</div>
@@ -1516,14 +1563,19 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             <tr v-for="s in filteredSteps" :key="s.n"
                                 class="border-t border-slate-700/15 hover:bg-white/[0.02] transition-colors duration-150 cursor-pointer"
                                 :class="[
-                                    doneSteps.has(s.n) ? 'opacity-40' : '',
+                                    s.isDone ? 'opacity-40' : '',
                                     s.n === nextStepN ? 'bg-emerald-500/[0.06]' : (s.count > 1 ? 'bg-emerald-500/[0.02]' : '')
                                 ]"
                                 @click="toggleDone(s.n)">
                                 <td class="px-3 py-2 text-center">
-                                    <input type="checkbox" :checked="doneSteps.has(s.n)" @click.stop="toggleDone(s.n)"
+                                    <input type="checkbox" :checked="s.isDone" @click.stop="toggleDone(s.n)"
+                                           :disabled="s.autoDone"
+                                           :title="s.autoDone ? t('strategy_auto_done_hint') : null"
                                            :aria-label="t('lbl_done') + ' #' + s.n"
-                                           class="w-3.5 h-3.5 accent-emerald-500 rounded cursor-pointer">
+                                           class="w-3.5 h-3.5 accent-emerald-500 rounded cursor-pointer disabled:cursor-default">
+                                    <div v-if="s.autoCount > 0 && !s.autoDone"
+                                         :title="t('strategy_partial_done_hint')"
+                                         class="mt-0.5 text-[9px] font-mono font-bold text-emerald-400/80">{{ s.autoCount }}/{{ s.count }}</div>
                                 </td>
                                 <td class="px-3 py-2 font-mono text-slate-600 text-[10px] whitespace-nowrap">
                                     {{ s.n }}
@@ -1531,7 +1583,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                 </td>
                                 <td class="px-3 py-2 whitespace-nowrap">
                                     <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
-                                          :class="[stepBadgeClass(s), doneSteps.has(s.n) ? 'line-through' : '']">
+                                          :class="[stepBadgeClass(s), s.isDone ? 'line-through' : '']">
                                         {{ stepTypeLabel(s) }}
                                     </span>
                                     <span v-if="s.count > 1" class="ml-1.5 text-[11px] text-slate-400 font-mono font-bold">&times;{{ s.count }}</span>
@@ -1583,17 +1635,21 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <div v-for="s in filteredSteps" :key="s.n"
                          class="rounded-lg border p-3 transition-opacity duration-150"
                          :class="[
-                             doneSteps.has(s.n) ? 'opacity-40' : '',
+                             s.isDone ? 'opacity-40' : '',
                              s.n === nextStepN
                                  ? 'bg-emerald-500/[0.06] border-emerald-500/30'
                                  : (s.count > 1 ? 'bg-emerald-500/[0.03] border-emerald-500/20' : 'bg-ogame-surface border-slate-700/20')
                          ]">
                         <div class="flex items-center justify-between mb-2">
                             <div class="flex items-center gap-1.5">
-                                <input type="checkbox" :checked="doneSteps.has(s.n)" @change="toggleDone(s.n)"
+                                <input type="checkbox" :checked="s.isDone" @change="toggleDone(s.n)"
+                                       :disabled="s.autoDone"
+                                       :title="s.autoDone ? t('strategy_auto_done_hint') : null"
                                        :aria-label="t('lbl_done') + ' #' + s.n"
-                                       class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+                                       class="w-4 h-4 accent-emerald-500 rounded cursor-pointer disabled:cursor-default">
                                 <span class="text-[10px] font-mono text-slate-600">#{{ s.n }}</span>
+                                <span v-if="s.autoCount > 0 && !s.autoDone" :title="t('strategy_partial_done_hint')"
+                                      class="text-[10px] font-mono font-bold text-emerald-400/80">{{ s.autoCount }}/{{ s.count }}</span>
                                 <span v-if="s.count > 1" class="text-[11px] font-mono font-bold text-slate-400">&times;{{ s.count }}</span>
                                 <span v-if="s.n === nextStepN" class="px-1 py-px rounded bg-emerald-500/15 text-emerald-300 text-[8px] font-bold uppercase tracking-wider">{{ t('lbl_next') }}</span>
                             </div>

@@ -563,8 +563,104 @@ export const buildInitialState = (profile, lfChoiceOverrides = []) => {
     };
 };
 
+// ───── Avanzamento del piano rispetto al profilo ─────────────────────────
+// Il piano resta quello calcolato la prima volta; i dati del Production Core
+// (import dell'exporter o modifiche manuali) dicono quali step sono già fatti.
+// Nessuna chiamata al gioco: si confrontano solo dati già presenti nell'app.
+
+// Pianeta del profilo a cui si riferisce uno step. Si cerca per nome (l'ordine
+// dei pianeti può cambiare tra un import e l'altro); se il nome manca o non è
+// univoco si ripiega sulla posizione salvata nello step.
+const findPlanPlanet = (planets, step) => {
+    if (step.planetIdx == null || !Array.isArray(planets)) return null;
+    if (step.planetName) {
+        const byName = planets.filter(p => (p.name || '') === step.planetName);
+        if (byName.length === 1) return byName[0];
+    }
+    return planets[step.planetIdx] || null;
+};
+
+// Livello attuale nel profilo della cosa che lo step alza (null se non trovata).
+const currentStepLevel = (step, production) => {
+    if (!production) return null;
+    if (step.type === 'plasma_technology') return parseInt(production.settings?.plasma) || 0;
+    const p = findPlanPlanet(production.planets, step);
+    if (!p) return null;
+    switch (step.type) {
+        case 'metal_mine':            return parseInt(p.metal) || 0;
+        case 'crystal_mine':          return parseInt(p.crystal) || 0;
+        case 'deuterium_synthesizer': return parseInt(p.deuterium) || 0;
+        case 'lf_magma':              return parseInt(p.magma) || 0;
+        case 'lf_human':              return parseInt(p.human) || 0;
+        case 'lf_research':           return parseInt((p.lfResearch || {})[step.researchId]) || 0;
+        default:                      return null;
+    }
+};
+
+// Step completato: il livello nel profilo ha raggiunto (o superato) il "to".
+// Livelli saltati (es. +2 in un colpo) completano anche gli step intermedi.
+const isStepDoneInProfile = (step, production) => {
+    const lvl = currentStepLevel(step, production);
+    return lvl != null && lvl >= step.to;
+};
+
+// Riporta lo stato (forma di buildInitialState) ai livelli di partenza del piano
+// per tutto ciò che il piano stesso alza. Così l'impronta del core resta uguale
+// finché le differenze sono solo avanzamento del piano, e l'avviso "dati cambiati"
+// scatta solo per cambiamenti estranei (classe, item, pianeti, …).
+const STEP_FIELD = {
+    metal_mine: 'metal', crystal_mine: 'crystal', deuterium_synthesizer: 'deuterium',
+    lf_magma: 'magma', lf_human: 'human'
+};
+const rewindPlanProgress = (state, steps) => {
+    if (!state || !Array.isArray(steps)) return state;
+    const ranges = new Map();   // chiave → { from (primo), to (massimo), step }
+    steps.forEach(st => {
+        const key = st.type === 'plasma_technology'
+            ? 'plasma'
+            : `${st.type}|${st.planetIdx}|${st.researchId ?? ''}`;
+        const r = ranges.get(key);
+        if (!r) ranges.set(key, { from: st.from, to: st.to, step: st });
+        else r.to = Math.max(r.to, st.to);
+    });
+    // Solo i valori effettivamente avanzati: riscrivere anche quelli fermi al
+    // "from" cambierebbe il tipo (es. "55" → 55) e quindi l'impronta.
+    const inRange = (v, r) => v > r.from && v <= r.to;
+    ranges.forEach(r => {
+        const st = r.step;
+        if (st.type === 'plasma_technology') {
+            const v = parseInt(state.settings?.plasma) || 0;
+            if (inRange(v, r)) state.settings.plasma = r.from;
+            return;
+        }
+        const p = state.planets?.[st.planetIdx];
+        if (!p) return;
+        if (st.type === 'lf_research') {
+            const v = parseInt((p.lfResearch || {})[st.researchId]) || 0;
+            if (!inRange(v, r)) return;
+            if (r.from === 0) {
+                // Ricerca nuova: prima del piano non c'era né livello né attivazione
+                if (p.lfResearch) delete p.lfResearch[st.researchId];
+                if (p.lfActive)   delete p.lfActive[st.researchId];
+            } else {
+                p.lfResearch[st.researchId] = r.from;
+            }
+            return;
+        }
+        const field = STEP_FIELD[st.type];
+        if (!field) return;
+        const v = parseInt(p[field]) || 0;
+        if (inRange(v, r)) p[field] = r.from;
+    });
+    return state;
+};
+
 export {
     simulateDailyProduction,
+    findPlanPlanet,
+    currentStepLevel,
+    isStepDoneInProfile,
+    rewindPlanProgress,
     buildingCumulativeCost,
     lfBuildingCost,
     toMSU,

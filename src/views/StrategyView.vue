@@ -3,7 +3,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeUnmount
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
-import { useStrategy } from '../composables/useStrategy';
+import { useStrategy, toMSU } from '../composables/useStrategy';
 import { useToast } from '../composables/useToast';
 import { OGAME_DB } from '../data/ogame_db';
 
@@ -19,6 +19,9 @@ const result = ref(null);
 const progress = ref(null);        // { step, maxSteps, currentProd, initialProd, target } dal worker
 const doneSteps = ref(new Set());  // blocchi spuntati come "fatto" nella roadmap
 const typeFilter = ref('all');     // filtro tipo nella roadmap
+// Risorse già possedute (come in Pack Exchange): abbassano i pacchetti da comprare.
+// Salvate per profilo insieme al piano; di default prese da Pack Exchange.
+const stock = ref({ metal: 0, crystal: 0, deuterium: 0 });
 
 // Form
 const target = ref(0);             // Δ goal in metallo/giorno
@@ -68,6 +71,20 @@ const formTarget = computed({
         target.value = isNaN(parsed) ? 0 : parsed;
     }
 });
+// Input risorse possedute con separatore migliaia
+const stockInput = (key) => computed({
+    get() {
+        const v = stock.value[key] || 0;
+        return v ? new Intl.NumberFormat('it-IT').format(Math.floor(v)) : '';
+    },
+    set(newValue) {
+        const parsed = parseInt(String(newValue).replace(/[^0-9]/g, ''));
+        stock.value = { ...stock.value, [key]: isNaN(parsed) ? 0 : parsed };
+    }
+});
+const stockMet = stockInput('metal');
+const stockCry = stockInput('crystal');
+const stockDeu = stockInput('deuterium');
 const includeMines = ref(true);
 const includeCrawlerMines = ref(false);
 const includePlasma = ref(true);
@@ -198,6 +215,7 @@ const buildStateEntry = (withResult) => ({
     lfChoice: [...lfChoice.value],
     doneSteps: withResult ? [...doneSteps.value] : [],
     typeFilter: typeFilter.value,
+    stock: { ...stock.value },
     coreHash: withResult ? coreHashAtPlan.value : null,
     result: withResult ? result.value : null
 });
@@ -238,7 +256,12 @@ const restoreProfileState = (profile) => {
     const saved = profile?.id ? readStateStore()[profile.id] : null;
     const planets = profile?.production?.planets || [];
 
+    const peStock = profile?.packExchange?.stock || {};
+    const defaultStock = {
+        metal: peStock.metal || 0, crystal: peStock.crystal || 0, deuterium: peStock.deuterium || 0
+    };
     if (!saved) {
+        stock.value = defaultStock;
         lfChoice.value = planets.map(() => 'inherit');
         target.value = Math.floor((profile?.production?.daily || 0) * 1.5);
         lfResearchIds.value = [...ALL_LF_IDS];
@@ -258,6 +281,7 @@ const restoreProfileState = (profile) => {
     lfResearchIds.value = Array.isArray(saved.lfResearchIds) ? [...saved.lfResearchIds] : [...ALL_LF_IDS];
     doneSteps.value = new Set(Array.isArray(saved.doneSteps) ? saved.doneSteps : []);
     typeFilter.value = saved.typeFilter || 'all';
+    stock.value = saved.stock ? { ...defaultStock, ...saved.stock } : defaultStock;
     result.value = saved.result || null;
     coreHashAtPlan.value = saved.coreHash || null;
 };
@@ -293,7 +317,7 @@ onMounted(() => window.addEventListener('pagehide', onPageHide));
 // Persistenza dello stato per profilo. `result` e `doneSteps` sono sempre
 // riassegnati per intero, quindi non serve il deep watch (che su un piano da
 // centinaia di step costerebbe caro); solo lfChoice viene mutato in posizione.
-watch([target, lfResearchIds, doneSteps, typeFilter, result], saveProfileState);
+watch([target, lfResearchIds, doneSteps, typeFilter, result, stock], saveProfileState);
 watch(lfChoice, saveProfileState, { deep: true });
 
 // Applica gli override locali (classe) allo stato iniziale.
@@ -309,6 +333,41 @@ const applyOverrides = (state) => {
 const currentSimState = computed(() => {
     if (!activeProfile.value) return null;
     return applyOverrides(buildInitialState(activeProfile.value, lfChoice.value));
+});
+
+// Valore in MSU delle risorse possedute, ai tassi di cambio di Pack Exchange
+// (stessa conversione di PackCalc: le risorse in eccesso si scambiano al tasso MSU).
+const stockMSU = computed(() => {
+    const pack = currentSimState.value?.pack;
+    if (!pack) return 0;
+    return toMSU([stock.value.metal || 0, stock.value.crystal || 0, stock.value.deuterium || 0], pack);
+});
+
+// Pacchetti totali tenendo conto delle risorse possedute. Ripete la stessa
+// contabilità del planner (credito MSU che avanza da uno step al successivo),
+// partendo con lo stock come credito iniziale: con stock 0 coincide esattamente
+// con result.cumulativePacks. Ricalcolato al volo, senza rieseguire il planner.
+const totalPacks = computed(() => {
+    if (!result.value) return 0;
+    let credit = stockMSU.value;
+    let packs = 0;
+    for (const st of result.value.steps) {
+        const pv = Math.max(1, st.packValue || 1);
+        const net = Math.max(0, st.costMSU - credit);
+        const need = Math.ceil(net / pv);
+        credit = need > 0 ? need * pv - net : credit - st.costMSU;
+        packs += need;
+    }
+    return packs;
+});
+
+const planEuro = computed(() => {
+    if (!result.value || !currentSimState.value) return { totalMO: 0, totalEuro: 0, packList: [] };
+    return computeEuroCost(totalPacks.value, {
+        ...currentSimState.value.shop,
+        shopDiscount: shopDiscount.value,
+        moBonus: moBonus.value,
+    });
 });
 
 // Produzione "reale" del profilo importato — non influenzata da override di classe.
@@ -475,6 +534,7 @@ const groupedSteps = computed(() => {
                 cost:       grp.reduce((a, b) => [a[0]+b.cost[0], a[1]+b.cost[1], a[2]+b.cost[2]], [0,0,0]),
                 costMSU:    totalCost,
                 packs:      Math.ceil(totalCost / packVal),
+                packVal,
                 deltaProd:  grp.reduce((a, b) => a + b.deltaProd, 0),
                 cumulativeProd: last.cumulativeProd,
                 count:  grp.length,
@@ -490,12 +550,23 @@ const groupedSteps = computed(() => {
                     ? []
                     : [{ idx: s.planetIdx, name: s.planetName || `#${s.planetIdx + 1}` }],
                 packs:   Math.ceil(s.costMSU / packVal),
+                packVal,
                 isBlock: false,
                 count:   1
             });
             i++;
         }
     }
+
+    // Le risorse possedute coprono i primi blocchi del piano: si scalano dal
+    // costo prima di calcolare i pacchetti, come in Pack Exchange.
+    let stockLeft = stockMSU.value;
+    blocks.forEach(b => {
+        if (stockLeft <= 0) return;
+        const covered = Math.min(stockLeft, b.costMSU);
+        stockLeft -= covered;
+        b.packs = Math.ceil((b.costMSU - covered) / b.packVal);
+    });
 
     // Ricalcola cumulativePacks da zero sull'intera lista blocchi
     let cumPacks = 0;
@@ -1189,15 +1260,15 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     </div>
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_packs') }}</div>
-                        <div class="text-lg font-black text-amber-300 font-mono">{{ formatNum(result.cumulativePacks) }}</div>
+                        <div class="text-lg font-black text-amber-300 font-mono">{{ formatNum(totalPacks) }}</div>
                     </div>
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_mo') }}</div>
-                        <div class="text-lg font-black text-purple-300 font-mono">{{ formatNum(result.euro.totalMO) }}</div>
+                        <div class="text-lg font-black text-purple-300 font-mono">{{ formatNum(planEuro.totalMO) }}</div>
                     </div>
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_total_euro') }}</div>
-                        <div class="text-lg font-black text-green-300 font-mono">€{{ formatNum(result.euro.totalEuro) }}</div>
+                        <div class="text-lg font-black text-green-300 font-mono">€{{ formatNum(planEuro.totalEuro) }}</div>
                     </div>
                 </div>
 
@@ -1218,6 +1289,33 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_deuterium') }}</div>
                         <div class="text-base font-black text-ogame-success font-mono">{{ formatNum(planCost.deuterium) }}</div>
+                    </div>
+                </div>
+
+                <!-- Risorse possedute: scalano i pacchetti come in Pack Exchange -->
+                <div class="mt-4 pt-4 border-t border-slate-700/20">
+                    <div class="flex items-baseline justify-between gap-2 mb-2">
+                        <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold">{{ t('lbl_stock') }}</div>
+                        <div v-if="stockMSU > 0" class="text-[10px] font-mono text-emerald-400/70">
+                            –{{ formatNum(stockMSU) }} MSU
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <label class="block">
+                            <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_metal') }}</span>
+                            <input type="text" inputmode="numeric" v-model="stockMet" @focus="$event.target.select()" placeholder="0"
+                                   class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
+                        </label>
+                        <label class="block">
+                            <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_crystal') }}</span>
+                            <input type="text" inputmode="numeric" v-model="stockCry" @focus="$event.target.select()" placeholder="0"
+                                   class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
+                        </label>
+                        <label class="block">
+                            <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_deuterium') }}</span>
+                            <input type="text" inputmode="numeric" v-model="stockDeu" @focus="$event.target.select()" placeholder="0"
+                                   class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
+                        </label>
                     </div>
                 </div>
 

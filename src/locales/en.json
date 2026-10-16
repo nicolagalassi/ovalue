@@ -714,6 +714,7 @@
     "strategy_of_total": "of {n} in the plan",
     "strategy_auto_done_hint": "Completed: the Production Core level has reached the planned one",
     "strategy_partial_done_hint": "Planets already completed in the Production Core",
+    "strategy_planet_done_hint": "Completed on this planet",
     "strategy_new_plan_confirm": "You have a plan in progress with completed steps. Computing a new plan replaces it and clears the checkmarks. Continue?",
     "strategy_total_euro": "Cost €",
     "strategy_target_reached": "✓ Target reached",

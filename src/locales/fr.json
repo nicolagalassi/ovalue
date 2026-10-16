@@ -145,6 +145,7 @@
     "strategy_of_total": "sur {n} du plan",
     "strategy_auto_done_hint": "Terminé : le niveau du Production Core a atteint celui du plan",
     "strategy_partial_done_hint": "Planètes déjà terminées dans le Production Core",
+    "strategy_planet_done_hint": "Terminé sur cette planète",
     "strategy_new_plan_confirm": "Un plan est en cours avec des étapes terminées. Calculer un nouveau plan le remplace et efface les coches. Continuer ?",
     "lbl_mine_metal": "Mine de métal",
     "lbl_mine_crystal": "Mine de cristal",

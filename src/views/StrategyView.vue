@@ -596,6 +596,11 @@ const groupedSteps = computed(() => {
     let cumPacks = 0;
     return planBlocks.value.map(b => {
         const autoCount   = b.stepIdxs.filter(i => auto[i]).length;
+        // Pianeti del blocco già completati nel profilo (per evidenziarli nei chip)
+        const donePlanets = new Set(
+            b.stepIdxs.filter(i => auto[i]).map(i => result.value.steps[i].planetIdx)
+        );
+        const planetDetails = b.planetDetails.map(pd => ({ ...pd, done: donePlanets.has(pd.idx) }));
         const autoDone    = autoCount === b.count;
         const isDone      = autoDone || doneSteps.value.has(b.n);
         const remainingMSU = b.stepIdxs.reduce((a, i) => a + (done[i] ? 0 : result.value.steps[i].costMSU), 0);
@@ -603,7 +608,7 @@ const groupedSteps = computed(() => {
         stockLeft -= covered;
         const packs = Math.ceil((remainingMSU - covered) / b.packVal);
         cumPacks += packs;
-        return { ...b, autoCount, autoDone, isDone, remainingMSU, packs, cumulativePacks: cumPacks };
+        return { ...b, planetDetails, autoCount, autoDone, isDone, remainingMSU, packs, cumulativePacks: cumPacks };
     });
 });
 
@@ -1606,8 +1611,12 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                              non dice su quali pianeti vada fatto l'upgrade. -->
                                         <div class="flex flex-wrap gap-1">
                                             <span v-for="pd in s.planetDetails" :key="pd.idx"
-                                                  class="inline-flex items-center px-2 py-0.5 rounded border border-slate-700/50 bg-black/30 text-[12px] leading-snug whitespace-nowrap text-slate-200">
-                                                {{ pd.name }}
+                                                  :title="pd.done ? t('strategy_planet_done_hint') : null"
+                                                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[12px] leading-snug whitespace-nowrap"
+                                                  :class="pd.done
+                                                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                                                      : 'border-slate-700/50 bg-black/30 text-slate-200'">
+                                                <span v-if="pd.done" aria-hidden="true">✓</span>{{ pd.name }}
                                             </span>
                                         </div>
                                     </template>
@@ -1666,8 +1675,12 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             <!-- Elenco esplicito dei pianeti del blocco raggruppato -->
                             <div v-if="s.planetDetails && s.planetDetails.length > 1" class="flex flex-wrap gap-1 mt-1.5">
                                 <span v-for="pd in s.planetDetails" :key="pd.idx"
-                                      class="inline-flex items-center px-2 py-0.5 rounded border border-slate-700/50 bg-black/30 text-[12px] font-mono leading-snug whitespace-nowrap text-slate-200">
-                                    {{ pd.name }}
+                                      :title="pd.done ? t('strategy_planet_done_hint') : null"
+                                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[12px] font-mono leading-snug whitespace-nowrap"
+                                      :class="pd.done
+                                          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                                          : 'border-slate-700/50 bg-black/30 text-slate-200'">
+                                    <span v-if="pd.done" aria-hidden="true">✓</span>{{ pd.name }}
                                 </span>
                             </div>
                         </div>

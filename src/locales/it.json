@@ -712,6 +712,7 @@
     "strategy_of_total": "su {n} del piano",
     "strategy_auto_done_hint": "Completato: il livello nel Production Core ha raggiunto quello del piano",
     "strategy_partial_done_hint": "Pianeti già completati nel Production Core",
+    "strategy_planet_done_hint": "Completato su questo pianeta",
     "strategy_new_plan_confirm": "Hai un piano in corso con step già completati. Calcolare un nuovo piano lo sostituisce e azzera le spunte. Continuare?",
     "strategy_total_euro": "Costo €",
     "strategy_target_reached": "✓ Target raggiunto",

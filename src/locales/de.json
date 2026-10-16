@@ -143,6 +143,7 @@
     "strategy_remaining_mo": "Verbleibende DM",
     "strategy_remaining_euro": "Verbleibende €",
     "strategy_of_total": "von {n} im Plan",
+    "strategy_progress_pct": "{n}% des Plans",
     "strategy_auto_done_hint": "Erledigt: die Stufe im Production Core hat die geplante erreicht",
     "strategy_partial_done_hint": "Im Production Core bereits erledigte Planeten",
     "strategy_new_plan_hint": "Plan von Grund auf berechnen: ersetzt den aktuellen",

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.2.1
+// @version      4.2.2
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -423,7 +423,8 @@
             }
             totPerc += Math.min(actCraw * mult, 50);
         }
-        return natProd + mineBase + Math.floor(mineBase * (totPerc / 100));
+        // Bonus non arrotondato, come OGame: si arrotonda solo il giornaliero
+        return natProd + mineBase + mineBase * (totPerc / 100);
     }
 
     // Costruisce il modello { settings, planets } dai dati raccolti `d`, con la STESSA

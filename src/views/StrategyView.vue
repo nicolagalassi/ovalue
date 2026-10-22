@@ -955,18 +955,6 @@ const roiColor = (costMSU, deltaProd) => {
     return 'text-red-400';
 };
 
-// Ricalcola solo il costo €/MO senza ri-eseguire il planner.
-// Usata dai bottoni sconto/bonus per evitare lo scroll al top (result → null → DOM shrink).
-const recomputeEuro = () => {
-    if (!result.value || !currentSimState.value) return;
-    const euro = computeEuroCost(result.value.cumulativePacks, {
-        ...currentSimState.value.shop,
-        shopDiscount: shopDiscount.value,
-        moBonus: moBonus.value,
-    });
-    result.value = { ...result.value, euro };
-};
-
 // ───── Import nella queue PackExchange ───────────────────────────────────
 const importToPackQueue = () => {
     if (!result.value || !activeProfile.value) return;
@@ -1437,6 +1425,45 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 </div>
             </div>
 
+            <!-- Sconto shop + bonus MO: dati di partenza come lo stock. MO ed euro si
+             ricalcolano al volo (planEuro/goalSummary), senza rieseguire il planner. -->
+            <div class="mt-4 pt-4 border-t border-slate-700/20 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Sconto shop -->
+                <div>
+                    <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_shop_discount') }}</div>
+                    <div class="flex gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
+                        <button @click="shopDiscount = 0"
+                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
+                                :class="shopDiscount === 0 ? 'bg-slate-700/70 text-slate-100' : 'text-slate-600 hover:text-slate-400'">
+                            {{ t('opt_none') }}
+                        </button>
+                        <button @click="shopDiscount = 20"
+                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
+                                :class="shopDiscount === 20 ? 'bg-violet-500/20 border border-violet-400/35 text-violet-200' : 'text-slate-600 hover:text-slate-400'">
+                            –20%
+                        </button>
+                        <button @click="shopDiscount = 30"
+                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
+                                :class="shopDiscount === 30 ? 'bg-violet-500/20 border border-violet-400/35 text-violet-200' : 'text-slate-600 hover:text-slate-400'">
+                            –30%
+                        </button>
+                    </div>
+                </div>
+                <!-- Bonus MO evento -->
+                <div>
+                    <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_event_bonus') }}</div>
+                    <div class="grid grid-cols-4 sm:grid-cols-7 gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
+                        <button v-for="b in [0, 30, 40, 50, 60, 100, 130]" :key="b"
+                                @click="moBonus = b"
+                                class="py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 text-center"
+                                :class="moBonus === b ? 'bg-amber-500/15 border border-amber-400/35 text-amber-200' : 'text-slate-600 hover:text-slate-400'">
+                            <template v-if="b === 0">–</template>
+                            <template v-else>+{{ b }}%</template>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Bottone calcolo -->
             <div class="mt-5 pt-4 border-t border-slate-700/20 flex justify-end gap-2">
                 <!-- Con un piano in corso: "Nuovo piano" (secondario, con conferma) e
@@ -1681,44 +1708,6 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 </div>
 
                 </template>
-
-                <!-- Selettori sconto pacchetti + bonus MO -->
-                <div class="mt-4 pt-4 border-t border-slate-700/20 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <!-- Sconto shop -->
-                    <div>
-                        <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_shop_discount') }}</div>
-                        <div class="flex gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
-                            <button @click="shopDiscount = 0; recomputeEuro()"
-                                    class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                    :class="shopDiscount === 0 ? 'bg-slate-700/70 text-slate-100' : 'text-slate-600 hover:text-slate-400'">
-                                {{ t('opt_none') }}
-                            </button>
-                            <button @click="shopDiscount = 20; recomputeEuro()"
-                                    class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                    :class="shopDiscount === 20 ? 'bg-violet-500/20 border border-violet-400/35 text-violet-200' : 'text-slate-600 hover:text-slate-400'">
-                                –20%
-                            </button>
-                            <button @click="shopDiscount = 30; recomputeEuro()"
-                                    class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                    :class="shopDiscount === 30 ? 'bg-violet-500/20 border border-violet-400/35 text-violet-200' : 'text-slate-600 hover:text-slate-400'">
-                                –30%
-                            </button>
-                        </div>
-                    </div>
-                    <!-- Bonus MO evento -->
-                    <div>
-                        <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_event_bonus') }}</div>
-                        <div class="grid grid-cols-4 sm:grid-cols-7 gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
-                            <button v-for="b in [0, 30, 40, 50, 60, 100, 130]" :key="b"
-                                    @click="moBonus = b; recomputeEuro()"
-                                    class="py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 text-center"
-                                    :class="moBonus === b ? 'bg-amber-500/15 border border-amber-400/35 text-amber-200' : 'text-slate-600 hover:text-slate-400'">
-                                <template v-if="b === 0">–</template>
-                                <template v-else>+{{ b }}%</template>
-                            </button>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Reason chip -->
                 <div class="mt-3 flex items-center justify-between flex-wrap gap-2">

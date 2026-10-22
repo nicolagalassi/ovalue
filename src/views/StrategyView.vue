@@ -25,6 +25,10 @@ const stock = ref({ metal: 0, crystal: 0, deuterium: 0 });
 
 // Form
 const target = ref(0);             // Δ goal in metallo/giorno
+// Obiettivo: 'production' (raggiungere una produzione) oppure 'spend' (fare un
+// acquisto, es. Astro 31, con meno pacchi totali alzando prima la produzione).
+const goalMode = ref('production');
+const goalMSU = ref(0);
 const maxSteps = ref(500);
 
 // Impostazioni costo pacchetti / MO (locali a questa view)
@@ -71,6 +75,12 @@ const formTarget = computed({
         target.value = isNaN(parsed) ? 0 : parsed;
     }
 });
+// Input obiettivo di spesa (MSU) con separatore migliaia
+const formGoalMSU = computed({
+    get() { return goalMSU.value ? new Intl.NumberFormat('it-IT').format(Math.floor(goalMSU.value)) : ''; },
+    set(v) { const n = parseInt(String(v).replace(/[^0-9]/g, '')); goalMSU.value = isNaN(n) ? 0 : n; }
+});
+
 // Input risorse possedute con separatore migliaia
 const stockInput = (key) => computed({
     get() {
@@ -218,6 +228,8 @@ const buildStateEntry = (withResult) => ({
     doneSteps: withResult ? [...doneSteps.value] : [],
     typeFilter: typeFilter.value,
     stock: { ...stock.value },
+    goalMode: goalMode.value,
+    goalMSU: goalMSU.value,
     coreHash: withResult ? coreHashAtPlan.value : null,
     result: withResult ? result.value : null
 });
@@ -264,6 +276,8 @@ const restoreProfileState = (profile) => {
     };
     if (!saved) {
         stock.value = defaultStock;
+        goalMode.value = 'production';
+        goalMSU.value = 0;
         lfChoice.value = planets.map(() => 'inherit');
         target.value = Math.floor((profile?.production?.daily || 0) * 1.5);
         lfResearchIds.value = [...ALL_LF_IDS];
@@ -284,6 +298,8 @@ const restoreProfileState = (profile) => {
     doneSteps.value = new Set(Array.isArray(saved.doneSteps) ? saved.doneSteps : []);
     typeFilter.value = saved.typeFilter || 'all';
     stock.value = saved.stock ? { ...defaultStock, ...saved.stock } : defaultStock;
+    goalMode.value = saved.goalMode === 'spend' ? 'spend' : 'production';
+    goalMSU.value = saved.goalMSU || 0;
     result.value = saved.result || null;
     coreHashAtPlan.value = saved.coreHash || null;
 };
@@ -319,7 +335,7 @@ onMounted(() => window.addEventListener('pagehide', onPageHide));
 // Persistenza dello stato per profilo. `result` e `doneSteps` sono sempre
 // riassegnati per intero, quindi non serve il deep watch (che su un piano da
 // centinaia di step costerebbe caro); solo lfChoice viene mutato in posizione.
-watch([target, lfResearchIds, doneSteps, typeFilter, result, stock], saveProfileState);
+watch([target, lfResearchIds, doneSteps, typeFilter, result, stock, goalMode, goalMSU], saveProfileState);
 watch(lfChoice, saveProfileState, { deep: true });
 
 // Applica gli override locali (classe) allo stato iniziale.
@@ -373,6 +389,19 @@ const planEuro = computed(() => {
         moBonus: moBonus.value,
     });
 });
+
+// Coda di Pack Exchange come obiettivo di spesa (es. Astro 31 composta col builder)
+const packQueue = computed(() => activeProfile.value?.packExchange?.queue || []);
+const useQueueAsGoal = () => {
+    const pack = currentSimState.value?.pack;
+    if (!pack) return;
+    const res = packQueue.value.reduce((a, it) => [a[0] + (it.m || 0), a[1] + (it.c || 0), a[2] + (it.d || 0)], [0, 0, 0]);
+    goalMSU.value = Math.round(toMSU(res, pack));
+};
+// Il calcolo si può lanciare se c'è un obiettivo valido per la modalità scelta
+const canCompute = computed(() => goalMode.value === 'spend'
+    ? goalMSU.value > 0
+    : target.value > profileDailyProd.value);
 
 // Produzione "reale" del profilo importato — non influenzata da override di classe.
 // Usata per il display "Produzione attuale" e per i preset target.
@@ -621,6 +650,7 @@ let plannerWorker = null;
 
 const buildPlannerOptions = () => ({
     target: parseInt(target.value) || 0,
+    goalMSU: goalMode.value === 'spend' ? (goalMSU.value || 0) : 0,
     maxSteps: parseInt(maxSteps.value) || 80,
     includeMines: includeMines.value,
     includeCrawlerMines: includeCrawlerMines.value,
@@ -1041,8 +1071,22 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <div class="text-2xl font-black text-slate-200 font-mono">{{ formatNum(currentProd) }}</div>
                     <div class="text-[10px] text-slate-600 mt-1">{{ t('lbl_dm') }} / {{ t('strategy_per_day') }}</div>
                 </div>
-                <!-- Target + preset -->
+                <!-- Obiettivo: produzione da raggiungere oppure spesa da fare -->
                 <div class="col-span-2 md:col-span-1 bg-ogame-surface rounded-xl p-4 border border-emerald-500/25">
+                    <div class="flex gap-1 mb-2 bg-black/30 p-0.5 rounded-lg">
+                        <button @click="goalMode = 'production'"
+                                class="flex-1 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md transition-colors"
+                                :class="goalMode === 'production' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-600 hover:text-slate-400'">
+                            {{ t('strategy_goal_mode_production') }}
+                        </button>
+                        <button @click="goalMode = 'spend'"
+                                :title="t('strategy_goal_mode_spend_hint')"
+                                class="flex-1 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md transition-colors"
+                                :class="goalMode === 'spend' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-600 hover:text-slate-400'">
+                            {{ t('strategy_goal_mode_spend') }}
+                        </button>
+                    </div>
+                    <template v-if="goalMode === 'production'">
                     <label for="strat-target" class="block text-[10px] text-emerald-400 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_target') }}</label>
                     <input id="strat-target" type="text" v-model="formTarget" @focus="$event.target.select()"
                            class="input-glass w-full px-3 py-2 text-right font-mono text-emerald-300 text-lg bg-black/40">
@@ -1056,6 +1100,22 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             ×{{ m }}
                         </button>
                     </div>
+                    </template>
+                    <template v-else>
+                        <label for="strat-goal-msu" class="block text-[10px] text-amber-400 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_goal_msu') }}</label>
+                        <input id="strat-goal-msu" type="text" inputmode="numeric" v-model="formGoalMSU" @focus="$event.target.select()" placeholder="0"
+                               class="input-glass w-full px-3 py-2 text-right font-mono text-amber-200 text-lg bg-black/40">
+                        <div v-if="goalMSU > 0 && currentProd > 0" class="text-[10px] font-mono text-amber-300/70 mt-1 text-right">
+                            ≈ {{ formatNum(Math.ceil(goalMSU / currentProd)) }} {{ t('strategy_goal_packs_today') }}
+                        </div>
+                        <button @click="useQueueAsGoal" :disabled="packQueue.length === 0"
+                                class="mt-2 w-full py-1.5 text-[10px] font-bold rounded-lg border transition-colors"
+                                :class="packQueue.length === 0
+                                    ? 'border-slate-700/30 text-slate-600 cursor-not-allowed'
+                                    : 'border-amber-500/30 text-amber-300 hover:bg-amber-500/10'">
+                            {{ t('strategy_goal_use_queue').replace('{n}', packQueue.length) }}
+                        </button>
+                    </template>
                 </div>
                 <!-- Step massimi -->
                 <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
@@ -1288,18 +1348,18 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
             <div class="mt-5 pt-4 border-t border-slate-700/20 flex justify-end gap-2">
                 <!-- Con un piano in corso: "Nuovo piano" (secondario, con conferma) e
                      "Ricalcola il resto" (tiene gli step fatti). Senza piano: "Calcola". -->
-                <button v-if="result" @click="computePlan('new')" :disabled="isComputing || target <= profileDailyProd"
+                <button v-if="result" @click="computePlan('new')" :disabled="isComputing || !canCompute"
                         :title="t('strategy_new_plan_hint')"
                         class="px-4 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wider transition-all border"
-                        :class="isComputing || target <= profileDailyProd
+                        :class="isComputing || !canCompute
                                 ? 'border-slate-700/40 text-slate-600 cursor-not-allowed'
                                 : 'border-slate-600/50 text-slate-300 hover:border-slate-500 hover:text-slate-100'">
                     {{ t('strategy_new_plan') }}
                 </button>
-                <button @click="computePlan(result ? 'rest' : 'new')" :disabled="isComputing || target <= profileDailyProd"
+                <button @click="computePlan(result ? 'rest' : 'new')" :disabled="isComputing || !canCompute"
                         :title="result ? t('strategy_recompute_rest_hint') : null"
                         class="px-6 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wider transition-all flex items-center gap-2"
-                        :class="isComputing || target <= profileDailyProd
+                        :class="isComputing || !canCompute
                                 ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                                 : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-lg'">
                     <svg v-if="isComputing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
@@ -1318,7 +1378,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <div class="h-full bg-emerald-500/70 rounded-full transition-all duration-200" :style="{ width: computePct + '%' }"></div>
                 </div>
             </div>
-            <div v-if="target <= profileDailyProd && target > 0" class="mt-2 text-right text-[11px] text-amber-400/80">
+            <div v-if="goalMode === 'production' && target <= profileDailyProd && target > 0" class="mt-2 text-right text-[11px] text-amber-400/80">
                 {{ t('strategy_target_too_low') }}
             </div>
             <div class="mt-2 flex items-start gap-1.5 text-[10px] text-slate-600">
@@ -1350,6 +1410,39 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
 
             <!-- Sommario top -->
             <div class="card-glass p-5">
+                <!-- Obiettivo di spesa: confronto pacchi diretto vs alzando prima la produzione -->
+                <div v-if="result.goal" class="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.05] p-4">
+                    <div class="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
+                        <div class="text-[10px] text-amber-400 uppercase tracking-widest font-bold">{{ t('strategy_goal_title') }}</div>
+                        <div class="text-[11px] font-mono text-amber-200/80">{{ formatNum(result.goal.msu) }} MSU</div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                        <div>
+                            <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_direct') }}</div>
+                            <div class="text-lg font-black font-mono text-slate-300">{{ formatNum(Math.ceil(result.goal.directPacks)) }}</div>
+                        </div>
+                        <div>
+                            <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_invested') }}</div>
+                            <div class="text-lg font-black font-mono text-sky-300">{{ formatNum(Math.ceil(result.goal.investedPacks)) }}</div>
+                        </div>
+                        <div>
+                            <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_after') }}</div>
+                            <div class="text-lg font-black font-mono text-amber-200">{{ formatNum(Math.ceil(result.goal.goalPacks)) }}</div>
+                        </div>
+                        <div>
+                            <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_saving') }}</div>
+                            <div class="text-lg font-black font-mono text-emerald-300">
+                                {{ formatNum(Math.max(0, Math.floor(result.goal.directPacks - result.goal.investedPacks - result.goal.goalPacks))) }}
+                            </div>
+                            <div class="text-[10px] font-mono text-emerald-300/70">
+                                −{{ Math.max(0, (1 - (result.goal.investedPacks + result.goal.goalPacks) / result.goal.directPacks) * 100).toFixed(1) }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="!result.steps.some(st => !st.fromPrevPlan)" class="mt-3 text-[11px] text-slate-400">
+                        {{ t('strategy_goal_no_upgrade') }}
+                    </div>
+                </div>
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_initial') }}</div>
@@ -1474,7 +1567,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 <!-- Reason chip -->
                 <div class="mt-3 flex items-center justify-between flex-wrap gap-2">
                     <div class="text-[10px] uppercase tracking-wider">
-                        <span v-if="result.reachedTarget" class="px-2 py-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">{{ t('strategy_target_reached') }}</span>
+                        <span v-if="result.reachedTarget" class="px-2 py-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">{{ result.goal ? t('strategy_goal_done') : t('strategy_target_reached') }}</span>
                         <span v-else class="px-2 py-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">{{ t('strategy_stop_' + result.stoppedReason) }}</span>
                     </div>
                     <button @click="importToPackQueue"

@@ -337,14 +337,20 @@ export const runPlanner = (initialState, options = {}) => {
     };
     let lfPct = sumLfPct();
 
-    const planetHourly = (idx, pct = lfPct) =>
+    const planetCalc = (idx, pct = lfPct) =>
         calcPlanetMetalProduction(state.planets[idx], state.settings, pct, {
             lifeform: effectiveLifeform(state.planets[idx], state.lfChoice[idx]),
             useMaxCrawlers: true
-        }).total;
+        });
+    const planetHourly = (idx, pct = lfPct) => planetCalc(idx, pct).total;
 
     let hourly = state.planets.map((_, i) => planetHourly(i));
     let hourlySum = hourly.reduce((a, b) => a + b, 0);
+    // Somma delle produzioni base delle miniere (oraria). Il bonus metallo delle
+    // ricerche LF è un +% su questa base uguale per tutti i pianeti, quindi il suo
+    // effetto si stima in O(1) invece di ricalcolare ogni pianeta per ogni candidato.
+    const mineBaseOf = () => state.planets.reduce((a, _, i) => a + planetCalc(i).mineBase, 0);
+    let mineBaseSum = mineBaseOf();
     const fullHourlySum = (pct = lfPct) => {
         let s = 0;
         for (let i = 0; i < state.planets.length; i++) s += planetHourly(i, pct);
@@ -357,8 +363,18 @@ export const runPlanner = (initialState, options = {}) => {
     let cumulativePacks = 0;
     let creditMSU = 0;
 
-    const target = parseInt(cfg.target) || 0;
-    if (target <= initialProd) {
+    // Modalità "obiettivo di spesa": c'è un acquisto da fare (goalMSU, es. Astro 31)
+    // e si alza la produzione prima solo finché conviene. Un pacco vale un giorno
+    // di produzione: un upgrade da k pacchi che alza la produzione da P a P+Δ fa
+    // risparmiare C/P − C/(P+Δ) pacchi sull'obiettivo C. Si sceglie come sempre
+    // l'upgrade con la resa migliore e ci si ferma quando costa più di quanto fa
+    // risparmiare. Nessun target di produzione in questa modalità.
+    const goalMSU = Math.max(0, Number(cfg.goalMSU) || 0);
+    const goalMode = goalMSU > 0;
+    let investedPacks = 0;   // pacchi spesi in upgrade, ciascuno al valore del momento
+
+    const target = goalMode ? Infinity : (parseInt(cfg.target) || 0);
+    if (!goalMode && target <= initialProd) {
         return {
             initialProd, finalProd: initialProd, steps,
             cumulativeMSU: 0, cumulativePacks: 0,
@@ -410,7 +426,17 @@ export const runPlanner = (initialState, options = {}) => {
                     deuterium:      lfPct.deuterium      + (newContrib.deuterium      - old.deuterium)      * 100,
                     collectorBonus: lfPct.collectorBonus + (newContrib.collectorBonus - old.collectorBonus) * 100
                 };
-                newProd = Math.floor(fullHourlySum(pct) * 24);
+                if (newContrib.collectorBonus === old.collectorBonus) {
+                    // Solo bonus metallo: effetto lineare sulla base miniere (scarto dovuto
+                    // agli arrotondamenti per pianeta trascurabile). Il valore esatto si
+                    // ricalcola per lo step scelto. Senza dati di ricerca (bonus LF manuale)
+                    // il +% delle ricerche non viene applicato: effetto nullo.
+                    const dPct = lfPct.fromResearch ? (newContrib.metal - old.metal) * 100 : 0;
+                    newProd = currentProd + Math.floor(mineBaseSum * dPct / 100 * 24);
+                } else {
+                    // Potenziamento Collezionista: agisce su collFactor (non lineare) → esatto
+                    newProd = Math.floor(fullHourlySum(pct) * 24);
+                }
             } else {
                 // 'global' (plasma): cambia il totPerc di tutti i pianeti
                 newProd = Math.floor(fullHourlySum() * 24);
@@ -432,15 +458,23 @@ export const runPlanner = (initialState, options = {}) => {
         }
 
         if (!best) { stoppedReason = 'no_positive_delta'; break; }
+        if (goalMode) {
+            const P = currentProd, d = best.deltaProd;
+            // costo in MSU < MSU risparmiati sull'obiettivo: C·Δ/(P+Δ)
+            if (best.costMSU >= goalMSU * d / (P + d)) { stoppedReason = 'goal_optimal'; break; }
+            investedPacks += best.costMSU / P;
+        }
         if (cfg.minScoreThreshold > 0 && best.score < cfg.minScoreThreshold) {
             stoppedReason = 'score_below_threshold'; break;
         }
 
         // Applica definitivamente (senza revert) e aggiorna le cache.
+        const prevProd = currentProd;
         best.cand.applyMut(state);
         if (best.cand.scope === 'planet') {
             hourlySum += best.newPlanetTotal - hourly[best.cand.planetIdx];
             hourly[best.cand.planetIdx] = best.newPlanetTotal;
+            if (best.cand.type === 'metal_mine') mineBaseSum = mineBaseOf();
         } else if (best.cand.scope === 'lf_research') {
             lfContribs[best.cand.planetIdx] = best.newContrib;
             lfPct = sumLfPct();
@@ -456,7 +490,9 @@ export const runPlanner = (initialState, options = {}) => {
         const packsNeeded = Math.ceil(netMSU / packValue);
         creditMSU = packsNeeded > 0 ? (packsNeeded * packValue - netMSU) : (creditMSU - best.costMSU);
         cumulativePacks += packsNeeded;
-        currentProd = best.newProd;
+        // Valore esatto dalle cache appena aggiornate (la stima serviva solo a scegliere)
+        currentProd = Math.floor(hourlySum * 24);
+        const deltaExact = currentProd - prevProd;
 
         steps.push({
             n: step + 1,
@@ -475,7 +511,7 @@ export const runPlanner = (initialState, options = {}) => {
             costMSU: best.costMSU,
             packs: packsNeeded,
             packValue,
-            deltaProd: best.deltaProd,
+            deltaProd: deltaExact,
             cumulativeProd: currentProd,
             cumulativeMSU,
             cumulativePacks,
@@ -483,11 +519,21 @@ export const runPlanner = (initialState, options = {}) => {
         });
     }
 
+    // Riepilogo obiettivo di spesa, in pacchi frazionari (il confronto vero).
+    const goal = goalMode ? {
+        msu: goalMSU,
+        directPacks: goalMSU / Math.max(1, initialProd),
+        investedPacks,
+        goalPacks: goalMSU / Math.max(1, currentProd)
+    } : null;
+
     return {
         initialProd, finalProd: currentProd, steps,
         cumulativeMSU, cumulativePacks,
-        reachedTarget: currentProd >= target,
-        stoppedReason
+        // In modalità spesa il piano è "completo" se si è fermato perché non conviene più
+        reachedTarget: goalMode ? stoppedReason !== 'max_steps' : currentProd >= target,
+        stoppedReason,
+        goal
     };
 };
 

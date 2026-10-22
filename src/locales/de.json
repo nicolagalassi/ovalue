@@ -155,6 +155,8 @@
     "strategy_goal_invested": "Pakete für Upgrades",
     "strategy_goal_after": "Zielpakete danach",
     "strategy_goal_saving": "Gesparte Pakete",
+    "strategy_goal_total": "Gesamt mit Plan",
+    "strategy_goal_check_hint": "Der Plan hält selbst am besten Punkt an: bei jedem Upgrade prüft er, dass die ausgegebenen Pakete weniger sind als die beim Ziel gesparten, berechnet mit der bis dahin erreichten Produktion. Am Ende senkt kein weiteres Upgrade die Summe.",
     "strategy_goal_no_upgrade": "Kein Upgrade lohnt sich: mehr Produktion würde mehr Pakete kosten als sparen. Direkt kaufen.",
     "strategy_goal_done": "Optimaler Plan für das Ziel",
     "strategy_stop_goal_optimal": "Optimaler Plan für das Ziel",

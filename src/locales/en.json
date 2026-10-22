@@ -723,6 +723,8 @@
     "strategy_goal_invested": "Packs in upgrades",
     "strategy_goal_after": "Goal packs after",
     "strategy_goal_saving": "Packs saved",
+    "strategy_goal_total": "Total with the plan",
+    "strategy_goal_check_hint": "The plan stops by itself at the best point: at each upgrade it checks that the packs spent are fewer than those saved on the goal, computed with the production reached so far. At the last step no further upgrade lowers the total.",
     "strategy_goal_no_upgrade": "No upgrade pays off: raising production would cost more packs than it saves. Buy directly.",
     "strategy_goal_done": "Optimal plan for the goal",
     "strategy_stop_goal_optimal": "Optimal plan for the goal",

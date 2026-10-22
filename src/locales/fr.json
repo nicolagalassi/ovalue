@@ -155,6 +155,8 @@
     "strategy_goal_invested": "Packs en améliorations",
     "strategy_goal_after": "Packs objectif après",
     "strategy_goal_saving": "Packs économisés",
+    "strategy_goal_total": "Total avec le plan",
+    "strategy_goal_check_hint": "Le plan s'arrête de lui-même au meilleur point : à chaque amélioration il vérifie que les packs dépensés sont moins nombreux que ceux économisés sur l'objectif, calculés avec la production atteinte jusque-là. À la dernière étape aucune autre amélioration ne réduit le total.",
     "strategy_goal_no_upgrade": "Aucune amélioration n'est rentable : augmenter la production coûterait plus de packs qu'elle n'en économise. Achetez directement.",
     "strategy_goal_done": "Plan optimal pour l'objectif",
     "strategy_stop_goal_optimal": "Plan optimal pour l'objectif",

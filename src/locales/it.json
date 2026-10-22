@@ -721,6 +721,8 @@
     "strategy_goal_invested": "Pacchi in upgrade",
     "strategy_goal_after": "Pacchi obiettivo dopo",
     "strategy_goal_saving": "Pacchi risparmiati",
+    "strategy_goal_total": "Totale con il piano",
+    "strategy_goal_check_hint": "Il piano si ferma da solo nel punto migliore: a ogni upgrade verifica che i pacchi spesi siano meno di quelli risparmiati sull'obiettivo, calcolati con la produzione raggiunta fino a lì. All'ultimo passo nessun altro upgrade riduce il totale.",
     "strategy_goal_no_upgrade": "Nessun upgrade conviene: alzare la produzione costerebbe più pacchi di quanti ne fa risparmiare. Compra direttamente.",
     "strategy_goal_done": "Piano ottimale per l'obiettivo",
     "strategy_stop_goal_optimal": "Piano ottimale per l'obiettivo",

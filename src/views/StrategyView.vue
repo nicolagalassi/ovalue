@@ -745,14 +745,9 @@ const finalizePlan = (planRes, initialState, kept = null) => {
             cumulativePacks: steps.reduce((a, st) => a + (st.packs || 0), 0)
         };
     }
-    const euro = computeEuroCost(res.cumulativePacks, {
-        ...initialState.shop,
-        shopDiscount: shopDiscount.value,
-        moBonus: moBonus.value,
-    });
     if (res.goal) res = { ...res, goal: { ...res.goal, res: goalRes.value ? [...goalRes.value] : null } };
     result.value = {
-        ...res, euro,
+        ...res,
         lfChoiceSnapshot: [...lfChoice.value],
         targetSnapshot: parseInt(target.value) || 0
     };

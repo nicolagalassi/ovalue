@@ -45,8 +45,9 @@ export function useOgameFormulas() {
     //   lifeform       — override della lifeform (per il planner); default: planet.lifeform
     //   useMaxCrawlers — usa il cap come crawler effettivi (planner); default: false
     //
-    // Nota: "bonusProd" è il contributo del totPerc sul mineBase; il totale orario
-    // è natProd + mineBase + bonusProd. La somma di .total su tutti i pianeti
+    // Nota: "bonusProd" è il contributo del totPerc sul mineBase (non arrotondato);
+    // il totale orario è natProd + mineBase + bonusProd e va arrotondato solo sul
+    // giornaliero (Math.floor(hourly * 24)). La somma di .total su tutti i pianeti
     // è esattamente uguale all'hourly del footer MetalCalc.
     const calcPlanetMetalProduction = (planet, settings, lfResearchPct, options = {}) => {
         const { lifeform: lfOverride = null, useMaxCrawlers = false } = options;
@@ -94,7 +95,11 @@ export function useOgameFormulas() {
             totPerc += Math.min(actCraw * mult, 50);
         }
 
-        const bonusProd = Math.floor(mineBase * (totPerc / 100));
+        // Come OGame: si arrotondano produzione naturale e base miniera, NON il bonus.
+        // Il totale orario resta frazionario e si arrotonda solo il giornaliero
+        // (verificato al metallo sul valore del "Pacchetto Metallo" di un account
+        // reale: arrotondando anche il bonus si perdevano ~256 metallo al giorno).
+        const bonusProd = mineBase * (totPerc / 100);
         return {
             natProd,
             mineBase,

@@ -3,6 +3,15 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.2.2]
+
+### Corretto
+- **Produzione al metallo identica a OGame.** Nel Production Core dello script il
+  bonus (base miniera × %) non viene più arrotondato pianeta per pianeta: OGame
+  arrotonda solo produzione naturale e base miniera, poi il totale giornaliero.
+  Verificato sul valore del "Pacchetto Metallo" di un account reale (scarto 0;
+  prima −256 al giorno).
+
 ## OValue Exporter — [4.2.1]
 
 ### Modificato

@@ -122,6 +122,22 @@ const LF_RESEARCH_ALL = (() => {
 })();
 const ALL_LF_IDS = LF_RESEARCH_ALL.map(r => r.id);
 const lfResearchIds = ref([...ALL_LF_IDS]);   // ID ricerca LF abilitati
+// ID delle ricerche LF (con bonus metallo/collezionista) attive su almeno un pianeta
+const activeLfIdsOf = (planetList) => {
+    const ids = new Set();
+    (planetList || []).forEach(p => {
+        const active = p.lfActive || {};
+        const levels = p.lfResearch || {};
+        Object.keys(active).forEach(id => {
+            if (active[id] === true && (parseInt(levels[id]) || 0) > 0 && ALL_LF_IDS.includes(id))
+                ids.add(id);
+        });
+    });
+    return [...ids];
+};
+
+// Ricerche attive su cui si basa la selezione corrente (per aggiungere le nuove)
+let activeLfBasis = { profileId: null, ids: [] };
 
 const capMine = ref(0);            // 0 = nessun cap
 const capPlasma = ref(0);
@@ -224,6 +240,9 @@ const buildStateEntry = (withResult) => ({
     savedAt: Date.now(),
     target: target.value,
     lfResearchIds: [...lfResearchIds.value],
+    // Ricerche attive nel profilo quando la selezione è stata salvata: al
+    // ripristino, quelle attivate dopo (es. con un import) si aggiungono.
+    lfActiveBasis: [...activeLfBasis.ids],
     lfChoice: [...lfChoice.value],
     doneSteps: withResult ? [...doneSteps.value] : [],
     typeFilter: typeFilter.value,
@@ -280,7 +299,10 @@ const restoreProfileState = (profile) => {
         goalMSU.value = 0;
         lfChoice.value = planets.map(() => 'inherit');
         target.value = Math.floor((profile?.production?.daily || 0) * 1.5);
-        lfResearchIds.value = [...ALL_LF_IDS];
+        // Prima volta per questo profilo: pre-seleziona le ricerche già attive
+        const active = activeLfIdsOf(planets);
+        lfResearchIds.value = active.length ? active : [...ALL_LF_IDS];
+        activeLfBasis = { profileId: profile?.id ?? null, ids: active };
         doneSteps.value = new Set();
         typeFilter.value = 'all';
         result.value = null;
@@ -294,7 +316,15 @@ const restoreProfileState = (profile) => {
         ? [...saved.lfChoice]
         : planets.map(() => 'inherit');
     target.value = saved.target || Math.floor((profile?.production?.daily || 0) * 1.5);
-    lfResearchIds.value = Array.isArray(saved.lfResearchIds) ? [...saved.lfResearchIds] : [...ALL_LF_IDS];
+    const activeNow = activeLfIdsOf(planets);
+    if (Array.isArray(saved.lfResearchIds)) {
+        const basis = Array.isArray(saved.lfActiveBasis) ? saved.lfActiveBasis : activeNow;
+        const added = activeNow.filter(id => !basis.includes(id));
+        lfResearchIds.value = [...new Set([...saved.lfResearchIds, ...added])];
+    } else {
+        lfResearchIds.value = activeNow.length ? activeNow : [...ALL_LF_IDS];
+    }
+    activeLfBasis = { profileId: profile.id, ids: activeNow };
     doneSteps.value = new Set(Array.isArray(saved.doneSteps) ? saved.doneSteps : []);
     typeFilter.value = saved.typeFilter || 'all';
     stock.value = saved.stock ? { ...defaultStock, ...saved.stock } : defaultStock;
@@ -469,24 +499,20 @@ const playerClassLabelKey = computed(() => {
 
 // ID delle ricerche LF (con bonus metallo) già ATTIVE nel profilo corrente:
 // attive su almeno un pianeta (lfActive === true) e con livello > 0.
-const profileActiveLfIds = computed(() => {
-    const ids = new Set();
-    planets.value.forEach(p => {
-        const active = p.lfActive || {};
-        const levels = p.lfResearch || {};
-        Object.keys(active).forEach(id => {
-            if (active[id] === true && (parseInt(levels[id]) || 0) > 0 && ALL_LF_IDS.includes(id))
-                ids.add(id);
-        });
-    });
-    return [...ids];
-});
-// Allinea la selezione del planner alla situazione attuale: pre-seleziona le
-// ricerche attive nel profilo (fallback: tutte, se il profilo non ne ha).
-// Si ri-sincronizza a ogni import/cambio profilo; i toggle manuali in sessione
-// restano finché il set attivo non cambia.
+const profileActiveLfIds = computed(() => activeLfIdsOf(planets.value));
+// La selezione è dell'utente e viene salvata per profilo (restoreProfileState);
+// le ricerche attive servono solo a pre-selezionare la prima volta. Dopo un
+// import, quelle diventate attive nel frattempo si AGGIUNGONO alla selezione:
+// non si toglie mai una ricerca scelta a mano.
 watch(profileActiveLfIds, (ids) => {
-    lfResearchIds.value = ids.length ? [...ids] : [...ALL_LF_IDS];
+    const pid = activeProfile.value?.id ?? null;
+    if (activeLfBasis.profileId !== pid) {          // cambio profilo: solo nuova base
+        activeLfBasis = { profileId: pid, ids };
+        return;
+    }
+    const added = ids.filter(id => !activeLfBasis.ids.includes(id));
+    activeLfBasis = { profileId: pid, ids };
+    if (added.length) lfResearchIds.value = [...new Set([...lfResearchIds.value, ...added])];
 }, { immediate: true });
 
 // ───── LF per-pianeta: helpers per il toggle ────────────────────────────

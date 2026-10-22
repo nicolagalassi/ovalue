@@ -1408,6 +1408,35 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 </div>
             </div>
 
+            <!-- Risorse possedute: scalano i pacchetti come in Pack Exchange. Stanno nel form
+             perché sono un dato di partenza; il piano non cambia, i pacchetti si
+             ricalcolano al volo anche dopo il calcolo. -->
+            <div class="mt-5 pt-4 border-t border-slate-700/20">
+                <div class="flex items-baseline justify-between gap-2 mb-2">
+                    <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold">{{ t('lbl_stock') }}</div>
+                    <div v-if="stockMSU > 0" class="text-[10px] font-mono text-emerald-400/70">
+                        –{{ formatNum(stockMSU) }} MSU
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <label class="block">
+                        <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_metal') }}</span>
+                        <input type="text" inputmode="numeric" v-model="stockMet" @focus="$event.target.select()" placeholder="0"
+                               class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
+                    </label>
+                    <label class="block">
+                        <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_crystal') }}</span>
+                        <input type="text" inputmode="numeric" v-model="stockCry" @focus="$event.target.select()" placeholder="0"
+                               class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
+                    </label>
+                    <label class="block">
+                        <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_deuterium') }}</span>
+                        <input type="text" inputmode="numeric" v-model="stockDeu" @focus="$event.target.select()" placeholder="0"
+                               class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
+                    </label>
+                </div>
+            </div>
+
             <!-- Bottone calcolo -->
             <div class="mt-5 pt-4 border-t border-slate-700/20 flex justify-end gap-2">
                 <!-- Con un piano in corso: "Nuovo piano" (secondario, con conferma) e
@@ -1652,33 +1681,6 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 </div>
 
                 </template>
-
-                <!-- Risorse possedute: scalano i pacchetti come in Pack Exchange -->
-                <div class="mt-4 pt-4 border-t border-slate-700/20">
-                    <div class="flex items-baseline justify-between gap-2 mb-2">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold">{{ t('lbl_stock') }}</div>
-                        <div v-if="stockMSU > 0" class="text-[10px] font-mono text-emerald-400/70">
-                            –{{ formatNum(stockMSU) }} MSU
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <label class="block">
-                            <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_metal') }}</span>
-                            <input type="text" inputmode="numeric" v-model="stockMet" @focus="$event.target.select()" placeholder="0"
-                                   class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
-                        </label>
-                        <label class="block">
-                            <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_crystal') }}</span>
-                            <input type="text" inputmode="numeric" v-model="stockCry" @focus="$event.target.select()" placeholder="0"
-                                   class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
-                        </label>
-                        <label class="block">
-                            <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_deuterium') }}</span>
-                            <input type="text" inputmode="numeric" v-model="stockDeu" @focus="$event.target.select()" placeholder="0"
-                                   class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
-                        </label>
-                    </div>
-                </div>
 
                 <!-- Selettori sconto pacchetti + bonus MO -->
                 <div class="mt-4 pt-4 border-t border-slate-700/20 grid grid-cols-1 sm:grid-cols-2 gap-4">

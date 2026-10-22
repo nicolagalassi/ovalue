@@ -29,6 +29,9 @@ const target = ref(0);             // Δ goal in metallo/giorno
 // acquisto, es. Astro 31, con meno pacchi totali alzando prima la produzione).
 const goalMode = ref('production');
 const goalMSU = ref(0);
+// Ripartizione [metallo, cristallo, deuterio] dell'obiettivo, nota solo se preso
+// dalla coda di Pack Exchange (inserendo gli MSU a mano non la si conosce).
+const goalRes = ref(null);
 const maxSteps = ref(500);
 
 // Impostazioni costo pacchetti / MO (locali a questa view)
@@ -78,7 +81,7 @@ const formTarget = computed({
 // Input obiettivo di spesa (MSU) con separatore migliaia
 const formGoalMSU = computed({
     get() { return goalMSU.value ? new Intl.NumberFormat('it-IT').format(Math.floor(goalMSU.value)) : ''; },
-    set(v) { const n = parseInt(String(v).replace(/[^0-9]/g, '')); goalMSU.value = isNaN(n) ? 0 : n; }
+    set(v) { const n = parseInt(String(v).replace(/[^0-9]/g, '')); goalMSU.value = isNaN(n) ? 0 : n; goalRes.value = null; }
 });
 
 // Input risorse possedute con separatore migliaia
@@ -249,6 +252,7 @@ const buildStateEntry = (withResult) => ({
     stock: { ...stock.value },
     goalMode: goalMode.value,
     goalMSU: goalMSU.value,
+    goalRes: goalRes.value,
     coreHash: withResult ? coreHashAtPlan.value : null,
     result: withResult ? result.value : null
 });
@@ -297,6 +301,7 @@ const restoreProfileState = (profile) => {
         stock.value = defaultStock;
         goalMode.value = 'production';
         goalMSU.value = 0;
+        goalRes.value = null;
         lfChoice.value = planets.map(() => 'inherit');
         target.value = Math.floor((profile?.production?.daily || 0) * 1.5);
         // Prima volta per questo profilo: pre-seleziona le ricerche già attive
@@ -330,6 +335,7 @@ const restoreProfileState = (profile) => {
     stock.value = saved.stock ? { ...defaultStock, ...saved.stock } : defaultStock;
     goalMode.value = saved.goalMode === 'spend' ? 'spend' : 'production';
     goalMSU.value = saved.goalMSU || 0;
+    goalRes.value = Array.isArray(saved.goalRes) ? saved.goalRes : null;
     result.value = saved.result || null;
     coreHashAtPlan.value = saved.coreHash || null;
 };
@@ -430,8 +436,14 @@ const goalSummary = computed(() => {
     const direct     = Math.ceil(Math.max(0, g.msu - stockMSU.value) / Math.max(1, result.value.initialProd));
     const goalAfter  = Math.ceil(Math.max(0, g.msu - credit) / Math.max(1, result.value.finalProd));
     const total      = upgradePacks + goalAfter;
+    const r = g.res;   // ripartizione obiettivo, se nota
+    const up = planCost.value;
     return {
-        msu: g.msu, direct, upgradePacks, goalAfter, total,
+        msu: g.msu, res: r, direct, upgradePacks, goalAfter, total,
+        upgradeEuro: euroOf(upgradePacks),
+        goalEuro: euroOf(goalAfter),
+        totalMSU: (up?.msu || 0) + g.msu,
+        totalRes: r && up ? [up.metal + r[0], up.crystal + r[1], up.deuterium + r[2]] : null,
         saving: direct - total,
         savingPct: direct > 0 ? (1 - total / direct) * 100 : 0,
         directEuro: euroOf(direct),
@@ -451,6 +463,7 @@ const useQueueAsGoal = () => {
     if (!pack) return;
     const res = packQueue.value.reduce((a, it) => [a[0] + (it.m || 0), a[1] + (it.c || 0), a[2] + (it.d || 0)], [0, 0, 0]);
     goalMSU.value = Math.round(toMSU(res, pack));
+    goalRes.value = res;
 };
 // Il calcolo si può lanciare se c'è un obiettivo valido per la modalità scelta
 const canCompute = computed(() => goalMode.value === 'spend'
@@ -737,6 +750,7 @@ const finalizePlan = (planRes, initialState, kept = null) => {
         shopDiscount: shopDiscount.value,
         moBonus: moBonus.value,
     });
+    if (res.goal) res = { ...res, goal: { ...res.goal, res: goalRes.value ? [...goalRes.value] : null } };
     result.value = {
         ...res, euro,
         lfChoiceSnapshot: [...lfChoice.value],
@@ -1460,44 +1474,127 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
 
             <!-- Sommario top -->
             <div class="card-glass p-5">
-                <!-- Obiettivo di spesa: confronto pacchi diretto vs alzando prima la produzione -->
-                <div v-if="goalSummary" class="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.05] p-4">
-                    <div class="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
-                        <div class="text-[10px] text-amber-400 uppercase tracking-widest font-bold">{{ t('strategy_goal_title') }}</div>
-                        <div class="text-[11px] font-mono text-amber-200/80">{{ formatNum(goalSummary.msu) }} MSU</div>
+                <!-- ═══ Modalità SPESA: tutto ruota attorno al costo complessivo dell'obiettivo ═══ -->
+                <template v-if="goalSummary">
+                    <!-- 1) Quanto costa in tutto, contro comprarlo subito -->
+                    <div class="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
+                        <div class="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
+                            <div class="text-[10px] text-amber-400 uppercase tracking-widest font-bold">{{ t('strategy_goal_title') }}</div>
+                            <div class="text-[11px] font-mono text-amber-200/80">{{ formatNum(goalSummary.msu) }} MSU</div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="rounded-lg bg-black/25 p-3 text-center">
+                                <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_direct_title') }}</div>
+                                <div class="text-xl font-black font-mono text-slate-300">{{ formatNum(goalSummary.direct) }} <span class="text-[11px] font-semibold text-slate-500">{{ t('strategy_goal_packs_unit') }}</span></div>
+                                <div class="text-[11px] font-mono text-slate-500 mt-0.5">{{ formatNum(goalSummary.directEuro.totalMO) }} MO · €{{ formatNum(goalSummary.directEuro.totalEuro) }}</div>
+                            </div>
+                            <div class="rounded-lg bg-amber-500/10 border border-amber-400/30 p-3 text-center">
+                                <div class="text-[9px] text-amber-300 uppercase tracking-wider font-bold mb-1">{{ t('strategy_goal_total') }}</div>
+                                <div class="text-2xl font-black font-mono text-amber-100">{{ formatNum(goalSummary.total) }} <span class="text-[11px] font-semibold text-amber-300/70">{{ t('strategy_goal_packs_unit') }}</span></div>
+                                <div class="text-[11px] font-mono text-amber-200/80 mt-0.5">{{ formatNum(goalSummary.totalEuro.totalMO) }} MO · €{{ formatNum(goalSummary.totalEuro.totalEuro) }}</div>
+                            </div>
+                            <div class="rounded-lg bg-emerald-500/[0.07] border border-emerald-500/25 p-3 text-center">
+                                <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-bold mb-1">{{ t('strategy_goal_saving') }}</div>
+                                <div class="text-xl font-black font-mono text-emerald-300">{{ formatNum(Math.max(0, goalSummary.saving)) }} <span class="text-[11px] font-semibold text-emerald-400/70">{{ t('strategy_goal_packs_unit') }}</span></div>
+                                <div class="text-[11px] font-mono text-emerald-300/80 mt-0.5">
+                                    −{{ Math.max(0, goalSummary.savingPct).toFixed(1) }}% · €{{ formatNum(Math.max(0, goalSummary.directEuro.totalEuro - goalSummary.totalEuro.totalEuro)) }}
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="!result.steps.some(st => !st.fromPrevPlan)" class="mt-3 text-[11px] text-slate-400">
+                            {{ t('strategy_goal_no_upgrade') }}
+                        </div>
                     </div>
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
-                        <div>
-                            <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_direct') }}</div>
-                            <div class="text-lg font-black font-mono text-slate-300">{{ formatNum(goalSummary.direct) }}</div>
-                            <div class="text-[10px] font-mono text-slate-500">€{{ formatNum(goalSummary.directEuro.totalEuro) }}</div>
+
+                    <!-- 2) Le due fasi: prima gli upgrade, poi l'obiettivo -->
+                    <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="bg-ogame-surface rounded-xl p-4 border border-sky-500/20">
+                            <div class="text-[10px] text-sky-400 uppercase tracking-widest font-bold mb-2">1 · {{ t('strategy_goal_phase_upgrade') }}</div>
+                            <div class="flex items-baseline justify-between gap-2">
+                                <span class="text-xl font-black font-mono text-sky-200">{{ formatNum(goalSummary.upgradePacks) }} <span class="text-[11px] font-semibold text-sky-400/70">{{ t('strategy_goal_packs_unit') }}</span></span>
+                                <span class="text-[11px] font-mono text-slate-500">€{{ formatNum(goalSummary.upgradeEuro.totalEuro) }}</span>
+                            </div>
+                            <div class="mt-2 text-[11px] font-mono text-slate-400 space-y-0.5">
+                                <div class="flex justify-between"><span class="text-slate-500">MSU<template v-if="planCost?.hasProgress"> ({{ t('strategy_goal_remaining') }})</template></span><span class="text-amber-200">{{ formatNum(planCost?.msu || 0) }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-500">{{ t('res_metal') }}</span><span>{{ formatNum(planCost?.metal || 0) }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-500">{{ t('res_crystal') }}</span><span class="text-sky-300">{{ formatNum(planCost?.crystal || 0) }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-500">{{ t('res_deuterium') }}</span><span class="text-ogame-success">{{ formatNum(planCost?.deuterium || 0) }}</span></div>
+                                <!-- Lo stock paga per primo gli upgrade: senza questa riga "MSU > 0 ma 0 pacchi" sembra un errore -->
+                                <div v-if="stockMSU > 0" class="flex justify-between text-emerald-400/80">
+                                    <span>{{ t('strategy_goal_stock_covers') }}</span>
+                                    <span>−{{ formatNum(Math.min(stockMSU, planCost?.msu || 0)) }}</span>
+                                </div>
+                            </div>
+                            <div class="mt-2 pt-2 border-t border-slate-700/20 text-[11px] font-mono text-slate-400 flex justify-between gap-2 flex-wrap">
+                                <span class="text-slate-500">{{ t('strategy_goal_prod_change') }}</span>
+                                <span>{{ formatNum(result.initialProd) }} → <span class="text-emerald-300">{{ formatNum(result.finalProd) }}</span></span>
+                            </div>
                         </div>
-                        <div>
-                            <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_invested') }}</div>
-                            <div class="text-lg font-black font-mono text-sky-300">{{ formatNum(goalSummary.upgradePacks) }}</div>
-                        </div>
-                        <div>
-                            <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_after') }}</div>
-                            <div class="text-lg font-black font-mono text-amber-200">{{ formatNum(goalSummary.goalAfter) }}</div>
-                        </div>
-                        <div>
-                            <div class="text-[9px] text-amber-300 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_total') }}</div>
-                            <div class="text-lg font-black font-mono text-amber-100">{{ formatNum(goalSummary.total) }}</div>
-                            <div class="text-[10px] font-mono text-amber-200/80">€{{ formatNum(goalSummary.totalEuro.totalEuro) }}</div>
-                        </div>
-                        <div class="col-span-2 md:col-span-1">
-                            <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_saving') }}</div>
-                            <div class="text-lg font-black font-mono text-emerald-300">{{ formatNum(Math.max(0, goalSummary.saving)) }}</div>
-                            <div class="text-[10px] font-mono text-emerald-300/70">
-                                −{{ Math.max(0, goalSummary.savingPct).toFixed(1) }}% · €{{ formatNum(Math.max(0, goalSummary.directEuro.totalEuro - goalSummary.totalEuro.totalEuro)) }}
+                        <div class="bg-ogame-surface rounded-xl p-4 border border-amber-500/20">
+                            <div class="text-[10px] text-amber-400 uppercase tracking-widest font-bold mb-2">2 · {{ t('strategy_goal_phase_goal') }}</div>
+                            <div class="flex items-baseline justify-between gap-2">
+                                <span class="text-xl font-black font-mono text-amber-200">{{ formatNum(goalSummary.goalAfter) }} <span class="text-[11px] font-semibold text-amber-400/70">{{ t('strategy_goal_packs_unit') }}</span></span>
+                                <span class="text-[11px] font-mono text-slate-500">€{{ formatNum(goalSummary.goalEuro.totalEuro) }}</span>
+                            </div>
+                            <div class="mt-2 text-[11px] font-mono text-slate-400 space-y-0.5">
+                                <div class="flex justify-between"><span class="text-slate-500">MSU</span><span class="text-amber-200">{{ formatNum(goalSummary.msu) }}</span></div>
+                                <template v-if="goalSummary.res">
+                                    <div class="flex justify-between"><span class="text-slate-500">{{ t('res_metal') }}</span><span>{{ formatNum(goalSummary.res[0]) }}</span></div>
+                                    <div class="flex justify-between"><span class="text-slate-500">{{ t('res_crystal') }}</span><span class="text-sky-300">{{ formatNum(goalSummary.res[1]) }}</span></div>
+                                    <div class="flex justify-between"><span class="text-slate-500">{{ t('res_deuterium') }}</span><span class="text-ogame-success">{{ formatNum(goalSummary.res[2]) }}</span></div>
+                                </template>
+                                <div v-else class="text-[10px] text-slate-600 italic pt-1">{{ t('strategy_goal_res_unknown') }}</div>
+                            </div>
+                            <div class="mt-2 pt-2 border-t border-slate-700/20 text-[11px] font-mono text-slate-400 flex justify-between gap-2 flex-wrap">
+                                <span class="text-slate-500">{{ t('strategy_goal_pack_value') }}</span>
+                                <span>{{ formatNum(result.finalProd) }} {{ t('strategy_goal_per_pack') }}</span>
                             </div>
                         </div>
                     </div>
-                    <div class="mt-3 text-[10px] text-slate-500 leading-snug">{{ t('strategy_goal_check_hint') }}</div>
-                    <div v-if="!result.steps.some(st => !st.fromPrevPlan)" class="mt-2 text-[11px] text-slate-400">
-                        {{ t('strategy_goal_no_upgrade') }}
+
+                    <!-- 3) Totale risorse da procurare (upgrade + obiettivo) -->
+                    <div class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="bg-ogame-surface rounded-xl p-3 border border-amber-500/20 text-center">
+                            <div class="text-[9px] text-amber-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_total_msu') }}</div>
+                            <div class="text-base font-black text-amber-200 font-mono">{{ formatNum(goalSummary.totalMSU) }}</div>
+                        </div>
+                        <template v-if="goalSummary.totalRes">
+                            <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
+                                <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_metal') }}</div>
+                                <div class="text-base font-black text-slate-300 font-mono">{{ formatNum(goalSummary.totalRes[0]) }}</div>
+                            </div>
+                            <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
+                                <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_crystal') }}</div>
+                                <div class="text-base font-black text-sky-300 font-mono">{{ formatNum(goalSummary.totalRes[1]) }}</div>
+                            </div>
+                            <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
+                                <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_deuterium') }}</div>
+                                <div class="text-base font-black text-ogame-success font-mono">{{ formatNum(goalSummary.totalRes[2]) }}</div>
+                            </div>
+                        </template>
                     </div>
-                </div>
+
+                    <!-- 4) Produzione: dove sei rispetto al piano -->
+                    <div class="mt-3 grid grid-cols-3 gap-3">
+                        <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
+                            <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_initial') }}</div>
+                            <div class="text-base font-black text-slate-200 font-mono">{{ formatNum(result.initialProd) }}</div>
+                        </div>
+                        <div class="bg-ogame-surface rounded-xl p-3 border border-sky-500/20 text-center">
+                            <div class="text-[9px] text-sky-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_current_prod') }}</div>
+                            <div class="text-base font-black text-sky-200 font-mono">{{ formatNum(currentProd) }}</div>
+                            <div v-if="planProgressPct > 0" class="text-[10px] font-mono text-sky-300/70 mt-0.5">{{ t('strategy_progress_pct').replace('{n}', planProgressPct) }}</div>
+                        </div>
+                        <div class="bg-ogame-surface rounded-xl p-3 border border-emerald-500/25 text-center">
+                            <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_final') }}</div>
+                            <div class="text-base font-black text-emerald-300 font-mono">{{ formatNum(result.finalProd) }}</div>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-[10px] text-slate-500 leading-snug">{{ t('strategy_goal_check_hint') }}</div>
+                </template>
+
+                <!-- ═══ Modalità PRODUZIONE: riepilogo classico ═══ -->
+                <template v-else>
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_initial') }}</div>
@@ -1553,6 +1650,8 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         <div class="text-base font-black text-ogame-success font-mono">{{ formatNum(planCost.deuterium) }}</div>
                     </div>
                 </div>
+
+                </template>
 
                 <!-- Risorse possedute: scalano i pacchetti come in Pack Exchange -->
                 <div class="mt-4 pt-4 border-t border-slate-700/20">

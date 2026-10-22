@@ -183,30 +183,35 @@ export function useOgameFormulas() {
         return mult;
     };
 
+    // Solo le ricerche LF con almeno un bonus produzione, nello stesso ordine del
+    // database (specie, poi id): le altre contribuiscono 0. Calcolata una volta:
+    // calcPlanetLFContribution è il punto più caldo del planner.
+    const LF_BONUS_RESEARCH = [];
+    for (const species of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
+        const catData = OGAME_DB[`lf_${species}_res`];
+        if (!catData) continue;
+        for (const [idStr, itemData] of Object.entries(catData.items || {})) {
+            const bonus = itemData.bonus;
+            if (bonus && bonus.some(v => v)) LF_BONUS_RESEARCH.push([idStr, bonus]);
+        }
+    }
+
     const calcPlanetLFContribution = (p) => {
         const contrib = { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0 };
         const lfData   = p.lfResearch || {};
-        const mult     = calcPlanetResearchMult(p);
-
         const lfActive = p.lfActive || {};
+        let mult = null;   // calcolato solo se serve
 
-        for (const species of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
-            const catData = OGAME_DB[`lf_${species}_res`];
-            if (!catData) continue;
+        for (const [idStr, bonus] of LF_BONUS_RESEARCH) {
+            const level = parseInt(lfData[idStr]) || 0;
+            if (level <= 0) continue;
+            if (lfActive[idStr] !== true) continue;
+            if (mult === null) mult = calcPlanetResearchMult(p);
 
-            for (const [idStr, itemData] of Object.entries(catData.items || {})) {
-                const level = parseInt(lfData[idStr]) || 0;
-                if (level <= 0) continue;
-                if (lfActive[idStr] !== true) continue;
-
-                const bonus = itemData.bonus;
-                if (!bonus) continue;
-
-                contrib.metal          += Math.min(level * (bonus[0] || 0) * mult, bonus[3] || Infinity);
-                contrib.crystal        += Math.min(level * (bonus[1] || 0) * mult, bonus[4] || Infinity);
-                contrib.deuterium      += Math.min(level * (bonus[2] || 0) * mult, bonus[5] || Infinity);
-                contrib.collectorBonus += level * (bonus[6] || 0) * mult;
-            }
+            contrib.metal          += Math.min(level * (bonus[0] || 0) * mult, bonus[3] || Infinity);
+            contrib.crystal        += Math.min(level * (bonus[1] || 0) * mult, bonus[4] || Infinity);
+            contrib.deuterium      += Math.min(level * (bonus[2] || 0) * mult, bonus[5] || Infinity);
+            contrib.collectorBonus += level * (bonus[6] || 0) * mult;
         }
         return contrib;
     };

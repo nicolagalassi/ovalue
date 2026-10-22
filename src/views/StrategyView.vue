@@ -365,8 +365,8 @@ const stockMSU = computed(() => {
 // contabilità del planner (credito MSU che avanza da uno step al successivo),
 // partendo con lo stock come credito iniziale: con stock 0 coincide esattamente
 // con result.cumulativePacks. Ricalcolato al volo, senza rieseguire il planner.
-const totalPacks = computed(() => {
-    if (!result.value) return 0;
+const packAccounting = computed(() => {
+    if (!result.value) return { packs: 0, credit: 0 };
     let credit = stockMSU.value;
     let packs = 0;
     const done = stepDone.value;
@@ -378,16 +378,40 @@ const totalPacks = computed(() => {
         credit = need > 0 ? need * pv - net : credit - st.costMSU;
         packs += need;
     }
-    return packs;
+    // credit: MSU avanzati (stock non usato + eccedenza dell'ultimo pacco aperto)
+    return { packs, credit };
+});
+const totalPacks = computed(() => packAccounting.value.packs);
+
+const euroOf = (packs) => computeEuroCost(packs, {
+    ...currentSimState.value.shop,
+    shopDiscount: shopDiscount.value,
+    moBonus: moBonus.value,
+});
+
+// Obiettivo di spesa con la stessa contabilità del riepilogo (pacchi interi,
+// stock e step già fatti): gli upgrade si pagano per primi, quel che avanza va
+// sull'obiettivo, che si compra alla produzione finale del piano. Il confronto
+// "diretto" compra l'obiettivo subito, alla produzione iniziale, con lo stesso stock.
+const goalSummary = computed(() => {
+    const g = result.value?.goal;
+    if (!g || !currentSimState.value) return null;
+    const { packs: upgradePacks, credit } = packAccounting.value;
+    const direct     = Math.ceil(Math.max(0, g.msu - stockMSU.value) / Math.max(1, result.value.initialProd));
+    const goalAfter  = Math.ceil(Math.max(0, g.msu - credit) / Math.max(1, result.value.finalProd));
+    const total      = upgradePacks + goalAfter;
+    return {
+        msu: g.msu, direct, upgradePacks, goalAfter, total,
+        saving: direct - total,
+        savingPct: direct > 0 ? (1 - total / direct) * 100 : 0,
+        directEuro: euroOf(direct),
+        totalEuro: euroOf(total)
+    };
 });
 
 const planEuro = computed(() => {
     if (!result.value || !currentSimState.value) return { totalMO: 0, totalEuro: 0, packList: [] };
-    return computeEuroCost(totalPacks.value, {
-        ...currentSimState.value.shop,
-        shopDiscount: shopDiscount.value,
-        moBonus: moBonus.value,
-    });
+    return euroOf(totalPacks.value);
 });
 
 // Coda di Pack Exchange come obiettivo di spesa (es. Astro 31 composta col builder)
@@ -1411,35 +1435,40 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
             <!-- Sommario top -->
             <div class="card-glass p-5">
                 <!-- Obiettivo di spesa: confronto pacchi diretto vs alzando prima la produzione -->
-                <div v-if="result.goal" class="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.05] p-4">
+                <div v-if="goalSummary" class="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.05] p-4">
                     <div class="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
                         <div class="text-[10px] text-amber-400 uppercase tracking-widest font-bold">{{ t('strategy_goal_title') }}</div>
-                        <div class="text-[11px] font-mono text-amber-200/80">{{ formatNum(result.goal.msu) }} MSU</div>
+                        <div class="text-[11px] font-mono text-amber-200/80">{{ formatNum(goalSummary.msu) }} MSU</div>
                     </div>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
                         <div>
                             <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_direct') }}</div>
-                            <div class="text-lg font-black font-mono text-slate-300">{{ formatNum(Math.ceil(result.goal.directPacks)) }}</div>
+                            <div class="text-lg font-black font-mono text-slate-300">{{ formatNum(goalSummary.direct) }}</div>
+                            <div class="text-[10px] font-mono text-slate-500">€{{ formatNum(goalSummary.directEuro.totalEuro) }}</div>
                         </div>
                         <div>
                             <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_invested') }}</div>
-                            <div class="text-lg font-black font-mono text-sky-300">{{ formatNum(Math.ceil(result.goal.investedPacks)) }}</div>
+                            <div class="text-lg font-black font-mono text-sky-300">{{ formatNum(goalSummary.upgradePacks) }}</div>
                         </div>
                         <div>
                             <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_after') }}</div>
-                            <div class="text-lg font-black font-mono text-amber-200">{{ formatNum(Math.ceil(result.goal.goalPacks)) }}</div>
+                            <div class="text-lg font-black font-mono text-amber-200">{{ formatNum(goalSummary.goalAfter) }}</div>
                         </div>
                         <div>
+                            <div class="text-[9px] text-amber-300 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_total') }}</div>
+                            <div class="text-lg font-black font-mono text-amber-100">{{ formatNum(goalSummary.total) }}</div>
+                            <div class="text-[10px] font-mono text-amber-200/80">€{{ formatNum(goalSummary.totalEuro.totalEuro) }}</div>
+                        </div>
+                        <div class="col-span-2 md:col-span-1">
                             <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_saving') }}</div>
-                            <div class="text-lg font-black font-mono text-emerald-300">
-                                {{ formatNum(Math.max(0, Math.floor(result.goal.directPacks - result.goal.investedPacks - result.goal.goalPacks))) }}
-                            </div>
+                            <div class="text-lg font-black font-mono text-emerald-300">{{ formatNum(Math.max(0, goalSummary.saving)) }}</div>
                             <div class="text-[10px] font-mono text-emerald-300/70">
-                                −{{ Math.max(0, (1 - (result.goal.investedPacks + result.goal.goalPacks) / result.goal.directPacks) * 100).toFixed(1) }}%
+                                −{{ Math.max(0, goalSummary.savingPct).toFixed(1) }}% · €{{ formatNum(Math.max(0, goalSummary.directEuro.totalEuro - goalSummary.totalEuro.totalEuro)) }}
                             </div>
                         </div>
                     </div>
-                    <div v-if="!result.steps.some(st => !st.fromPrevPlan)" class="mt-3 text-[11px] text-slate-400">
+                    <div class="mt-3 text-[10px] text-slate-500 leading-snug">{{ t('strategy_goal_check_hint') }}</div>
+                    <div v-if="!result.steps.some(st => !st.fromPrevPlan)" class="mt-2 text-[11px] text-slate-400">
                         {{ t('strategy_goal_no_upgrade') }}
                     </div>
                 </div>

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.5.0
+// @version      4.5.1
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -30,9 +30,22 @@
         const ovLang = localStorage.getItem('ogame_lang') || 'it';
         GM_setValue('ovalue_ui_lang', ovLang);
 
+        const version = (typeof GM_info !== 'undefined' && GM_info.script?.version) || null;
         const servers = GM_getValue('ovalue_servers', []);
+
+        // Segnala a OValue la presenza dell'exporter e lo stato della memoria anche se
+        // non ci sono ancora dati OGame pronti da importare.
+        const ping = {
+            version,
+            at: Date.now(),
+            serversCount: Array.isArray(servers) ? servers.length : 0,
+            servers: Array.isArray(servers) ? servers : []
+        };
+        try { localStorage.setItem('ovalue_exporter_ping', JSON.stringify(ping)); } catch (_) {}
+        try { window.dispatchEvent(new CustomEvent('ovalue-exporter-ping', { detail: ping })); } catch (_) {}
+
         const allData = {};
-        for (const srv of servers) {
+        for (const srv of (Array.isArray(servers) ? servers : [])) {
             const d = GM_getValue('ovalue_data_' + srv, null);
             if (!d) continue;
             if (d.planets && d.planetLifeforms) {
@@ -41,7 +54,7 @@
                         p.lifeform = d.planetLifeforms[p.id];
                 });
             }
-            d._exporterVersion = (typeof GM_info !== 'undefined' && GM_info.script?.version) || null;
+            d._exporterVersion = version;
             allData[srv] = d;
         }
         if (!Object.keys(allData).length) return;

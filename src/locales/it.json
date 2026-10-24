@@ -808,5 +808,6 @@
     "diag_blocked_hint": "Hai eliminato il profilo collegato a questi server, quindi i loro dati vengono ignorati. Ricollegali a un profilo esistente: la pagina si ricarica e i dati vengono importati subito. L'auto-sync del profilo scelto viene attivato.",
     "diag_blocked_link_to": "Collega al profilo",
     "diag_blocked_relink": "Ricollega",
-    "diag_copy_failed": "Impossibile copiare negli appunti"
+    "diag_copy_failed": "Impossibile copiare negli appunti",
+    "diag_blocked_no_free_profile": "Tutti i profili sono già collegati ad altri server. Crea un nuovo profilo (sezione Profili) e torna qui, oppure cambia il server di un profilo da \"Server OGame associato\"."
 }

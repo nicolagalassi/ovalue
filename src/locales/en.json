@@ -806,5 +806,6 @@
     "diag_blocked_hint": "You deleted the profile linked to these servers, so their data is ignored. Link them to an existing profile: the page reloads and the data is imported right away. Auto-sync is enabled on the chosen profile.",
     "diag_blocked_link_to": "Link to profile",
     "diag_blocked_relink": "Relink",
-    "diag_copy_failed": "Could not copy to clipboard"
+    "diag_copy_failed": "Could not copy to clipboard",
+    "diag_blocked_no_free_profile": "Every profile is already linked to another server. Create a new profile (Profiles section) and come back here, or change a profile's server under \"Linked OGame server\"."
 }

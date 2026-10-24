@@ -32,14 +32,22 @@ const copyDiagnosticReport = async () => {
 };
 
 // ── Server bloccati → ricollegamento a un profilo esistente ─────────────────
-// Profilo proposto: uno senza server (tipico "Default" rimasto dopo aver eliminato
-// quello sincronizzato), altrimenti il profilo attivo.
+// Candidati: solo profili senza server. Un profilo già agganciato a un ALTRO
+// server verrebbe riassegnato in silenzio, interrompendo la sync del suo
+// universo; per spostarlo di proposito c'è "Server OGame associato" nel profilo.
 const relinkTarget = ref({});
-const suggestedProfileId = () =>
-    (profiles.value.find(p => !p.syncServer) || activeProfile.value || profiles.value[0])?.id || '';
-const relinkChoice = (srv) => relinkTarget.value[srv] || suggestedProfileId();
+const relinkCandidates = computed(() => profiles.value.filter(p => !p.syncServer));
+const suggestedProfileId = () => {
+    const c = relinkCandidates.value;
+    return (c.find(p => p.id === activeProfileId.value) || c[0])?.id || '';
+};
+const relinkChoice = (srv) => {
+    const chosen = relinkTarget.value[srv];
+    return relinkCandidates.value.some(p => p.id === chosen) ? chosen : suggestedProfileId();
+};
 const relinkServer = (srv) => {
-    if (!linkServerToProfile(srv, relinkChoice(srv))) return;
+    const id = relinkChoice(srv);
+    if (!id || !linkServerToProfile(srv, id)) return;
     // I dati del server erano stati scartati: l'exporter li rimanda al caricamento
     // della pagina di OValue, quindi si ricarica per importarli subito.
     window.location.reload();
@@ -422,19 +430,23 @@ const confirmImportOGame = () => {
           <div v-for="srv in blockedServers" :key="srv"
                class="flex flex-col sm:flex-row sm:items-center gap-2 p-2 rounded-lg bg-black/25 border border-white/5">
             <span class="font-mono text-[11px] text-white font-bold sm:max-w-[13rem] truncate" :title="srv">{{ srv }}</span>
-            <label class="sr-only" :for="'relink-' + srv">{{ t('diag_blocked_link_to') }}</label>
-            <select :id="'relink-' + srv"
-                    :value="relinkChoice(srv)"
-                    @change="relinkTarget = { ...relinkTarget, [srv]: $event.target.value }"
-                    class="flex-1 min-w-[9rem] text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-gray-300 focus:outline-none focus:border-amber-400/40 cursor-pointer">
-              <option v-for="p in profiles" :key="p.id" v-memo="[p.id, p.name, p.syncServer]" :value="p.id" class="bg-gray-900">
-                {{ p.name }}{{ p.syncServer ? ' — ' + p.syncServer.split('.')[0] : '' }}
-              </option>
-            </select>
-            <button @click="relinkServer(srv)"
-                    class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/35 text-amber-200 font-bold text-xs whitespace-nowrap transition cursor-pointer">
-              {{ t('diag_blocked_relink') }}
-            </button>
+            <template v-if="relinkCandidates.length > 0">
+              <label class="sr-only" :for="'relink-' + srv">{{ t('diag_blocked_link_to') }}</label>
+              <select :id="'relink-' + srv"
+                      :value="relinkChoice(srv)"
+                      @change="relinkTarget = { ...relinkTarget, [srv]: $event.target.value }"
+                      class="flex-1 min-w-[9rem] text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-gray-300 focus:outline-none focus:border-amber-400/40 cursor-pointer">
+                <option v-for="p in relinkCandidates" :key="p.id" v-memo="[p.id, p.name]" :value="p.id" class="bg-gray-900">
+                  {{ p.name }}
+                </option>
+              </select>
+              <button @click="relinkServer(srv)"
+                      class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/35 text-amber-200 font-bold text-xs whitespace-nowrap transition cursor-pointer">
+                {{ t('diag_blocked_relink') }}
+              </button>
+            </template>
+            <!-- Tutti i profili sono già collegati ad altri server: nessuno si sovrascrive da qui -->
+            <span v-else class="flex-1 text-[11px] text-amber-400/80 leading-snug">{{ t('diag_blocked_no_free_profile') }}</span>
           </div>
         </div>
 

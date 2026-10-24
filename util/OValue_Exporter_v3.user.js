@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.4.0
+// @version      4.5.0
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -41,6 +41,7 @@
                         p.lifeform = d.planetLifeforms[p.id];
                 });
             }
+            d._exporterVersion = (typeof GM_info !== 'undefined' && GM_info.script?.version) || null;
             allData[srv] = d;
         }
         if (!Object.keys(allData).length) return;
@@ -612,7 +613,8 @@
         }
     }
 
-    function save() { GM_setValue(STORAGE_KEY, d); }
+    // _savedAt: quando i dati sono stati raccolti nel gioco (diagnostica sync in OValue)
+    function save() { d._savedAt = Date.now(); GM_setValue(STORAGE_KEY, d); }
 
     // ── CLASSE ALLEANZA ──────────────────────────────────────────────────────
     // Rileva la classe alleanza dal DOM già presente nella pagina che l'utente ha aperto

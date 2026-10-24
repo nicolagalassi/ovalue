@@ -115,22 +115,48 @@ export function useProfiles() {
         // Check for exporter data written by the userscript bridge on page load
         const pending = localStorage.getItem('ovalue_exporter_pending');
         if (pending) {
-            try { importFromExporter(JSON.parse(pending), 'load'); } catch (e) {}
+            try {
+                const parsed = JSON.parse(pending);
+                importFromExporter(parsed, 'load');
+            } catch (err) {
+                logSync('load', [{ outcome: 'error', error: `Parsing dati in attesa all'avvio fallito: ${err?.message || err}` }]);
+            }
             localStorage.removeItem('ovalue_exporter_pending');
         }
 
         // Sync live: con OValue già aperto, l'exporter (scheda ovalue.net) rilancia
-        // l'evento ogni volta che la scheda di OGame salva dati nuovi. I dati si leggono
-        // da localStorage, scritto dall'exporter prima dell'evento: `e.detail` arriva da
-        // un altro contesto (sandbox dello userscript) e in alcuni browser non è leggibile.
+        // l'evento ogni volta che la scheda di OGame salva dati nuovi.
         if (!syncListenerAttached) {
             syncListenerAttached = true;
             window.addEventListener('ovalue-exporter-sync', (e) => {
                 let data = null;
-                try { data = JSON.parse(localStorage.getItem('ovalue_exporter_pending')); } catch (_) {}
-                if (!data) { try { data = e.detail; } catch (_) {} }
+                const rawPending = localStorage.getItem('ovalue_exporter_pending');
+                if (rawPending) {
+                    try {
+                        data = JSON.parse(rawPending);
+                    } catch (err) {
+                        logSync('live', [{ outcome: 'error', error: `Parsing ovalue_exporter_pending fallito: ${err?.message || err}` }]);
+                    }
+                }
+                if (!data && e && e.detail) {
+                    try {
+                        data = typeof e.detail === 'string' ? JSON.parse(e.detail) : e.detail;
+                    } catch (err) {
+                        logSync('live', [{ outcome: 'error', error: `Parsing event.detail fallito: ${err?.message || err}` }]);
+                    }
+                }
                 localStorage.removeItem('ovalue_exporter_pending');
-                if (data && importFromExporter(data, 'live')) showToast(t('msg_exporter_synced'), 'success');
+                if (data) {
+                    try {
+                        if (importFromExporter(data, 'live')) {
+                            showToast(t('msg_exporter_synced'), 'success');
+                        }
+                    } catch (err) {
+                        logSync('live', [{ outcome: 'error', error: `Crash durante importFromExporter: ${err?.message || err}` }]);
+                    }
+                } else {
+                    logSync('live', [{ outcome: 'error', error: 'Evento sync ricevuto ma nessun dato trovato nel payload' }]);
+                }
             });
         }
     };
@@ -245,7 +271,10 @@ export function useProfiles() {
     // allData = { 'serverHostname': exporterData, ... }
     // Per ogni server trova o crea automaticamente un profilo dedicato.
     const importFromExporter = (allData, source = 'load') => {
-        if (!allData || typeof allData !== 'object') return false;
+        if (!allData || typeof allData !== 'object' || Array.isArray(allData)) {
+            logSync(source, [{ outcome: 'error', error: 'Dati ricevuti non validi o formato non supportato' }]);
+            return false;
+        }
         const results = [];   // esito per server, per la diagnostica
 
         let blockedServers = [];
@@ -264,45 +293,53 @@ export function useProfiles() {
             if (!raw) { results.push({ server: serverKey, outcome: 'empty' }); continue; }
             const diag = { server: serverKey, version: raw._exporterVersion || null, dataAt: exporterDataTime(raw) };
 
-            // Trova o crea automaticamente un profilo per questo server
-            if (blockedServers.includes(serverKey)) { results.push({ ...diag, outcome: 'blocked' }); continue; }
-            let profile = profiles.value.find(p => p.syncServer === serverKey);
-            if (!profile) {
-                const universeName = raw.universeName || serverKey.split('.')[0];
-                const newP = {
-                    id: 'p' + Date.now() + Math.random().toString(36).slice(2, 5),
-                    name: universeName,
-                    playerName: raw.playerName || '',
-                    production: createDefaultProduction(),
-                    packExchange: createDefaultPackExchange(),
-                    shoppingList: createDefaultShoppingList(),
-                    autoSync: true,
-                    lastSync: null,
-                    syncServer: serverKey
-                };
-                profiles.value.push(newP);
-                profile = newP;
-                // Switcha automaticamente al profilo appena creato
-                activeProfileId.value = profile.id;
-                diag.created = true;
+            try {
+                // Trova o crea automaticamente un profilo per questo server
+                if (blockedServers.includes(serverKey)) { results.push({ ...diag, outcome: 'blocked' }); continue; }
+                let profile = profiles.value.find(p => p.syncServer === serverKey);
+                if (!profile) {
+                    const universeName = raw.universeName || serverKey.split('.')[0];
+                    const newP = {
+                        id: 'p' + Date.now() + Math.random().toString(36).slice(2, 5),
+                        name: universeName,
+                        playerName: raw.playerName || '',
+                        production: createDefaultProduction(),
+                        packExchange: createDefaultPackExchange(),
+                        shoppingList: createDefaultShoppingList(),
+                        autoSync: true,
+                        lastSync: null,
+                        syncServer: serverKey
+                    };
+                    profiles.value.push(newP);
+                    profile = newP;
+                    // Switcha automaticamente al profilo appena creato
+                    activeProfileId.value = profile.id;
+                    diag.created = true;
+                }
+
+                // Sync disattivato: non si importa e non si tocca lastSync (prima veniva
+                // aggiornato e il profilo sembrava sincronizzato anche senza dati nuovi)
+                if (!profile.autoSync) {
+                    results.push({ ...diag, profile: profile.name, outcome: 'autosync_off' });
+                    continue;
+                }
+
+                // Impostazioni di produzione, pianeti e produzione giornaliera
+                applyExportToProduction(profile.production, raw);
+
+                if (raw.playerName) profile.playerName = raw.playerName;
+                profile.lastSync = Date.now();
+                profile.syncDataAt = diag.dataAt;   // quando l'exporter ha raccolto i dati nel gioco
+                results.push({ ...diag, profile: profile.name, outcome: diag.created ? 'created' : 'imported',
+                               planets: profile.production.planets?.length ?? 0, daily: profile.production.daily });
+                didImport = true;
+            } catch (err) {
+                results.push({
+                    ...diag,
+                    outcome: 'error',
+                    error: err?.message || String(err)
+                });
             }
-
-            // Sync disattivato: non si importa e non si tocca lastSync (prima veniva
-            // aggiornato e il profilo sembrava sincronizzato anche senza dati nuovi)
-            if (!profile.autoSync) {
-                results.push({ ...diag, profile: profile.name, outcome: 'autosync_off' });
-                continue;
-            }
-
-            // Impostazioni di produzione, pianeti e produzione giornaliera
-            applyExportToProduction(profile.production, raw);
-
-            if (raw.playerName) profile.playerName = raw.playerName;
-            profile.lastSync = Date.now();
-            profile.syncDataAt = diag.dataAt;   // quando l'exporter ha raccolto i dati nel gioco
-            results.push({ ...diag, profile: profile.name, outcome: diag.created ? 'created' : 'imported',
-                           planets: profile.production.planets.length, daily: profile.production.daily });
-            didImport = true;
         }
 
         markExporterSeen(Object.values(allData).find(r => r?._exporterVersion)?._exporterVersion);

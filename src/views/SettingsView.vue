@@ -3,7 +3,26 @@ import { ref, computed } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useToast } from '../composables/useToast';
+import { useSyncDiagnostics } from '../composables/syncDiagnostics';
 
+const { syncLog, exporterPing, exporterSeen, clearSyncLog, generateDiagnosticReport } = useSyncDiagnostics();
+
+const copyDiagnosticReport = async () => {
+    let blocked = [];
+    try { blocked = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]'); } catch (_) {}
+    const report = generateDiagnosticReport({
+        profiles: profiles.value,
+        activeProfileId: activeProfileId.value,
+        blockedServers: blocked,
+        knownServers: knownServers.value
+    });
+    try {
+        await navigator.clipboard.writeText(report);
+        showToast(t('diag_report_copied'), 'success');
+    } catch (_) {
+        showToast('Errore durante la copia negli appunti', 'error');
+    }
+};
 const { currentLang, setLanguage, t } = useLanguage();
 const { show: showToast } = useToast();
 const {
@@ -324,6 +343,114 @@ const confirmImportOGame = () => {
             class="px-6 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black uppercase tracking-wider transition hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] text-xs">
             {{ t('btn_import_now') }}
           </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── DIAGNOSTICA SINCRONIZZAZIONE ─────────────────────────────────── -->
+    <section>
+      <div class="flex items-center gap-3 mb-4">
+        <span class="text-[10px] font-black text-amber-400/80 uppercase tracking-widest flex items-center gap-2">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          {{ t('settings_section_diag') }}
+        </span>
+        <div class="flex-grow h-px bg-white/5"></div>
+      </div>
+
+      <div class="bg-ogame-bg/80 border border-white/5 rounded-xl p-5 space-y-4">
+        <!-- Stato Exporter -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-white/[0.02] border border-white/5">
+          <div class="flex items-start gap-3">
+            <span class="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
+              :class="exporterPing ? (exporterPing.serversCount > 0 ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]') : (exporterSeen ? 'bg-emerald-400/80' : 'bg-red-400/60')"></span>
+            <div>
+              <div class="text-xs font-bold text-white flex items-center gap-2">
+                {{ t('diag_exporter_status') }}:
+                <span v-if="exporterPing" class="font-mono text-emerald-400">
+                  v{{ exporterPing.version || '?' }} ({{ t('diag_active') }})
+                </span>
+                <span v-else-if="exporterSeen" class="font-mono text-emerald-400">
+                  v{{ exporterSeen.version || '?' }} ({{ t('diag_seen') }})
+                </span>
+                <span v-else class="text-red-400 font-normal">
+                  {{ t('diag_exporter_not_detected') }}
+                </span>
+              </div>
+              <div class="text-[11px] text-gray-500 mt-0.5">
+                <template v-if="exporterPing">
+                  <span v-if="exporterPing.serversCount > 0">
+                    {{ exporterPing.serversCount }} {{ t('diag_servers_in_memory') }}: {{ (exporterPing.servers || []).join(', ') }}
+                  </span>
+                  <span v-else class="text-amber-400/80">
+                    {{ t('diag_exporter_no_data_hint') }}
+                  </span>
+                </template>
+                <template v-else-if="exporterSeen">
+                  {{ t('diag_seen') }}
+                </template>
+                <template v-else>
+                  {{ t('diag_exporter_not_detected_hint') }}
+                </template>
+              </div>
+            </div>
+          </div>
+          <button @click="copyDiagnosticReport"
+            class="px-3 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition whitespace-nowrap self-start sm:self-auto cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+            {{ t('diag_copy_report') }}
+          </button>
+        </div>
+
+        <!-- Registro sincronizzazioni recenti -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+              {{ t('diag_history_title') }}
+            </span>
+            <button v-if="syncLog.length > 0" @click="clearSyncLog"
+              class="text-[10px] text-gray-500 hover:text-red-400 transition cursor-pointer">
+              {{ t('diag_clear_log') }}
+            </button>
+          </div>
+
+          <div v-if="syncLog.length === 0" class="p-4 text-center text-xs text-gray-600 bg-black/20 rounded-xl border border-white/5">
+            {{ t('diag_history_empty') }}
+          </div>
+          <div v-else class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+            <div v-for="(entry, idx) in syncLog" :key="idx"
+              class="p-2.5 rounded-lg bg-black/30 border border-white/5 text-xs space-y-1.5">
+              <div class="flex items-center justify-between text-[10px] text-gray-500">
+                <span class="font-mono">{{ new Date(entry.at).toLocaleString() }}</span>
+                <span class="uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 text-gray-400">
+                  {{ entry.source === 'live' ? t('diag_source_live') : t('diag_source_load') }}
+                </span>
+              </div>
+              <div class="space-y-1">
+                <div v-for="(r, ridx) in entry.results" :key="ridx"
+                  class="flex flex-col text-[11px] font-mono p-1.5 rounded"
+                  :class="r.outcome === 'error' ? 'bg-red-500/10 border border-red-500/20' : 'bg-white/[0.01]'">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <span class="text-white font-bold">{{ r.server || 'Server' }}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
+                      :class="{
+                        'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30': r.outcome === 'imported' || r.outcome === 'created',
+                        'bg-red-500/20 text-red-300 border border-red-500/30': r.outcome === 'error',
+                        'bg-amber-500/20 text-amber-300 border border-amber-500/30': r.outcome === 'autosync_off' || r.outcome === 'blocked',
+                        'bg-gray-500/20 text-gray-300 border border-gray-500/30': r.outcome === 'empty'
+                      }">
+                      {{ t('diag_outcome_' + r.outcome) || r.outcome }}
+                    </span>
+                  </div>
+                  <div v-if="r.error" class="text-red-400 text-[10px] break-all mt-1">
+                    {{ r.error }}
+                  </div>
+                  <div v-else-if="r.profile" class="text-gray-400 text-[10px] mt-0.5">
+                    {{ r.profile }} <span v-if="r.planets">({{ r.planets }} {{ t('lbl_planets') }})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

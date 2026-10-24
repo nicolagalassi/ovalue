@@ -3,6 +3,77 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## App — Production Planner
+
+### Aggiunto
+- **Nomi dei pianeti nei blocchi della roadmap.** Gli upgrade raggruppati indicavano
+  solo il numero di pianeti ("Metallo 48 ×8"), senza dire su quali intervenire.
+- **Potenziamento Collezionista Rocktal (ricerca LF T18)** fra i candidati del planner.
+  Non dà metallo diretto: amplifica il `collFactor`, che agisce su bonus di classe
+  (+25%), moltiplicatore crawler e cap crawler del Geologo. Candidabile solo con
+  classe simulata Collezionista; il guadagno è **misurato** ricalcolando la produzione
+  di tutti i pianeti, non stimato con una formula chiusa. Badge "indiretto" nella
+  roadmap e nel selettore, perché un Δ positivo senza bonus metallo sembrerebbe un errore.
+- **Cache del piano per profilo.** Target, selezione ricerche LF, lifeform per pianeta,
+  risultato e spunte sopravvivono al cambio pagina. Scrittura posticipata di 400 ms
+  (il piano pesa ~150 KB) con flush su smontaggio e `pagehide`; pruning ai 5 profili
+  più recenti.
+- **Avviso dati non allineati.** Al calcolo si registra un'impronta del Production Core:
+  se i dati cambiano dopo, il piano resta visibile e compare un avviso con pulsante
+  *Ricalcola*, invece di sparire in silenzio.
+
+### Corretto
+- **Raggruppamento della roadmap**: univa qualsiasi step consecutivo dello stesso tipo
+  ignorando il livello, producendo range aggregati (es. `15 → 17`) che non
+  corrispondono ad alcun upgrade reale. Ora unisce solo salti di livello identici.
+- La classe `other` mostrava la chiave grezza `opt_other`: mappata su `opt_general`.
+
+### Cambiato
+- Roadmap più leggibile: nomi pianeti 12px, nome ricerca e tagliando tier 11px,
+  contatore `×N` e badge più contrastati. Selettore ricerche LF su griglia a colonne
+  (prima `flex-wrap`, con le chip sfalsate per via dei nomi di lunghezza diversa).
+
+## App — Shopping List
+
+### Aggiunto
+- Icone OGame per i nuovi item: amplificatori di risorse e spedizioni, computer
+  spedizioni, mercante di risorse, relocazione, offerte mercante ferri vecchi.
+- **Stima in euro del carrello** sul taglio di Materia Oscura selezionato, con il
+  numero di tagli interi necessari. Il selettore tagli MO è diventato selezionabile.
+- Totale del carrello spostato **sopra** la lista e ingrandito: prima era in fondo,
+  oltre lo scroll. Ora scorre solo l'elenco degli articoli.
+
+### Cambiato
+- Amplificatori di risorse/spedizioni e computer spedizioni non sono più marcati
+  "Bronzo": in gioco portano quell'etichetta ma non esistono altri tagli, quindi sono
+  item unici. I carrelli salvati vengono normalizzati al caricamento.
+
+## App — Production Core
+
+### Aggiunto
+- Campo **Ampl. Risorse** (ex "Item Aggiuntivi") con i tagli reali 15/20/25/30/40%
+  al posto dell'input libero, e corrispondente target nella modifica massiva. I valori
+  fuori scala già salvati restano selezionabili.
+
+### Corretto
+- Le tendine native si chiudevano e riaprivano da sole: ad ogni re-render Vue riscrive
+  l'attributo `value` di tutte le `<option>` anche se identico, e una mutazione DOM
+  dentro un `<select>` aperto ne invalida il popup in Chrome. Risolto con `v-memo`
+  sulle liste di opzioni (Pack Exchange, Production Core, Impostazioni).
+
+## OValue Exporter — [4.2.0]
+
+### Corretto
+- **Amplificatore di risorse non rilevato.** Il nome reale è
+  `Amplificatore di risorse (20 %) Bronzo`: la regex pretendeva un formato diverso e
+  non agganciava mai l'item, lasciando vuoto il campo nel Production Core.
+- **Amplificatore risorse *per spedizioni* escluso** dalla produzione dei pianeti:
+  condivide il prefisso con quello di produzione e sarebbe stato conteggiato come
+  bonus minerario. Finisce nel tracker scadenze, dov'è corretto.
+- Il riconoscimento usa ora il solo nome dell'item (parte prima della `|` del tooltip):
+  la descrizione dell'amplificatore risorse cita "metallo, cristallo e deuterio" e
+  termina con "Bronzo", e veniva letta come booster metallo Bronzo.
+
 ## OValue Exporter — [4.0.0]
 
 ### Aggiunto

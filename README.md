@@ -11,7 +11,7 @@ Calcola la produzione oraria e giornaliera di metallo per ogni pianeta tenendo c
 - Livello miniera, posizione planetaria (P6–P10), velocità economia
 - Classe giocatore (Collezionista con moltiplicatori reali), plasma, geologo, staff
 - Crawler con cap automatico e modalità overload
-- Item amplificatori (10–40%) e item custom
+- Item amplificatore metallo (10–40%) e Amplificatore di risorse (15/20/25/30/40%)
 - Edifici e ricerche LifeForm (Humans, Rock'tal, Mecha, Kaelesh)
 - Bonus collezionista da ricerche T18 LF calcolato automaticamente
 - Import dati reali dal profilo tramite l'exporter
@@ -26,17 +26,20 @@ Converte il costo di strutture, ricerche e navi in pacchetti MO (Materia Oscura)
 
 ### Shopping List `/shopping`
 Lista della spesa per un evento o sessione di acquisti:
-- Selezione multipla da database OGame completo
-- Calcolo costo totale in risorse e pacchetti equivalenti
-- Supporto eventi speciali con moltiplicatori
+- Catalogo completo degli item shop con icone OGame
+- Calcolo costo totale in MO e stima in euro sul taglio di Materia Oscura scelto
+- Selettore tagli MO con bonus evento e bonus metodo di pagamento
+- Supporto eventi sconto con evidenziazione degli item coinvolti
 
 ### Production Planner `/strategy` *(Alpha)*
 Algoritmo greedy che pianifica il percorso ottimale per raggiungere un target di produzione giornaliera:
 - Valuta miniere, plasma, edifici LF e ricerche LF a ogni step
+- Include il Potenziamento Collezionista (bonus indiretto su classe e crawler) quando la classe simulata è Collezionista
 - Ordina per ROI (ritorno sull'investimento in giorni/mesi/anni)
 - Modalità valore pacchetto dinamico o fisso
-- Roadmap step-by-step con raggruppamento blocchi economici
+- Roadmap step-by-step con raggruppamento dei blocchi economici e nomi dei pianeti coinvolti
 - Riepilogo upgrade per pianeta
+- Piano e spunte conservati per profilo, con avviso quando i dati del Production Core cambiano
 - Import della roadmap nella coda Pack Exchange
 
 ### Scadenziario `/expirations`
@@ -49,7 +52,7 @@ Monitora le scadenze di ufficiali e item globali dell'account:
 
 ## OValue Exporter (Userscript)
 
-`util/OValue_Exporter_v3.user.js` è uno userscript Greasemonkey/Tampermonkey da installare nel browser. Si inietta nelle pagine di OGame e raccoglie automaticamente i dati dell'account.
+`util/OValue_Exporter_v4.user.js` è uno userscript Greasemonkey/Tampermonkey da installare nel browser. Si inietta nelle pagine di OGame e raccoglie automaticamente i dati dell'account. Su OGame v13 la fonte primaria è `accountInfo`, letta **una sola volta** al caricamento pagina (mai in polling, mai con `cp=`).
 
 **Dati raccolti:**
 - Classe giocatore, ufficiali e relative scadenze
@@ -57,7 +60,7 @@ Monitora le scadenze di ufficiali e item globali dell'account:
 - Specie LifeForm per pianeta e livelli edifici LF
 - Ricerche LF attive per pianeta (dalla pagina `lfresearch`)
 - Bonus metallo e collezionista totali
-- Plasma, crawler, item amplificatori, item globali a tempo
+- Plasma, crawler, item amplificatori metallo e risorse, item globali a tempo
 - Livelli edifici amplificatori ricerche (Metropolis, HPT, CMP, Clone Lab)
 
 **Installazione:** installa lo userscript dal link nella pagina Production Core, poi naviga le pagine di OGame indicate (Panoramica, LifeForm, Ricerche LF, Impero). Il pannello OValue nel menu di navigazione guida il processo e mostra lo stato di raccolta per ogni sezione.
@@ -133,14 +136,21 @@ src/
 ├── data/
 │   └── ogame_db.js          # database completo edifici/ricerche/navi (~25 KB)
 ├── views/                   # pagine lazy-loaded
+├── workers/
+│   └── planner.worker.js    # planner greedy fuori dal main thread
 ├── components/
 │   └── PlanetCard.vue       # card pianeta con ricerche LF collassabili
 ├── locales/                 # it.json, en.json, de.json, fr.json
 └── services/
     └── rssFeedService.js    # feed RSS OGame con fallback CORS proxy
 
+public/
+└── Immagini Ogame/          # icone degli item shop
+
 util/
-├── OValue_Exporter_v3.user.js   # userscript raccolta dati OGame
+├── OValue_Exporter_v4.user.js   # userscript raccolta dati OGame (corrente)
+├── OValue_Exporter_v3.user.js   # versione precedente
+├── accountinfo-sample.json      # schema anonimizzato della risposta accountInfo
 └── ogame_shop_data.json         # prezzi shop di riferimento
 ```
 

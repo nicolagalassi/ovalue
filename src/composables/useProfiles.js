@@ -40,12 +40,15 @@ const writeForgetPending = (obj) => {
     try { localStorage.setItem(FORGET_PENDING_KEY, JSON.stringify(obj)); } catch { /* quota */ }
 };
 
-// Un ping dell'exporter più recente della richiesta che non elenca più il server
+// Un ping dell'exporter non anteriore alla richiesta che non elenca più il server
 // è la conferma: lo si toglie da bloccati, server noti e richieste in sospeso.
+// `>=` e non `>`: l'exporter gestisce l'evento subito e il suo ping cade spesso nello
+// stesso millisecondo della richiesta. È sicuro: un ping di quel millisecondo ma
+// precedente all'eliminazione elenca ancora il server, quindi non conferma nulla.
 const finalizeForgets = (ping) => {
     if (!ping || !Array.isArray(ping.servers)) return;
     const pending = { ...forgetPending.value };
-    const done = Object.keys(pending).filter(s => ping.at > pending[s] && !ping.servers.includes(s));
+    const done = Object.keys(pending).filter(s => ping.at >= pending[s] && !ping.servers.includes(s));
     if (!done.length) return;
     done.forEach(s => delete pending[s]);
     writeForgetPending(pending);

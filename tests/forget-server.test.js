@@ -3,7 +3,7 @@
 // Tampermonkey e risponde col ping; solo allora l'app sblocca il server.
 // Qui gira il VERO codice di entrambi: la sezione BRIDGE MODE dello userscript con
 // le API GM_* simulate, e useProfiles dell'app.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { userscriptPath } from './helpers';
 
@@ -47,26 +47,27 @@ describe('eliminazione dati di un server bloccato (app ↔ exporter)', () => {
     let api;
 
     beforeAll(async () => {
-        const { useProfiles } = await import('../src/composables/useProfiles');
-        api = useProfiles();
-        // Situazione dello screenshot: 3 universi vecchi bloccati + quello che si gioca
+        // Situazione dello screenshot: 3 universi vecchi bloccati + quello che si gioca.
+        // Storage pronto PRIMA di caricare il modulo, come all'apertura reale dell'app.
         [279, 254, 278, 269].forEach(n => gm.set('ovalue_data_' + SRV(n), exportData(n)));
         gm.set('ovalue_servers', [279, 254, 278, 269].map(SRV));
         localStorage.setItem('ovalue_blocked_servers', JSON.stringify([279, 254, 278].map(SRV)));
+        const { useProfiles } = await import('../src/composables/useProfiles');
+        api = useProfiles();
         api.loadProfiles();
-        runExporterOnOValue();   // apertura normale di OValue
+        // Exporter NON ancora attivo su questa pagina (vecchio, spento o non installato)
     });
 
-    it('i server bloccati restano bloccati finché l\'exporter non conferma', () => {
+    it('senza exporter i server restano bloccati e la richiesta resta in sospeso', async () => {
         api.forgetServers([SRV(279), SRV(254)]);
-        // Nessun exporter ha ancora evaso la richiesta: niente si sblocca
+        await new Promise(r => setTimeout(r, 0));
         expect(api.blockedServers.value).toEqual([279, 254, 278].map(SRV));
         expect(Object.keys(api.forgetPending.value).sort()).toEqual([SRV(254), SRV(279)]);
+        expect(gm.has('ovalue_data_' + SRV(279))).toBe(true);
     });
 
-    it('l\'exporter cancella i dati e col ping l\'app sblocca e dimentica i server', async () => {
-        await new Promise(r => setTimeout(r, 5));   // il ping deve essere successivo alla richiesta
-        runExporterOnOValue();                          // l'exporter evade le richieste in sospeso
+    it('all\'apertura l\'exporter evade la richiesta e col ping l\'app sblocca', async () => {
+        runExporterOnOValue();
         await new Promise(r => setTimeout(r, 0));      // il watch di Vue sul ping è asincrono
         expect(gm.has('ovalue_data_' + SRV(279))).toBe(false);
         expect(gm.has('ovalue_data_' + SRV(254))).toBe(false);
@@ -82,9 +83,21 @@ describe('eliminazione dati di un server bloccato (app ↔ exporter)', () => {
         expect(api.profiles.value.some(p => [SRV(279), SRV(254)].includes(p.syncServer))).toBe(false);
     });
 
+    it('con l\'exporter attivo la conferma arriva nello stesso millisecondo e viene accettata', async () => {
+        // Caso reale: l'exporter gestisce l'evento subito, ping e richiesta hanno lo
+        // stesso Date.now(). Con un confronto stretto la conferma veniva scartata.
+        const spy = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
+        try {
+            api.forgetServers([SRV(278)]);
+            await new Promise(r => setTimeout(r, 0));
+        } finally { spy.mockRestore(); }
+        expect(gm.has('ovalue_data_' + SRV(278))).toBe(false);
+        expect(api.blockedServers.value).toEqual([]);
+        expect(api.forgetPending.value).toEqual({});
+    });
+
     it('ignora richieste che non sono hostname di OGame', async () => {
-        localStorage.setItem('ovalue_exporter_forget', JSON.stringify(['ovalue_servers', '../x', SRV(278)]));
-        await new Promise(r => setTimeout(r, 5));
+        localStorage.setItem('ovalue_exporter_forget', JSON.stringify(['ovalue_servers', '../x']));
         runExporterOnOValue();
         expect(gm.get('ovalue_servers')).toEqual([SRV(269)]);
         expect(gm.has('ovalue_data_' + SRV(269))).toBe(true);

@@ -3,6 +3,15 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.3.0]
+
+### Rimosso
+- **Item globali** (slot flotta, spedizioni, amplificatori energia/cristallo/deuterio…):
+  non vengono più letti né mostrati nel pannello. Servivano solo al tracker scadenze
+  di OValue, che non esiste più; vengono rimossi anche dai dati già salvati.
+  Restano gli amplificatori di metallo e di risorse per pianeta, che incidono sulla
+  produzione.
+
 ## OValue Exporter — [4.2.2]
 
 ### Corretto

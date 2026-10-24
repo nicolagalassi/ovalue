@@ -48,12 +48,6 @@ const createDefaultShoppingList = () => ({
     activeEvent: 'none'
 });
 
-// Helper to create a default expirations data object
-const createDefaultExpirations = () => ({
-    officers: {},
-    globalItems: []
-});
-
 // Calcola la produzione giornaliera di metallo dato un profilo production completo.
 // Delega a calcPlanetMetalProduction (stessa formula di MetalCalc.vue) per aggiornare
 // production.daily al momento dell'import.
@@ -67,57 +61,6 @@ const calcDailyProduction = (settings, planets) => {
         hourly += calcPlanetMetalProduction(p, settings, lfResearchPct).total;
     });
     return Math.floor(hourly * 24);
-};
-
-// Converte le stringhe di durata OGame in Unix timestamp ms.
-// OGame IT usa: s=settimane (se prima di g/o/m) o secondi (se dopo), g=giorni, o=ore, m=minuti.
-// Restituisce null per valori permanenti/assenti.
-const parseTimeRemainingToExpires = (timeRemaining) => {
-    if (!timeRemaining) return null;
-    const s = String(timeRemaining).trim();
-    if (/^(permanente|permanent|∞|-|)$/i.test(s)) return null;
-
-    let ms = 0;
-    const tokens = [...s.matchAll(/(\d+)\s*([a-zA-Z]+)/g)];
-
-    if (tokens.length > 0) {
-        let seenSubWeek = false; // true dopo aver incontrato g/d/o/h/m
-        for (const [, numStr, unit] of tokens) {
-            const n = parseInt(numStr);
-            const u = unit.toLowerCase();
-            if (u === 'w' || u.startsWith('week') || u.startsWith('sett')) {
-                // EN: w/week(s)  IT: sett(imane)
-                ms += n * 604800000;
-            } else if (u === 'd' || u === 'g' || u === 't' ||
-                       u.startsWith('day') || u.startsWith('gior') ||
-                       u === 'j' || u.startsWith('jour') || u.startsWith('tag')) {
-                // EN: d/day(s)  IT: g/gior(ni)  FR: j/jour(s)  DE: t/Tag(e)
-                seenSubWeek = true; ms += n * 86400000;
-            } else if (u === 'o' || u === 'h' || u.startsWith('or') || u.startsWith('hour') ||
-                       u.startsWith('std')) {
-                // IT: o/or(e)  EN/FR/DE: h/hour(s)/Std.
-                seenSubWeek = true; ms += n * 3600000;
-            } else if (u === 'm' || u.startsWith('min')) {
-                seenSubWeek = true; ms += n * 60000;
-            } else if (u.startsWith('sec') || u.startsWith('sek')) {
-                // EN: sec  DE: Sek.
-                ms += n * 1000;
-            } else if (u === 's') {
-                // 's' ambiguo: dopo g/d/o/h/m → secondi; altrimenti → settimane (IT)
-                if (seenSubWeek) ms += n * 1000;
-                else             ms += n * 604800000;
-            }
-        }
-    } else {
-        const parts = s.match(/(\d+):(\d+)(?::(\d+))?/);
-        if (parts) {
-            ms += parseInt(parts[1]) * 3600000;
-            ms += parseInt(parts[2]) * 60000;
-            if (parts[3]) ms += parseInt(parts[3]) * 1000;
-        }
-    }
-
-    return ms > 0 ? Date.now() + ms : null;
 };
 
 export function useProfiles() {
@@ -141,7 +84,8 @@ export function useProfiles() {
                 if (!p.production) p.production = createDefaultProduction();
                 if (!p.packExchange) p.packExchange = createDefaultPackExchange();
                 if (!p.shoppingList) p.shoppingList = createDefaultShoppingList();
-                if (!p.expirations) p.expirations = createDefaultExpirations();
+                // Il tracker scadenze non esiste più: i suoi dati non servono
+                delete p.expirations;
                 // Sync fields migration
                 if (p.autoSync === undefined) p.autoSync = true;
                 if (p.lastSync === undefined) p.lastSync = null;
@@ -163,8 +107,7 @@ export function useProfiles() {
                         production: p.data || createDefaultProduction(),
                         packExchange: createDefaultPackExchange(),
                         shoppingList: createDefaultShoppingList(),
-                        expirations: createDefaultExpirations(),
-                        autoSync: true,
+                                    autoSync: true,
                         lastSync: null,
                         syncServer: null
                     }));
@@ -204,7 +147,6 @@ export function useProfiles() {
             production: createDefaultProduction(),
             packExchange: createDefaultPackExchange(),
             shoppingList: createDefaultShoppingList(),
-            expirations: createDefaultExpirations(),
             autoSync: true,
             lastSync: null,
             syncServer: null
@@ -226,7 +168,6 @@ export function useProfiles() {
             production: createDefaultProduction(),
             packExchange: createDefaultPackExchange(),
             shoppingList: createDefaultShoppingList(),
-            expirations: createDefaultExpirations(),
             autoSync: true,
             lastSync: null,
             syncServer: null
@@ -348,8 +289,7 @@ export function useProfiles() {
                     production: createDefaultProduction(),
                     packExchange: createDefaultPackExchange(),
                     shoppingList: createDefaultShoppingList(),
-                    expirations: createDefaultExpirations(),
-                    autoSync: true,
+                            autoSync: true,
                     lastSync: null,
                     syncServer: serverKey
                 };
@@ -357,26 +297,6 @@ export function useProfiles() {
                 profile = newP;
                 // Switcha automaticamente al profilo appena creato
                 activeProfileId.value = profile.id;
-            }
-
-            // Officers/globalItems — aggiornati sempre, anche con autoSync=false
-            // Converte timeRemaining (stringa OGame) → expires (Unix timestamp ms)
-            if (raw.officers) {
-                const converted = {};
-                for (const [name, off] of Object.entries(raw.officers)) {
-                    converted[name] = {
-                        active: off.active,
-                        expires: off.active ? parseTimeRemainingToExpires(off.timeRemaining) : null
-                    };
-                }
-                profile.expirations.officers = converted;
-            }
-            if (Array.isArray(raw.globalItems)) {
-                profile.expirations.globalItems = raw.globalItems.map(item => ({
-                    name: item.name,
-                    expires: parseTimeRemainingToExpires(item.timeRemaining),
-                    totalDuration: item.totalDuration ?? null
-                }));
             }
 
             if (!profile.autoSync) {
@@ -487,24 +407,6 @@ export function useProfiles() {
             'Sammler': 'collector', 'Allgemein': 'other', 'Entdecker': 'other',
             'Collecteur': 'collector', 'Général': 'other', 'Explorateur': 'other'
         };
-
-        if (rawData.officers) {
-            const converted = {};
-            for (const [name, off] of Object.entries(rawData.officers)) {
-                converted[name] = {
-                    active: off.active,
-                    expires: off.active ? parseTimeRemainingToExpires(off.timeRemaining) : null
-                };
-            }
-            profile.expirations.officers = converted;
-        }
-        if (Array.isArray(rawData.globalItems)) {
-            profile.expirations.globalItems = rawData.globalItems.map(item => ({
-                name: item.name,
-                expires: parseTimeRemainingToExpires(item.timeRemaining),
-                totalDuration: item.totalDuration ?? null
-            }));
-        }
 
         if (rawData.playerClass && rawData.playerClass !== 'none') {
             profile.production.settings.playerClass = classMap[rawData.playerClass] ?? profile.production.settings.playerClass;

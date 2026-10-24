@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.2.2
+// @version      4.3.0
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -113,7 +113,6 @@
             missingPlanets: n => `⚠ Pianeti Mancanti (${n})`,
             missingLf:      n => `⚠ Razze Mancanti (${n})`,
             activeLf:       n => `Razze Attive (${n})`,
-            globalItems:    n => `Item Globali (${n})`,
             crawlerOverload: (n, tot) => `⚡ Sovraccarico Crawler (${n}/${tot})`,
             hintOverload: 'Il fattore crawler (sovraccarico >100%) non è nell\'API: apri le <b>Impostazioni risorse</b> di ogni pianeta (girando i pianeti) per leggerlo.',
             bonusMetal: 'Bonus Metallo', bonusClass: 'Bonus Classe',
@@ -150,7 +149,6 @@
             missingPlanets: n => `⚠ Missing Planets (${n})`,
             missingLf:      n => `⚠ Missing Species (${n})`,
             activeLf:       n => `Active Species (${n})`,
-            globalItems:    n => `Global Items (${n})`,
             crawlerOverload: (n, tot) => `⚡ Crawler Overload (${n}/${tot})`,
             hintOverload: 'The crawler factor (overload >100%) is not in the API: open each planet\'s <b>Resource Settings</b> (cycle through your planets) to read it.',
             bonusMetal: 'Metal Bonus', bonusClass: 'Class Bonus',
@@ -186,7 +184,6 @@
             missingPlanets: n => `⚠ Fehlende Planeten (${n})`,
             missingLf:      n => `⚠ Fehlende Spezies (${n})`,
             activeLf:       n => `Aktive Spezies (${n})`,
-            globalItems:    n => `Globale Items (${n})`,
             crawlerOverload: (n, tot) => `⚡ Crawler-Überladung (${n}/${tot})`,
             hintOverload: 'Der Crawler-Faktor (Überladung >100%) ist nicht in der API: öffne die <b>Ressourcen-Einstellungen</b> jedes Planeten (Planeten durchgehen), um ihn zu lesen.',
             bonusMetal: 'Metall-Bonus', bonusClass: 'Klassen-Bonus',
@@ -222,7 +219,6 @@
             missingPlanets: n => `⚠ Planètes manquantes (${n})`,
             missingLf:      n => `⚠ Espèces manquantes (${n})`,
             activeLf:       n => `Espèces actives (${n})`,
-            globalItems:    n => `Items globaux (${n})`,
             crawlerOverload: (n, tot) => `⚡ Surcharge Crawler (${n}/${tot})`,
             hintOverload: 'Le facteur crawler (surcharge >100%) n\'est pas dans l\'API : ouvrez les <b>Paramètres de ressources</b> de chaque planète (parcourez vos planètes) pour le lire.',
             bonusMetal: 'Bonus métal', bonusClass: 'Bonus classe',
@@ -514,13 +510,17 @@
         playerName: '', playerClass: 'none', allianceClass: 'none',
         universeName: '', universeSpeed: 1,
         officers: {}, lfBonuses: { metal: '0%', classBonus: '0%' },
-        settings: { plasma: 0 }, planets: [], planetLifeforms: {}, globalItems: [],
+        settings: { plasma: 0 }, planets: [], planetLifeforms: {},
         crawlerFactorByPlanet: {}
     };
     for (const [k, v] of Object.entries(DEFAULTS)) {
         if (d[k] === undefined)
             d[k] = typeof v === 'object' ? JSON.parse(JSON.stringify(v)) : v;
     }
+    // Item globali: non più raccolti (servivano al vecchio tracker scadenze di OValue).
+    // Si rimuovono anche dai dati salvati dalle versioni precedenti.
+    delete d.globalItems;
+    delete d._itemsFromEmpireDom;
 
     const knownServers = GM_getValue('ovalue_servers', []);
     if (!knownServers.includes(SERVER_KEY)) {
@@ -885,51 +885,21 @@
         return (pct > 0 && pct <= 100) ? pct : 0;
     }
 
-    // Converte i timestamp di un buff (accountInfo v13) in { timeRemaining, totalDuration }.
-    // I campi effect/buff Start/End hanno unità epoch non documentata: auto-rileviamo s vs ms
-    // e validiamo una finestra plausibile (entro 3 anni). Se 0 / relativo / scaduto → null:
-    // l'item è permanente o non tracciabile in modo affidabile → NON lo tracciamo (come il DOM,
-    // che salta gli item permanenti), così non mostriamo mai una scadenza sbagliata.
-    function buffExpiry(b) {
-        let end   = Math.max(+((b && b.effectEnd)   || 0), +((b && b.buffEnd)   || 0));
-        let start = Math.max(+((b && b.effectStart) || 0), +((b && b.buffStart) || 0));
-        if (end   > 1e12) end   = Math.floor(end   / 1000);   // ms → s
-        if (start > 1e12) start = Math.floor(start / 1000);
-        const nowS = Math.floor(Date.now() / 1000);
-        const MAX  = nowS + 3 * 365 * 86400;
-        if (!(end > nowS && end < MAX)) return null;
-        const total = (start && start < end) ? (end - start) * 1000 : null;
-        return { timeRemaining: fmtDuration(end - nowS), totalDuration: total };
-    }
-    function fmtDuration(sec) {
-        sec = Math.max(0, Math.floor(sec));
-        const d = Math.floor(sec / 86400); sec -= d * 86400;
-        const h = Math.floor(sec / 3600);  sec -= h * 3600;
-        const m = Math.floor(sec / 60);    const s = sec - m * 60;
-        return `${d}d ${h}h ${m}m ${s}s`;
-    }
-
-    // Estrae gli item dall'array `buffs` di un pianeta accountInfo (v13):
-    //   - item        → livello amplificatore metallo (per-pianeta, come nel DOM)
-    //   - itemCustom  → percentuale amplificatore risorse (per-pianeta)
-    //   - globals     → altri item (booster impero) con scadenza, per il tracker.
-    // Gli amplificatori metallo/risorse sono esclusi da `globals` (come il DOM li esclude
-    // da .empireItems): sono già mappati come input di produzione per-pianeta.
+    // Estrae dall'array `buffs` di un pianeta accountInfo (v13) gli unici item che
+    // incidono sulla produzione: amplificatore metallo (item) e amplificatore risorse
+    // (itemCustom), per-pianeta come nel DOM. Gli altri item (slot flotta, spedizioni,
+    // energia…) servivano solo al vecchio tracker scadenze e non vengono più letti.
     function parseBuffs(buffs) {
         let item = 0, itemCustom = 0;
-        const globals = [];
         for (const b of (Array.isArray(buffs) ? buffs : [])) {
             const name = (b && b.name) || '';
             if (!name) continue;
             const ml = metalAmpLevel(name);
             if (ml) { item = Math.max(item, ml); continue; }
             const rp = resourceAmpPct(name);
-            if (rp) { itemCustom = Math.max(itemCustom, rp); continue; }
-            const exp = buffExpiry(b);
-            if (!exp) continue;   // permanente/sconosciuto → non tracciato
-            globals.push({ name, timeRemaining: exp.timeRemaining, totalDuration: exp.totalDuration });
+            if (rp) itemCustom = Math.max(itemCustom, rp);
         }
-        return { item, itemCustom, globals };
+        return { item, itemCustom };
     }
 
     // Chiama l'API empire (LEGACY, server pre-v13). Su OGame v13 questo endpoint
@@ -1076,8 +1046,6 @@
         const sidebar = getSidebarPlanets();
         if (!sidebar.length) return false;
 
-        const buffGlobals = new Map();  // name → item globale (dedup cross-pianeta, come .empireItems nel DOM)
-
         d.planets = sidebar.map(sp => {
             // Cerca per id o planetID (i due campi possono essere diversi nell'API)
             const ap = apiPlanets.find(a =>
@@ -1097,12 +1065,11 @@
                 if (lfFromAPI && !d.planetLifeforms[sp.id]) {
                     d.planetLifeforms[sp.id] = lfFromAPI;
                 }
-                // Item da buffs accountInfo (v13): amplificatori per-pianeta + item globali,
-                // così su v13 gli item si idratano senza aprire la pagina Impero.
+                // Amplificatori per-pianeta dai buffs accountInfo (v13): si idratano
+                // senza aprire la pagina Impero.
                 const parsed = parseBuffs(ap.buffs);
                 if (parsed.item)       item       = parsed.item;
                 if (parsed.itemCustom) itemCustom = parsed.itemCustom;
-                for (const g of parsed.globals) if (!buffGlobals.has(g.name)) buffGlobals.set(g.name, g);
             }
 
             return {
@@ -1123,11 +1090,6 @@
             };
         });
 
-        // Item globali dai buffs — solo finché la pagina Impero (DOM, fonte autorevole con
-        // durate complete) non li ha mai forniti: nessun clobber dei dati DOM più ricchi.
-        if (!d._itemsFromEmpireDom && buffGlobals.size) {
-            d.globalItems = [...buffGlobals.values()];
-        }
 
         // Plasma
         const firstWithPlasma = apiPlanets.find(ap => ap['122'] != null);
@@ -1326,43 +1288,6 @@
         });
         d.planets = planets;
 
-        // Global items — deduplicati per nome
-        const seen = new Set();
-        const globalItems = [];
-        document.querySelectorAll('.empireItems .item_img').forEach(img => {
-            const tooltip = img.getAttribute('data-tooltip-title') || '';
-            if (!tooltip) return;
-            const pipeIdx = tooltip.indexOf('|');
-            const name = (pipeIdx >= 0 ? tooltip.slice(0, pipeIdx) : tooltip).trim();
-            if (!name || seen.has(name)) return;
-            // Salta amplificatori metallo per-pianeta
-            if (/(?:Amplificatore|Amplifier|Verstärker|Amplificateur).*(?:metallo?|metal|Metall|m[eé]tal)/i.test(name)) return;
-            seen.add(name);
-
-            const html = pipeIdx >= 0 ? tooltip.slice(pipeIdx + 1) : '';
-
-            // Durata rimanente: IT / EN / DE / FR
-            // EN DOM: "Time remaining: 7w 3d 8h 46m 30s"
-            // IT DOM: "Durata rimanente: 7s 3g 8o 46m 30s"
-            // DE DOM: "Restlaufzeit: 10w 6t 17h 16m 58s"
-            // FR DOM: "Temps restant : 10s 6j 17h 18m 1s"
-            const durMatch = html.match(
-                /(?:Time\s+remaining|Durata\s+rimanente|Remaining\s+time|Verbleibende\s+Zeit|Restlaufzeit|Dur[eé]e\s+restante|Temps\s+restant)\s*:\s*([^<]+)/i
-            );
-            const timeRemaining = durMatch?.[1]?.trim()
-                ?? (/permanente?|permanent/i.test(tooltip) ? L.permanent : L.permanent);
-
-            const hiddenSpan  = img.querySelector('span.hidden[data-total-duration]');
-            const totalDuration = hiddenSpan
-                ? parseInt(hiddenSpan.getAttribute('data-total-duration')) * 1000
-                : null;
-
-            // Salta item permanenti — nessuna scadenza da tracciare
-            if (/permanente?|permanent/i.test(timeRemaining)) return;
-            globalItems.push({ name, timeRemaining, totalDuration });
-        });
-        d.globalItems = globalItems;
-        d._itemsFromEmpireDom = true;  // DOM Impero: fonte autorevole per gli item globali (durate complete)
         d.empire_collected = true;
         save();
         updatePanel();
@@ -1599,15 +1524,6 @@
                     knownLf.forEach(p => {
                         html += `<div class="ov_row"><span class="ov_lbl">P${String(p.pos).padStart(2,'0')} · ${p.name||'—'}</span>` +
                                 `<span style="color:${lfColor(p.lifeform)};font-weight:bold">${p.lifeform}</span></div>`;
-                    });
-                }
-
-                if (d.globalItems.length) {
-                    html += subTitle(L.globalItems(d.globalItems.length));
-                    d.globalItems.forEach(it => {
-                        const perm = /permanente?|permanent/i.test(it.timeRemaining);
-                        html += row(`<span class="ov_item_name">${it.name}</span>`,
-                            `<span class="${perm ? 'ov_perm' : 'ov_warn'}">${it.timeRemaining}</span>`);
                     });
                 }
 

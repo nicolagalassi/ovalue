@@ -2,6 +2,7 @@ import { ref, computed } from 'vue';
 import { applyExportToProduction } from './exporterImport';
 import { useToast } from './useToast';
 import { useLanguage } from './useLanguage';
+import { useSyncDiagnostics, exporterDataTime } from './syncDiagnostics';
 
 // Global state shared across all instances of useProfiles
 const profiles = ref([]);
@@ -52,6 +53,7 @@ const createDefaultShoppingList = () => ({
 export function useProfiles() {
     const { show: showToast } = useToast();
     const { t } = useLanguage();
+    const { logSync, markExporterSeen } = useSyncDiagnostics();
     const activeProfile = computed(() => profiles.value.find(p => p.id === activeProfileId.value));
 
     const loadProfiles = () => {
@@ -113,7 +115,7 @@ export function useProfiles() {
         // Check for exporter data written by the userscript bridge on page load
         const pending = localStorage.getItem('ovalue_exporter_pending');
         if (pending) {
-            try { importFromExporter(JSON.parse(pending)); } catch (e) {}
+            try { importFromExporter(JSON.parse(pending), 'load'); } catch (e) {}
             localStorage.removeItem('ovalue_exporter_pending');
         }
 
@@ -128,7 +130,7 @@ export function useProfiles() {
                 try { data = JSON.parse(localStorage.getItem('ovalue_exporter_pending')); } catch (_) {}
                 if (!data) { try { data = e.detail; } catch (_) {} }
                 localStorage.removeItem('ovalue_exporter_pending');
-                if (data && importFromExporter(data)) showToast(t('msg_exporter_synced'), 'success');
+                if (data && importFromExporter(data, 'live')) showToast(t('msg_exporter_synced'), 'success');
             });
         }
     };
@@ -242,8 +244,9 @@ export function useProfiles() {
     // Importa i dati dall'OValue Exporter.
     // allData = { 'serverHostname': exporterData, ... }
     // Per ogni server trova o crea automaticamente un profilo dedicato.
-    const importFromExporter = (allData) => {
+    const importFromExporter = (allData, source = 'load') => {
         if (!allData || typeof allData !== 'object') return false;
+        const results = [];   // esito per server, per la diagnostica
 
         let blockedServers = [];
         try { blockedServers = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]'); } catch (e) {}
@@ -258,10 +261,11 @@ export function useProfiles() {
         let didImport = false;
 
         for (const [serverKey, raw] of Object.entries(allData)) {
-            if (!raw) continue;
+            if (!raw) { results.push({ server: serverKey, outcome: 'empty' }); continue; }
+            const diag = { server: serverKey, version: raw._exporterVersion || null, dataAt: exporterDataTime(raw) };
 
             // Trova o crea automaticamente un profilo per questo server
-            if (blockedServers.includes(serverKey)) continue;
+            if (blockedServers.includes(serverKey)) { results.push({ ...diag, outcome: 'blocked' }); continue; }
             let profile = profiles.value.find(p => p.syncServer === serverKey);
             if (!profile) {
                 const universeName = raw.universeName || serverKey.split('.')[0];
@@ -280,11 +284,13 @@ export function useProfiles() {
                 profile = newP;
                 // Switcha automaticamente al profilo appena creato
                 activeProfileId.value = profile.id;
+                diag.created = true;
             }
 
+            // Sync disattivato: non si importa e non si tocca lastSync (prima veniva
+            // aggiornato e il profilo sembrava sincronizzato anche senza dati nuovi)
             if (!profile.autoSync) {
-                profile.lastSync = Date.now();
-                didImport = true;
+                results.push({ ...diag, profile: profile.name, outcome: 'autosync_off' });
                 continue;
             }
 
@@ -293,9 +299,14 @@ export function useProfiles() {
 
             if (raw.playerName) profile.playerName = raw.playerName;
             profile.lastSync = Date.now();
+            profile.syncDataAt = diag.dataAt;   // quando l'exporter ha raccolto i dati nel gioco
+            results.push({ ...diag, profile: profile.name, outcome: diag.created ? 'created' : 'imported',
+                           planets: profile.production.planets.length, daily: profile.production.daily });
             didImport = true;
         }
 
+        markExporterSeen(Object.values(allData).find(r => r?._exporterVersion)?._exporterVersion);
+        logSync(source, results);
         if (didImport) saveProfiles();
         return didImport;
     };

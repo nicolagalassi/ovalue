@@ -27,7 +27,7 @@ No test runner is configured.
 
 ## Architecture Overview
 
-OValue is a **Vue 3 SPA** built with Vite that provides OGame (browser game) tools: mine production calculator, pack exchange optimizer, shopping list builder, and officer/item expiration tracker.
+OValue is a **Vue 3 SPA** built with Vite that provides OGame (browser game) tools: mine production calculator, pack exchange optimizer, shopping list builder, and production planner.
 
 **No Vuex / Pinia** — state is managed entirely via a single composable (`src/composables/useProfiles.js`) that wraps reactive `ref`s and persists to `localStorage`. Cross-tab sync is handled via `StorageEvent`. All views import from this composable to read and mutate profiles.
 
@@ -37,11 +37,11 @@ OValue is a **Vue 3 SPA** built with Vite that provides OGame (browser game) too
 |---|---|
 | `src/composables/useProfiles.js` | Global state: profiles, active profile, known servers, localStorage persistence |
 | `src/composables/useLanguage.js` | i18n with fallback chain: selected lang → EN → IT → raw key |
-| `src/composables/useOgameFormulas.js` | Game math: mine production, crawlers, lifeform costs, duration parsing |
+| `src/composables/useOgameFormulas.js` | Game math: mine production, crawlers, lifeform research bonus and costs |
 | `src/data/ogame_db.js` | Complete OGame item/building/research database (~25 KB) |
 | `src/router.js` | 7 lazy-loaded routes with meta title/description and scroll-to-top |
 | `src/App.vue` | Root component — contains `MAINTENANCE_MODE` flag (line ~11) |
-| `src/services/rssFeedService.js` | OGame RSS fetcher with CORS proxy fallback chain |
+| `src/composables/useStrategy.js` | Production planner: greedy simulator, spending-goal mode, plan progress helpers |
 | `util/OValue_Exporter_v3.user.js` | Userscript that exports player data from OGame into a format importable by the app |
 
 ## Profile Data Shape
@@ -54,8 +54,7 @@ Each profile holds sub-objects per tool:
   lastSync: timestamp,
   production: { settings, planets[], daily },
   packExchange: { settings, stock, queue[] },
-  shoppingList: { cart[], activeEvent },
-  expirations: { officers{}, globalItems[] }
+  shoppingList: { cart[], activeEvent }
 }
 ```
 
@@ -95,8 +94,6 @@ Custom shadows (`neon-*`) and gradient utilities are also defined. All new compo
 `util/` contains standalone userscripts and Node helpers that are not part of the Vue build:
 
 - `OValue_Exporter_v3.user.js` — browser userscript injected into OGame pages to extract player data
-- `OValue_Inspector.user.js` — debugging/inspection userscript
-- `lfcosts.js` / `lfcosts.php` — lifeform cost tables used by both the exporter and the app
 - `ogame_shop_data.json` — shop item price reference data
 
 These are versioned alongside the app but built/deployed separately.

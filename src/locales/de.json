@@ -467,5 +467,10 @@
     "diag_outcome_autosync_off": "Auto-Sync aus",
     "diag_outcome_blocked": "Server blockiert",
     "diag_outcome_empty": "Leere Daten",
-    "diag_outcome_error": "Fehler"
+    "diag_outcome_error": "Fehler",
+    "diag_blocked_title": "Blockierte Server",
+    "diag_blocked_hint": "Du hast das mit diesen Servern verknüpfte Profil gelöscht, daher werden ihre Daten ignoriert. Verknüpfe sie mit einem bestehenden Profil: Die Seite wird neu geladen und die Daten sofort importiert. Auto-Sync wird für das gewählte Profil aktiviert.",
+    "diag_blocked_link_to": "Mit Profil verknüpfen",
+    "diag_blocked_relink": "Verknüpfen",
+    "diag_copy_failed": "Kopieren in die Zwischenablage fehlgeschlagen"
 }

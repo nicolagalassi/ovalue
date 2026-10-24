@@ -803,5 +803,10 @@
     "diag_outcome_autosync_off": "Auto-sync disattivato",
     "diag_outcome_blocked": "Server bloccato",
     "diag_outcome_empty": "Dati vuoti",
-    "diag_outcome_error": "Errore"
+    "diag_outcome_error": "Errore",
+    "diag_blocked_title": "Server bloccati",
+    "diag_blocked_hint": "Hai eliminato il profilo collegato a questi server, quindi i loro dati vengono ignorati. Ricollegali a un profilo esistente: la pagina si ricarica e i dati vengono importati subito. L'auto-sync del profilo scelto viene attivato.",
+    "diag_blocked_link_to": "Collega al profilo",
+    "diag_blocked_relink": "Ricollega",
+    "diag_copy_failed": "Impossibile copiare negli appunti"
 }

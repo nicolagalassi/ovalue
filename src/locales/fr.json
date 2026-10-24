@@ -467,5 +467,10 @@
     "diag_outcome_autosync_off": "Sync auto désactivée",
     "diag_outcome_blocked": "Serveur bloqué",
     "diag_outcome_empty": "Données vides",
-    "diag_outcome_error": "Erreur"
+    "diag_outcome_error": "Erreur",
+    "diag_blocked_title": "Serveurs bloqués",
+    "diag_blocked_hint": "Vous avez supprimé le profil lié à ces serveurs, leurs données sont donc ignorées. Reliez-les à un profil existant : la page se recharge et les données sont importées immédiatement. La synchro auto est activée sur le profil choisi.",
+    "diag_blocked_link_to": "Lier au profil",
+    "diag_blocked_relink": "Relier",
+    "diag_copy_failed": "Impossible de copier dans le presse-papiers"
 }

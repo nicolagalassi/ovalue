@@ -6,32 +6,44 @@ import { useToast } from '../composables/useToast';
 import { useSyncDiagnostics } from '../composables/syncDiagnostics';
 
 const { syncLog, exporterPing, exporterSeen, clearSyncLog, generateDiagnosticReport } = useSyncDiagnostics();
+const { currentLang, setLanguage, t } = useLanguage();
+const { show: showToast } = useToast();
+const {
+    profiles, activeProfileId, activeProfile, knownServers, blockedServers,
+    createProfile, renameProfile, deleteProfile,
+    switchProfile, exportProfiles, importProfiles,
+    toggleAutoSync, setSyncServer, linkServerToProfile, duplicateProfile, importManual,
+    setPlayerName
+} = useProfiles();
 
 const copyDiagnosticReport = async () => {
-    let blocked = [];
-    try { blocked = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]'); } catch (_) {}
     const report = generateDiagnosticReport({
         profiles: profiles.value,
         activeProfileId: activeProfileId.value,
-        blockedServers: blocked,
+        blockedServers: blockedServers.value,
         knownServers: knownServers.value
     });
     try {
         await navigator.clipboard.writeText(report);
         showToast(t('diag_report_copied'), 'success');
     } catch (_) {
-        showToast('Errore durante la copia negli appunti', 'error');
+        showToast(t('diag_copy_failed'), 'error');
     }
 };
-const { currentLang, setLanguage, t } = useLanguage();
-const { show: showToast } = useToast();
-const {
-    profiles, activeProfileId, activeProfile, knownServers,
-    createProfile, renameProfile, deleteProfile,
-    switchProfile, exportProfiles, importProfiles,
-    toggleAutoSync, setSyncServer, duplicateProfile, importManual,
-    setPlayerName
-} = useProfiles();
+
+// ── Server bloccati → ricollegamento a un profilo esistente ─────────────────
+// Profilo proposto: uno senza server (tipico "Default" rimasto dopo aver eliminato
+// quello sincronizzato), altrimenti il profilo attivo.
+const relinkTarget = ref({});
+const suggestedProfileId = () =>
+    (profiles.value.find(p => !p.syncServer) || activeProfile.value || profiles.value[0])?.id || '';
+const relinkChoice = (srv) => relinkTarget.value[srv] || suggestedProfileId();
+const relinkServer = (srv) => {
+    if (!linkServerToProfile(srv, relinkChoice(srv))) return;
+    // I dati del server erano stati scartati: l'exporter li rimanda al caricamento
+    // della pagina di OValue, quindi si ricarica per importarli subito.
+    window.location.reload();
+};
 
 // ── CONTACT FORM ─────────────────────────────────────────────────────────────
 // Chiave API Web3Forms — registrati su https://web3forms.com con la tua email
@@ -399,6 +411,31 @@ const confirmImportOGame = () => {
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
             {{ t('diag_copy_report') }}
           </button>
+        </div>
+
+        <!-- Server bloccati: i dati in arrivo vengono ignorati finché non si ricollegano -->
+        <div v-if="blockedServers.length > 0" class="p-3.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/25 space-y-3">
+          <div>
+            <div class="text-xs font-bold text-amber-200">{{ t('diag_blocked_title') }}</div>
+            <div class="text-[11px] text-amber-400/70 mt-0.5 leading-snug">{{ t('diag_blocked_hint') }}</div>
+          </div>
+          <div v-for="srv in blockedServers" :key="srv"
+               class="flex flex-col sm:flex-row sm:items-center gap-2 p-2 rounded-lg bg-black/25 border border-white/5">
+            <span class="font-mono text-[11px] text-white font-bold sm:max-w-[13rem] truncate" :title="srv">{{ srv }}</span>
+            <label class="sr-only" :for="'relink-' + srv">{{ t('diag_blocked_link_to') }}</label>
+            <select :id="'relink-' + srv"
+                    :value="relinkChoice(srv)"
+                    @change="relinkTarget = { ...relinkTarget, [srv]: $event.target.value }"
+                    class="flex-1 min-w-[9rem] text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-gray-300 focus:outline-none focus:border-amber-400/40 cursor-pointer">
+              <option v-for="p in profiles" :key="p.id" v-memo="[p.id, p.name, p.syncServer]" :value="p.id" class="bg-gray-900">
+                {{ p.name }}{{ p.syncServer ? ' — ' + p.syncServer.split('.')[0] : '' }}
+              </option>
+            </select>
+            <button @click="relinkServer(srv)"
+                    class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/35 text-amber-200 font-bold text-xs whitespace-nowrap transition cursor-pointer">
+              {{ t('diag_blocked_relink') }}
+            </button>
+          </div>
         </div>
 
         <!-- Registro sincronizzazioni recenti -->

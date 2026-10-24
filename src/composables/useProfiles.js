@@ -10,6 +10,19 @@ const activeProfileId = ref('');
 const knownServers = ref([]);
 let syncListenerAttached = false;
 
+// Server i cui dati in arrivo dall'exporter vengono ignorati: ci finiscono quando
+// si elimina il profilo collegato, per non vederlo ricreato al sync successivo.
+// Reattivo perché la Diagnostica lo mostra e permette di ricollegarli.
+const BLOCKED_KEY = 'ovalue_blocked_servers';
+const readBlocked = () => {
+    try { return JSON.parse(localStorage.getItem(BLOCKED_KEY) || '[]'); } catch { return []; }
+};
+const blockedServers = ref(readBlocked());
+const writeBlocked = (list) => {
+    blockedServers.value = list;
+    try { localStorage.setItem(BLOCKED_KEY, JSON.stringify(list)); } catch { /* quota */ }
+};
+
 // Helper to create a default production data object
 const createDefaultProduction = () => ({
     settings: {
@@ -217,11 +230,8 @@ export function useProfiles() {
                 activeProfileId.value = profiles.value[0].id;
             }
             if (syncServer) {
-                try {
-                    const blocked = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]');
-                    if (!blocked.includes(syncServer)) blocked.push(syncServer);
-                    localStorage.setItem('ovalue_blocked_servers', JSON.stringify(blocked));
-                } catch (e) {}
+                const blocked = readBlocked();
+                if (!blocked.includes(syncServer)) writeBlocked([...blocked, syncServer]);
                 localStorage.removeItem('ovalue_exporter_pending');
             }
             saveProfiles();
@@ -277,8 +287,8 @@ export function useProfiles() {
         }
         const results = [];   // esito per server, per la diagnostica
 
-        let blockedServers = [];
-        try { blockedServers = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]'); } catch (e) {}
+        const blocked = readBlocked();
+        blockedServers.value = blocked;
 
         // Aggiorna lista server noti
         const serverList = Object.keys(allData);
@@ -295,7 +305,7 @@ export function useProfiles() {
 
             try {
                 // Trova o crea automaticamente un profilo per questo server
-                if (blockedServers.includes(serverKey)) { results.push({ ...diag, outcome: 'blocked' }); continue; }
+                if (blocked.includes(serverKey)) { results.push({ ...diag, outcome: 'blocked' }); continue; }
                 let profile = profiles.value.find(p => p.syncServer === serverKey);
                 if (!profile) {
                     const universeName = raw.universeName || serverKey.split('.')[0];
@@ -384,19 +394,37 @@ export function useProfiles() {
         saveProfiles();
     };
 
+    const unblockServer = (serverHostname) => {
+        const blocked = readBlocked();
+        if (blocked.includes(serverHostname)) writeBlocked(blocked.filter(s => s !== serverHostname));
+    };
+
     const setSyncServer = (serverHostname) => {
         const profile = activeProfile.value;
         if (!profile) return;
         profile.syncServer = serverHostname;
-        if (serverHostname) {
-            try {
-                const blocked = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]');
-                const filtered = blocked.filter(s => s !== serverHostname);
-                if (filtered.length !== blocked.length)
-                    localStorage.setItem('ovalue_blocked_servers', JSON.stringify(filtered));
-            } catch (e) {}
-        }
+        if (serverHostname) unblockServer(serverHostname);
         saveProfiles();
+    };
+
+    // Ricollega un server bloccato (o comunque in arrivo dall'exporter) a un profilo
+    // GIÀ esistente, invece di farne creare uno nuovo. Caso tipico: si è eliminato il
+    // profilo del server e ne resta un altro (es. "Default") su cui si vogliono i dati.
+    // - nessun altro profilo resta agganciato allo stesso server (il match è il primo trovato);
+    // - l'auto-sync viene attivato: collegare un server significa volerne i dati, e
+    //   con l'auto-sync spento l'import verrebbe di nuovo ignorato.
+    const linkServerToProfile = (serverHostname, profileId) => {
+        const target = profiles.value.find(p => p.id === profileId);
+        if (!target || !serverHostname) return false;
+        profiles.value.forEach(p => {
+            if (p.id !== profileId && p.syncServer === serverHostname) p.syncServer = null;
+        });
+        target.syncServer = serverHostname;
+        target.autoSync = true;
+        unblockServer(serverHostname);
+        activeProfileId.value = target.id;
+        saveProfiles();
+        return true;
     };
 
     const setPlayerName = (name) => {
@@ -411,6 +439,7 @@ export function useProfiles() {
         activeProfileId,
         activeProfile,
         knownServers,
+        blockedServers,
         loadProfiles,
         saveProfiles,
         createProfile,
@@ -424,6 +453,7 @@ export function useProfiles() {
         duplicateProfile,
         toggleAutoSync,
         setSyncServer,
+        linkServerToProfile,
         setPlayerName
     };
 }

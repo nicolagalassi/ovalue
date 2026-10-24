@@ -49,4 +49,24 @@ describe('syncDiagnostics', () => {
         expect(report).toContain('Vega');
         expect(report).toContain('ERRORE -> Parsing fallito');
     });
+
+    it('collapses repeated identical syncs so an older error stays visible', () => {
+        const { syncLog, logSync } = useSyncDiagnostics();
+        logSync('live', [{ server: 's1', outcome: 'error', error: 'boom' }]);
+        for (let i = 0; i < 100; i++) {
+            logSync('load', [{ server: 's1', outcome: 'imported', planets: 10, daily: i }]);
+        }
+        expect(syncLog.value.length).toBe(2);
+        expect(syncLog.value[0].count).toBe(100);
+        expect(syncLog.value[0].results[0].daily).toBe(99);   // dettagli più recenti
+        expect(syncLog.value[1].results[0].error).toBe('boom');
+    });
+
+    it('keeps the log bounded when outcomes keep changing', () => {
+        const { syncLog, logSync } = useSyncDiagnostics();
+        for (let i = 0; i < 200; i++) {
+            logSync('load', [{ server: 's1', outcome: i % 2 ? 'imported' : 'blocked' }]);
+        }
+        expect(syncLog.value.length).toBe(30);
+    });
 });

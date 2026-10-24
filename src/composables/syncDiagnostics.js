@@ -34,10 +34,34 @@ if (typeof window !== 'undefined') {
 
 // Esiti possibili per un server:
 //   imported | created | blocked | autosync_off | empty | error
+//
+// Ogni apertura di ovalue.net produce un sync. Senza compressione 30 refresh
+// identici spingerebbero fuori dal registro l'errore che serve diagnosticare;
+// quindi un evento con lo stesso esito del precedente (stessi server, stessi esiti,
+// stessi errori) aggiorna la voce in cima invece di aggiungerne una: `count` dice
+// quante volte si è ripetuto, `firstAt` da quando.
+const signature = (results) => (results || [])
+    .map(r => `${r.server || ''}|${r.outcome || ''}|${r.error || ''}`)
+    .sort()
+    .join(';');
+
 const logSync = (source, results) => {
-    const entry = { at: Date.now(), source, results };
-    syncLog.value = [entry, ...syncLog.value].slice(0, LOG_MAX);
-    try { localStorage.setItem(LOG_KEY, JSON.stringify(syncLog.value)); } catch { /* quota */ }
+    const now = Date.now();
+    const top = syncLog.value[0];
+    if (top && signature(top.results) === signature(results)) {
+        const merged = {
+            ...top,
+            at: now,
+            source,
+            results,                                   // dettagli più recenti (pianeti, produzione)
+            firstAt: top.firstAt || top.at,
+            count: (top.count || 1) + 1
+        };
+        syncLog.value = [merged, ...syncLog.value.slice(1)];
+    } else {
+        syncLog.value = [{ at: now, source, results }, ...syncLog.value].slice(0, LOG_MAX);
+    }
+    try { localStorage.setItem(LOG_KEY, JSON.stringify(syncLog.value)); } catch { /* quota: il log è accessorio */ }
 };
 
 const markExporterSeen = (version) => {
@@ -112,8 +136,11 @@ export const generateDiagnosticReport = ({ profiles = [], activeProfileId = '', 
         lines.push('Nessun evento registrato.');
     } else {
         syncLog.value.slice(0, 15).forEach((entry, i) => {
-            const timeStr = new Date(entry.at).toLocaleTimeString();
-            lines.push(`[${i + 1}] ${timeStr} (Origine: ${entry.source || 'sconosciuta'})`);
+            const timeStr = new Date(entry.at).toLocaleString();
+            const rep = entry.count > 1
+                ? ` ×${entry.count} dal ${new Date(entry.firstAt).toLocaleString()}`
+                : '';
+            lines.push(`[${i + 1}] ${timeStr}${rep} (Origine: ${entry.source || 'sconosciuta'})`);
             (entry.results || []).forEach(r => {
                 if (r.outcome === 'error') {
                     lines.push(`    - ${r.server || 'Globale'}: ERRORE -> ${r.error || 'Errore sconosciuto'}`);

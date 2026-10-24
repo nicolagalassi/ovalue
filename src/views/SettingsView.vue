@@ -6,32 +6,52 @@ import { useToast } from '../composables/useToast';
 import { useSyncDiagnostics } from '../composables/syncDiagnostics';
 
 const { syncLog, exporterPing, exporterSeen, clearSyncLog, generateDiagnosticReport } = useSyncDiagnostics();
+const { currentLang, setLanguage, t } = useLanguage();
+const { show: showToast } = useToast();
+const {
+    profiles, activeProfileId, activeProfile, knownServers, blockedServers,
+    createProfile, renameProfile, deleteProfile,
+    switchProfile, exportProfiles, importProfiles,
+    toggleAutoSync, setSyncServer, linkServerToProfile, duplicateProfile, importManual,
+    setPlayerName
+} = useProfiles();
 
 const copyDiagnosticReport = async () => {
-    let blocked = [];
-    try { blocked = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]'); } catch (_) {}
     const report = generateDiagnosticReport({
         profiles: profiles.value,
         activeProfileId: activeProfileId.value,
-        blockedServers: blocked,
+        blockedServers: blockedServers.value,
         knownServers: knownServers.value
     });
     try {
         await navigator.clipboard.writeText(report);
         showToast(t('diag_report_copied'), 'success');
     } catch (_) {
-        showToast('Errore durante la copia negli appunti', 'error');
+        showToast(t('diag_copy_failed'), 'error');
     }
 };
-const { currentLang, setLanguage, t } = useLanguage();
-const { show: showToast } = useToast();
-const {
-    profiles, activeProfileId, activeProfile, knownServers,
-    createProfile, renameProfile, deleteProfile,
-    switchProfile, exportProfiles, importProfiles,
-    toggleAutoSync, setSyncServer, duplicateProfile, importManual,
-    setPlayerName
-} = useProfiles();
+
+// ── Server bloccati → ricollegamento a un profilo esistente ─────────────────
+// Candidati: solo profili senza server. Un profilo già agganciato a un ALTRO
+// server verrebbe riassegnato in silenzio, interrompendo la sync del suo
+// universo; per spostarlo di proposito c'è "Server OGame associato" nel profilo.
+const relinkTarget = ref({});
+const relinkCandidates = computed(() => profiles.value.filter(p => !p.syncServer));
+const suggestedProfileId = () => {
+    const c = relinkCandidates.value;
+    return (c.find(p => p.id === activeProfileId.value) || c[0])?.id || '';
+};
+const relinkChoice = (srv) => {
+    const chosen = relinkTarget.value[srv];
+    return relinkCandidates.value.some(p => p.id === chosen) ? chosen : suggestedProfileId();
+};
+const relinkServer = (srv) => {
+    const id = relinkChoice(srv);
+    if (!id || !linkServerToProfile(srv, id)) return;
+    // I dati del server erano stati scartati: l'exporter li rimanda al caricamento
+    // della pagina di OValue, quindi si ricarica per importarli subito.
+    window.location.reload();
+};
 
 // ── CONTACT FORM ─────────────────────────────────────────────────────────────
 // Chiave API Web3Forms — registrati su https://web3forms.com con la tua email
@@ -401,6 +421,35 @@ const confirmImportOGame = () => {
           </button>
         </div>
 
+        <!-- Server bloccati: i dati in arrivo vengono ignorati finché non si ricollegano -->
+        <div v-if="blockedServers.length > 0" class="p-3.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/25 space-y-3">
+          <div>
+            <div class="text-xs font-bold text-amber-200">{{ t('diag_blocked_title') }}</div>
+            <div class="text-[11px] text-amber-400/70 mt-0.5 leading-snug">{{ t('diag_blocked_hint') }}</div>
+          </div>
+          <div v-for="srv in blockedServers" :key="srv"
+               class="flex flex-col sm:flex-row sm:items-center gap-2 p-2 rounded-lg bg-black/25 border border-white/5">
+            <span class="font-mono text-[11px] text-white font-bold sm:max-w-[13rem] truncate" :title="srv">{{ srv }}</span>
+            <template v-if="relinkCandidates.length > 0">
+              <label class="sr-only" :for="'relink-' + srv">{{ t('diag_blocked_link_to') }}</label>
+              <select :id="'relink-' + srv"
+                      :value="relinkChoice(srv)"
+                      @change="relinkTarget = { ...relinkTarget, [srv]: $event.target.value }"
+                      class="flex-1 min-w-[9rem] text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-gray-300 focus:outline-none focus:border-amber-400/40 cursor-pointer">
+                <option v-for="p in relinkCandidates" :key="p.id" v-memo="[p.id, p.name]" :value="p.id" class="bg-gray-900">
+                  {{ p.name }}
+                </option>
+              </select>
+              <button @click="relinkServer(srv)"
+                      class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/35 text-amber-200 font-bold text-xs whitespace-nowrap transition cursor-pointer">
+                {{ t('diag_blocked_relink') }}
+              </button>
+            </template>
+            <!-- Tutti i profili sono già collegati ad altri server: nessuno si sovrascrive da qui -->
+            <span v-else class="flex-1 text-[11px] text-amber-400/80 leading-snug">{{ t('diag_blocked_no_free_profile') }}</span>
+          </div>
+        </div>
+
         <!-- Registro sincronizzazioni recenti -->
         <div>
           <div class="flex items-center justify-between mb-2">
@@ -420,7 +469,10 @@ const confirmImportOGame = () => {
             <div v-for="(entry, idx) in syncLog" :key="idx"
               class="p-2.5 rounded-lg bg-black/30 border border-white/5 text-xs space-y-1.5">
               <div class="flex items-center justify-between text-[10px] text-gray-500">
-                <span class="font-mono">{{ new Date(entry.at).toLocaleString() }}</span>
+                <span class="font-mono">
+                  {{ new Date(entry.at).toLocaleString() }}
+                  <span v-if="entry.count > 1" class="ml-1 text-gray-400" :title="t('diag_repeated_since') + ' ' + new Date(entry.firstAt).toLocaleString()">×{{ entry.count }}</span>
+                </span>
                 <span class="uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 text-gray-400">
                   {{ entry.source === 'live' ? t('diag_source_live') : t('diag_source_load') }}
                 </span>

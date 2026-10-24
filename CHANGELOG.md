@@ -3,6 +3,16 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.4.0]
+
+### Aggiunto
+- **Aggiornamento immediato di OValue.** Con la scheda di OValue già aperta, i dati
+  nuovi raccolti nel gioco (es. dopo "↻ Aggiorna Dati") arrivano subito, senza
+  ricaricare la pagina: miniere e ricerche fatte si spuntano da sole nel planner.
+  È solo comunicazione locale tra le schede del browser (`GM_addValueChangeListener`),
+  nessuna chiamata in più a OGame. Richiede il nuovo permesso
+  `GM_addValueChangeListener`, che Tampermonkey chiede di approvare all'aggiornamento.
+
 ## OValue Exporter — [4.3.0]
 
 ### Rimosso

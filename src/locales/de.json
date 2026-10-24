@@ -90,6 +90,7 @@
     "profile_switch": "Profil wechseln",
     "msg_import_success": "✅ Backup erfolgreich importiert!",
     "msg_import_error": "❌ Fehler beim Importieren des Backups.",
+    "msg_exporter_synced": "🔄 Daten vom Exporter aktualisiert",
     "prompt_rename": "Neuen Profilnamen eingeben:",
     "prompt_new_profile": "Namen des neuen Profils eingeben:",
     "confirm_delete_profile": "Möchtest du dieses Profil wirklich löschen?",

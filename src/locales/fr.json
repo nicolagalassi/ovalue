@@ -473,5 +473,6 @@
     "diag_blocked_link_to": "Lier au profil",
     "diag_blocked_relink": "Relier",
     "diag_copy_failed": "Impossible de copier dans le presse-papiers",
-    "diag_blocked_no_free_profile": "Tous les profils sont déjà liés à d'autres serveurs. Créez un nouveau profil (section Profils) puis revenez ici, ou changez le serveur d'un profil dans « Serveur OGame associé »."
+    "diag_blocked_no_free_profile": "Tous les profils sont déjà liés à d'autres serveurs. Créez un nouveau profil (section Profils) puis revenez ici, ou changez le serveur d'un profil dans « Serveur OGame associé ».",
+    "diag_repeated_since": "Répété à l'identique depuis"
 }

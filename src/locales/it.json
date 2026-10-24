@@ -809,5 +809,6 @@
     "diag_blocked_link_to": "Collega al profilo",
     "diag_blocked_relink": "Ricollega",
     "diag_copy_failed": "Impossibile copiare negli appunti",
-    "diag_blocked_no_free_profile": "Tutti i profili sono già collegati ad altri server. Crea un nuovo profilo (sezione Profili) e torna qui, oppure cambia il server di un profilo da \"Server OGame associato\"."
+    "diag_blocked_no_free_profile": "Tutti i profili sono già collegati ad altri server. Crea un nuovo profilo (sezione Profili) e torna qui, oppure cambia il server di un profilo da \"Server OGame associato\".",
+    "diag_repeated_since": "Ripetuto uguale dal"
 }

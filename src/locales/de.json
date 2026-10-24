@@ -473,5 +473,6 @@
     "diag_blocked_link_to": "Mit Profil verknüpfen",
     "diag_blocked_relink": "Verknüpfen",
     "diag_copy_failed": "Kopieren in die Zwischenablage fehlgeschlagen",
-    "diag_blocked_no_free_profile": "Alle Profile sind bereits mit anderen Servern verknüpft. Erstelle ein neues Profil (Bereich Profile) und komm hierher zurück, oder ändere den Server eines Profils unter \"Verknüpfter OGame-Server\"."
+    "diag_blocked_no_free_profile": "Alle Profile sind bereits mit anderen Servern verknüpft. Erstelle ein neues Profil (Bereich Profile) und komm hierher zurück, oder ändere den Server eines Profils unter \"Verknüpfter OGame-Server\".",
+    "diag_repeated_since": "Unverändert wiederholt seit"
 }

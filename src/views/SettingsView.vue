@@ -469,7 +469,10 @@ const confirmImportOGame = () => {
             <div v-for="(entry, idx) in syncLog" :key="idx"
               class="p-2.5 rounded-lg bg-black/30 border border-white/5 text-xs space-y-1.5">
               <div class="flex items-center justify-between text-[10px] text-gray-500">
-                <span class="font-mono">{{ new Date(entry.at).toLocaleString() }}</span>
+                <span class="font-mono">
+                  {{ new Date(entry.at).toLocaleString() }}
+                  <span v-if="entry.count > 1" class="ml-1 text-gray-400" :title="t('diag_repeated_since') + ' ' + new Date(entry.firstAt).toLocaleString()">×{{ entry.count }}</span>
+                </span>
                 <span class="uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 text-gray-400">
                   {{ entry.source === 'live' ? t('diag_source_live') : t('diag_source_load') }}
                 </span>

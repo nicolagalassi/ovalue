@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { applyExportToProduction } from './exporterImport';
 import { useToast } from './useToast';
 import { useLanguage } from './useLanguage';
@@ -21,6 +21,37 @@ const blockedServers = ref(readBlocked());
 const writeBlocked = (list) => {
     blockedServers.value = list;
     try { localStorage.setItem(BLOCKED_KEY, JSON.stringify(list)); } catch { /* quota */ }
+};
+
+// Eliminazione dei dati di un universo dallo storage di Tampermonkey. L'app non può
+// toccarlo: scrive la richiesta per l'exporter (≥4.5.2) e aspetta il suo ping.
+// Il server resta BLOCCATO finché l'exporter non conferma di averlo tolto: se lo
+// sbloccassimo subito e l'exporter fosse vecchio o spento, al sync successivo i
+// suoi dati ricreerebbero un profilo nuovo.
+//   forgetPending = { [server]: momento della richiesta }
+const FORGET_REQ_KEY = 'ovalue_exporter_forget';      // letta dall'exporter
+const FORGET_PENDING_KEY = 'ovalue_forget_pending';   // stato lato app
+const readForgetPending = () => {
+    try { return JSON.parse(localStorage.getItem(FORGET_PENDING_KEY) || '{}'); } catch { return {}; }
+};
+const forgetPending = ref(readForgetPending());
+const writeForgetPending = (obj) => {
+    forgetPending.value = obj;
+    try { localStorage.setItem(FORGET_PENDING_KEY, JSON.stringify(obj)); } catch { /* quota */ }
+};
+
+// Un ping dell'exporter più recente della richiesta che non elenca più il server
+// è la conferma: lo si toglie da bloccati, server noti e richieste in sospeso.
+const finalizeForgets = (ping) => {
+    if (!ping || !Array.isArray(ping.servers)) return;
+    const pending = { ...forgetPending.value };
+    const done = Object.keys(pending).filter(s => ping.at > pending[s] && !ping.servers.includes(s));
+    if (!done.length) return;
+    done.forEach(s => delete pending[s]);
+    writeForgetPending(pending);
+    writeBlocked(readBlocked().filter(s => !done.includes(s)));
+    knownServers.value = knownServers.value.filter(s => !done.includes(s));
+    try { localStorage.setItem('ovalue_known_servers', JSON.stringify(knownServers.value)); } catch { /* */ }
 };
 
 // Helper to create a default production data object
@@ -66,7 +97,7 @@ const createDefaultShoppingList = () => ({
 export function useProfiles() {
     const { show: showToast } = useToast();
     const { t } = useLanguage();
-    const { logSync, markExporterSeen } = useSyncDiagnostics();
+    const { logSync, markExporterSeen, exporterPing } = useSyncDiagnostics();
     const activeProfile = computed(() => profiles.value.find(p => p.id === activeProfileId.value));
 
     const loadProfiles = () => {
@@ -141,6 +172,9 @@ export function useProfiles() {
         // l'evento ogni volta che la scheda di OGame salva dati nuovi.
         if (!syncListenerAttached) {
             syncListenerAttached = true;
+            // Conferma delle eliminazioni: sia dal ping già salvato all'avvio, sia live
+            finalizeForgets(exporterPing.value);
+            watch(exporterPing, finalizeForgets);
             window.addEventListener('ovalue-exporter-sync', (e) => {
                 let data = null;
                 const rawPending = localStorage.getItem('ovalue_exporter_pending');
@@ -427,6 +461,23 @@ export function useProfiles() {
         return true;
     };
 
+    // Chiede all'exporter di eliminare i dati salvati di uno o più universi (server
+    // bloccati che non si giocano più). Vedi FORGET_* in cima al file: la conferma
+    // arriva col ping successivo dell'exporter e solo allora il server si sblocca.
+    const forgetServers = (servers) => {
+        const list = (Array.isArray(servers) ? servers : [servers]).filter(Boolean);
+        if (!list.length) return;
+        let req = [];
+        try { req = JSON.parse(localStorage.getItem(FORGET_REQ_KEY) || '[]'); } catch { /* */ }
+        const merged = [...new Set([...(Array.isArray(req) ? req : []), ...list])];
+        try { localStorage.setItem(FORGET_REQ_KEY, JSON.stringify(merged)); } catch { /* */ }
+        const now = Date.now();
+        const pending = { ...forgetPending.value };
+        list.forEach(s => { pending[s] = now; });
+        writeForgetPending(pending);
+        window.dispatchEvent(new CustomEvent('ovalue-exporter-forget'));
+    };
+
     const setPlayerName = (name) => {
         const profile = activeProfile.value;
         if (!profile) return;
@@ -440,6 +491,7 @@ export function useProfiles() {
         activeProfile,
         knownServers,
         blockedServers,
+        forgetPending,
         loadProfiles,
         saveProfiles,
         createProfile,
@@ -454,6 +506,7 @@ export function useProfiles() {
         toggleAutoSync,
         setSyncServer,
         linkServerToProfile,
+        forgetServers,
         setPlayerName
     };
 }

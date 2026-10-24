@@ -803,10 +803,16 @@
     "diag_outcome_empty": "Empty data",
     "diag_outcome_error": "Error",
     "diag_blocked_title": "Blocked servers",
-    "diag_blocked_hint": "You deleted the profile linked to these servers, so their data is ignored. Link them to an existing profile: the page reloads and the data is imported right away. Auto-sync is enabled on the chosen profile.",
+    "diag_blocked_hint": "You deleted the profile linked to these servers, so their data is ignored. Link them to an existing profile (the page reloads and the data is imported, with auto-sync enabled), or, if you no longer play there, delete their data from the exporter.",
     "diag_blocked_link_to": "Link to profile",
     "diag_blocked_relink": "Relink",
     "diag_copy_failed": "Could not copy to clipboard",
     "diag_blocked_no_free_profile": "Every profile is already linked to another server. Create a new profile (Profiles section) and come back here, or change a profile's server under \"Linked OGame server\".",
-    "diag_repeated_since": "Repeated unchanged since"
+    "diag_repeated_since": "Repeated unchanged since",
+    "diag_blocked_forget": "Delete data",
+    "diag_blocked_forget_all": "Delete all",
+    "diag_blocked_forget_confirm_one": "Delete the data for {server} stored by the exporter? If you play there again it will be collected again when you open the Overview in OGame.",
+    "diag_blocked_forget_confirm_many": "Delete the data for {n} universes stored by the exporter? If you play there again it will be collected again when you open the Overview in OGame.",
+    "diag_blocked_forget_pending": "Deleting…",
+    "diag_blocked_forget_pending_hint": "Waiting for the exporter (version 4.5.2 or later, active on this page). If it stays here, update the exporter and reload OValue."
 }

@@ -9,10 +9,10 @@ const { syncLog, exporterPing, exporterSeen, clearSyncLog, generateDiagnosticRep
 const { currentLang, setLanguage, t } = useLanguage();
 const { show: showToast } = useToast();
 const {
-    profiles, activeProfileId, activeProfile, knownServers, blockedServers,
+    profiles, activeProfileId, activeProfile, knownServers, blockedServers, forgetPending,
     createProfile, renameProfile, deleteProfile,
     switchProfile, exportProfiles, importProfiles,
-    toggleAutoSync, setSyncServer, linkServerToProfile, duplicateProfile, importManual,
+    toggleAutoSync, setSyncServer, linkServerToProfile, forgetServers, duplicateProfile, importManual,
     setPlayerName
 } = useProfiles();
 
@@ -51,6 +51,19 @@ const relinkServer = (srv) => {
     // I dati del server erano stati scartati: l'exporter li rimanda al caricamento
     // della pagina di OValue, quindi si ricarica per importarli subito.
     window.location.reload();
+};
+
+// ── Server bloccati → eliminazione dei dati dall'exporter ───────────────────
+// Per universi che non si giocano più: i dati salvati in Tampermonkey vengono
+// cancellati dall'exporter; il server sparisce dall'elenco quando lo conferma.
+const deletableBlocked = computed(() => blockedServers.value.filter(s => !forgetPending.value[s]));
+const forgetBlocked = (servers) => {
+    if (!servers.length) return;
+    const msg = servers.length === 1
+        ? t('diag_blocked_forget_confirm_one').replace('{server}', servers[0])
+        : t('diag_blocked_forget_confirm_many').replace('{n}', servers.length);
+    if (!confirm(msg)) return;
+    forgetServers(servers);
 };
 
 // ── CONTACT FORM ─────────────────────────────────────────────────────────────
@@ -423,30 +436,48 @@ const confirmImportOGame = () => {
 
         <!-- Server bloccati: i dati in arrivo vengono ignorati finché non si ricollegano -->
         <div v-if="blockedServers.length > 0" class="p-3.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/25 space-y-3">
-          <div>
-            <div class="text-xs font-bold text-amber-200">{{ t('diag_blocked_title') }}</div>
-            <div class="text-[11px] text-amber-400/70 mt-0.5 leading-snug">{{ t('diag_blocked_hint') }}</div>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-xs font-bold text-amber-200">{{ t('diag_blocked_title') }}</div>
+              <div class="text-[11px] text-amber-400/70 mt-0.5 leading-snug">{{ t('diag_blocked_hint') }}</div>
+            </div>
+            <button v-if="deletableBlocked.length > 1" @click="forgetBlocked(deletableBlocked)"
+                    class="shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold text-red-300/80 hover:text-red-200 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 whitespace-nowrap transition cursor-pointer">
+              {{ t('diag_blocked_forget_all') }}
+            </button>
           </div>
           <div v-for="srv in blockedServers" :key="srv"
-               class="flex flex-col sm:flex-row sm:items-center gap-2 p-2 rounded-lg bg-black/25 border border-white/5">
-            <span class="font-mono text-[11px] text-white font-bold sm:max-w-[13rem] truncate" :title="srv">{{ srv }}</span>
-            <template v-if="relinkCandidates.length > 0">
-              <label class="sr-only" :for="'relink-' + srv">{{ t('diag_blocked_link_to') }}</label>
-              <select :id="'relink-' + srv"
-                      :value="relinkChoice(srv)"
-                      @change="relinkTarget = { ...relinkTarget, [srv]: $event.target.value }"
-                      class="flex-1 min-w-[9rem] text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-gray-300 focus:outline-none focus:border-amber-400/40 cursor-pointer">
-                <option v-for="p in relinkCandidates" :key="p.id" v-memo="[p.id, p.name]" :value="p.id" class="bg-gray-900">
-                  {{ p.name }}
-                </option>
-              </select>
-              <button @click="relinkServer(srv)"
-                      class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/35 text-amber-200 font-bold text-xs whitespace-nowrap transition cursor-pointer">
-                {{ t('diag_blocked_relink') }}
+               class="p-2 rounded-lg bg-black/25 border border-white/5 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-mono text-[11px] text-white font-bold truncate" :title="srv">{{ srv }}</span>
+              <span v-if="forgetPending[srv]" class="shrink-0 text-[10px] text-gray-400 italic">{{ t('diag_blocked_forget_pending') }}</span>
+              <button v-else @click="forgetBlocked([srv])"
+                      class="shrink-0 px-2 py-1 rounded-md text-[10px] font-bold text-red-300/80 hover:text-red-200 hover:bg-red-500/15 border border-red-500/20 transition cursor-pointer">
+                {{ t('diag_blocked_forget') }}
               </button>
+            </div>
+            <template v-if="!forgetPending[srv]">
+              <div v-if="relinkCandidates.length > 0" class="flex items-center gap-2">
+                <label class="sr-only" :for="'relink-' + srv">{{ t('diag_blocked_link_to') }}</label>
+                <select :id="'relink-' + srv"
+                        :value="relinkChoice(srv)"
+                        @change="relinkTarget = { ...relinkTarget, [srv]: $event.target.value }"
+                        class="flex-1 min-w-0 text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-gray-300 focus:outline-none focus:border-amber-400/40 cursor-pointer">
+                  <option v-for="p in relinkCandidates" :key="p.id" v-memo="[p.id, p.name]" :value="p.id" class="bg-gray-900">
+                    {{ p.name }}
+                  </option>
+                </select>
+                <button @click="relinkServer(srv)"
+                        class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/35 text-amber-200 font-bold text-xs whitespace-nowrap transition cursor-pointer">
+                  {{ t('diag_blocked_relink') }}
+                </button>
+              </div>
+              <!-- Tutti i profili sono già collegati ad altri server: nessuno si sovrascrive da qui -->
+              <div v-else class="text-[11px] text-amber-400/80 leading-snug">{{ t('diag_blocked_no_free_profile') }}</div>
             </template>
-            <!-- Tutti i profili sono già collegati ad altri server: nessuno si sovrascrive da qui -->
-            <span v-else class="flex-1 text-[11px] text-amber-400/80 leading-snug">{{ t('diag_blocked_no_free_profile') }}</span>
+            <!-- In attesa della conferma dell'exporter: il server resta bloccato finché
+                 i dati non risultano davvero eliminati da Tampermonkey. -->
+            <div v-else class="text-[11px] text-gray-500 leading-snug">{{ t('diag_blocked_forget_pending_hint') }}</div>
           </div>
         </div>
 

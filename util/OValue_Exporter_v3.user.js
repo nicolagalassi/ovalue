@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.5.1
+// @version      4.5.2
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -62,9 +62,34 @@
         window.dispatchEvent(new CustomEvent('ovalue-exporter-sync', { detail: allData }));
     }
 
+    // Eliminazione dei dati di un universo richiesta da OValue (Impostazioni →
+    // Diagnostica, server bloccati che non si giocano più). I dati stanno nello
+    // storage di Tampermonkey, che solo lo script può toccare: OValue scrive la
+    // richiesta in localStorage e lancia un evento senza payload (il `detail` di un
+    // evento della pagina non è sempre leggibile dalla sandbox dello userscript).
+    // CONFORMITÀ (AGENTS.md): solo cancellazione di dati locali, su azione esplicita
+    // dell'utente; nessuna chiamata a OGame.
+    const FORGET_KEY = 'ovalue_exporter_forget';
+    const SERVER_RE = /^[a-z0-9-]+\.ogame\.gameforge\.com$/i;
+    function processForgetRequests() {
+        let req = [];
+        try { req = JSON.parse(localStorage.getItem(FORGET_KEY) || '[]'); } catch (_) {}
+        if (!Array.isArray(req) || !req.length) return;
+        localStorage.removeItem(FORGET_KEY);
+        const servers = GM_getValue('ovalue_servers', []);
+        const forget = req.filter(s => typeof s === 'string' && SERVER_RE.test(s));
+        forget.forEach(s => GM_deleteValue('ovalue_data_' + s));
+        GM_setValue('ovalue_servers', servers.filter(s => !forget.includes(s)));
+        // Il ping successivo conferma a OValue l'elenco aggiornato
+        syncToOValue();
+    }
+
     if (window.location.hostname.includes('ovalue.net')) {
+        // Richieste rimaste in sospeso (es. evento perso): si evadono all'apertura
+        processForgetRequests();
         syncToOValue();
         watchForLiveSync();
+        window.addEventListener('ovalue-exporter-forget', processForgetRequests);
         return;
     }
 

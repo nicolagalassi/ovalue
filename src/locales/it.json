@@ -805,10 +805,16 @@
     "diag_outcome_empty": "Dati vuoti",
     "diag_outcome_error": "Errore",
     "diag_blocked_title": "Server bloccati",
-    "diag_blocked_hint": "Hai eliminato il profilo collegato a questi server, quindi i loro dati vengono ignorati. Ricollegali a un profilo esistente: la pagina si ricarica e i dati vengono importati subito. L'auto-sync del profilo scelto viene attivato.",
+    "diag_blocked_hint": "Hai eliminato il profilo collegato a questi server, quindi i loro dati vengono ignorati. Ricollegali a un profilo esistente (la pagina si ricarica e i dati vengono importati, con l'auto-sync attivato), oppure, se non ci giochi più, elimina i loro dati dall'exporter.",
     "diag_blocked_link_to": "Collega al profilo",
     "diag_blocked_relink": "Ricollega",
     "diag_copy_failed": "Impossibile copiare negli appunti",
     "diag_blocked_no_free_profile": "Tutti i profili sono già collegati ad altri server. Crea un nuovo profilo (sezione Profili) e torna qui, oppure cambia il server di un profilo da \"Server OGame associato\".",
-    "diag_repeated_since": "Ripetuto uguale dal"
+    "diag_repeated_since": "Ripetuto uguale dal",
+    "diag_blocked_forget": "Elimina dati",
+    "diag_blocked_forget_all": "Elimina tutti",
+    "diag_blocked_forget_confirm_one": "Eliminare i dati di {server} salvati dall'exporter? Se tornerai a giocarci verranno raccolti di nuovo aprendo la Panoramica in OGame.",
+    "diag_blocked_forget_confirm_many": "Eliminare i dati di {n} universi salvati dall'exporter? Se tornerai a giocarci verranno raccolti di nuovo aprendo la Panoramica in OGame.",
+    "diag_blocked_forget_pending": "In eliminazione…",
+    "diag_blocked_forget_pending_hint": "In attesa dell'exporter (serve la versione 4.5.2 o successiva, attiva su questa pagina). Se resta qui, aggiorna l'exporter e ricarica OValue."
 }

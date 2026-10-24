@@ -469,10 +469,16 @@
     "diag_outcome_empty": "Leere Daten",
     "diag_outcome_error": "Fehler",
     "diag_blocked_title": "Blockierte Server",
-    "diag_blocked_hint": "Du hast das mit diesen Servern verknüpfte Profil gelöscht, daher werden ihre Daten ignoriert. Verknüpfe sie mit einem bestehenden Profil: Die Seite wird neu geladen und die Daten sofort importiert. Auto-Sync wird für das gewählte Profil aktiviert.",
+    "diag_blocked_hint": "Du hast das mit diesen Servern verknüpfte Profil gelöscht, daher werden ihre Daten ignoriert. Verknüpfe sie mit einem bestehenden Profil (die Seite lädt neu und importiert die Daten, Auto-Sync wird aktiviert) oder lösche ihre Daten aus dem Exporter, wenn du dort nicht mehr spielst.",
     "diag_blocked_link_to": "Mit Profil verknüpfen",
     "diag_blocked_relink": "Verknüpfen",
     "diag_copy_failed": "Kopieren in die Zwischenablage fehlgeschlagen",
     "diag_blocked_no_free_profile": "Alle Profile sind bereits mit anderen Servern verknüpft. Erstelle ein neues Profil (Bereich Profile) und komm hierher zurück, oder ändere den Server eines Profils unter \"Verknüpfter OGame-Server\".",
-    "diag_repeated_since": "Unverändert wiederholt seit"
+    "diag_repeated_since": "Unverändert wiederholt seit",
+    "diag_blocked_forget": "Daten löschen",
+    "diag_blocked_forget_all": "Alle löschen",
+    "diag_blocked_forget_confirm_one": "Die vom Exporter gespeicherten Daten von {server} löschen? Spielst du dort wieder, werden sie beim Öffnen der Übersicht in OGame erneut erfasst.",
+    "diag_blocked_forget_confirm_many": "Die vom Exporter gespeicherten Daten von {n} Universen löschen? Spielst du dort wieder, werden sie beim Öffnen der Übersicht in OGame erneut erfasst.",
+    "diag_blocked_forget_pending": "Wird gelöscht…",
+    "diag_blocked_forget_pending_hint": "Warte auf den Exporter (Version 4.5.2 oder neuer, auf dieser Seite aktiv). Bleibt es hier stehen, aktualisiere den Exporter und lade OValue neu."
 }

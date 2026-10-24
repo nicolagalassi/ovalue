@@ -469,10 +469,16 @@
     "diag_outcome_empty": "Données vides",
     "diag_outcome_error": "Erreur",
     "diag_blocked_title": "Serveurs bloqués",
-    "diag_blocked_hint": "Vous avez supprimé le profil lié à ces serveurs, leurs données sont donc ignorées. Reliez-les à un profil existant : la page se recharge et les données sont importées immédiatement. La synchro auto est activée sur le profil choisi.",
+    "diag_blocked_hint": "Vous avez supprimé le profil lié à ces serveurs, leurs données sont donc ignorées. Reliez-les à un profil existant (la page se recharge et les données sont importées, synchro auto activée) ou, si vous n'y jouez plus, supprimez leurs données de l'exportateur.",
     "diag_blocked_link_to": "Lier au profil",
     "diag_blocked_relink": "Relier",
     "diag_copy_failed": "Impossible de copier dans le presse-papiers",
     "diag_blocked_no_free_profile": "Tous les profils sont déjà liés à d'autres serveurs. Créez un nouveau profil (section Profils) puis revenez ici, ou changez le serveur d'un profil dans « Serveur OGame associé ».",
-    "diag_repeated_since": "Répété à l'identique depuis"
+    "diag_repeated_since": "Répété à l'identique depuis",
+    "diag_blocked_forget": "Supprimer les données",
+    "diag_blocked_forget_all": "Tout supprimer",
+    "diag_blocked_forget_confirm_one": "Supprimer les données de {server} enregistrées par l'exportateur ? Si vous y rejouez, elles seront collectées à nouveau en ouvrant la Vue générale dans OGame.",
+    "diag_blocked_forget_confirm_many": "Supprimer les données de {n} univers enregistrées par l'exportateur ? Si vous y rejouez, elles seront collectées à nouveau en ouvrant la Vue générale dans OGame.",
+    "diag_blocked_forget_pending": "Suppression…",
+    "diag_blocked_forget_pending_hint": "En attente de l'exportateur (version 4.5.2 ou ultérieure, actif sur cette page). S'il reste ici, mettez à jour l'exportateur et rechargez OValue."
 }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.3.0
+// @version      4.4.0
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -14,6 +14,7 @@
 // @grant        GM_deleteValue
 // @grant        GM_setClipboard
 // @grant        GM_addStyle
+// @grant        GM_addValueChangeListener
 // @run-at       document-idle
 // @downloadURL  https://update.greasyfork.org/scripts/574448/OValue%20Exporter.user.js
 // @updateURL    https://update.greasyfork.org/scripts/574448/OValue%20Exporter.meta.js
@@ -49,7 +50,38 @@
 
     if (window.location.hostname.includes('ovalue.net')) {
         syncToOValue();
+        watchForLiveSync();
         return;
+    }
+
+    // Sync live verso una scheda di OValue già aperta: quando la scheda di OGame salva
+    // dati nuovi (GM_setValue, es. dopo "↻ Aggiorna Dati" o aprendo la Panoramica),
+    // il gestore di userscript avvisa questa scheda e i dati passano subito a OValue,
+    // senza ricaricare la pagina.
+    // CONFORMITÀ (AGENTS.md): è solo comunicazione locale tra due schede del browser,
+    // scatenata da un salvataggio fatto dall'utente navigando OGame. Nessuna chiamata
+    // a OGame, nessun polling: l'unico timer è un debounce di 300 ms che raggruppa i
+    // salvataggi ravvicinati della stessa raccolta dati.
+    function watchForLiveSync() {
+        if (typeof GM_addValueChangeListener !== 'function') return;   // gestore senza supporto
+        let debounce = null;
+        const schedule = () => { clearTimeout(debounce); debounce = setTimeout(syncToOValue, 300); };
+        const watched = new Set();
+        const watchServers = () => {
+            for (const srv of GM_getValue('ovalue_servers', [])) {
+                const key = 'ovalue_data_' + srv;
+                if (watched.has(key)) continue;
+                watched.add(key);
+                // remote = true: la modifica arriva da un'altra scheda (quella di OGame)
+                GM_addValueChangeListener(key, (_n, _old, _new, remote) => { if (remote) schedule(); });
+            }
+        };
+        watchServers();
+        // Server nuovo (primo accesso a un altro universo): si inizia a seguire anche quello
+        GM_addValueChangeListener('ovalue_servers', (_n, _old, _new, remote) => {
+            watchServers();
+            if (remote) schedule();
+        });
     }
 
     // ── LINGUA ───────────────────────────────────────────────────────────────

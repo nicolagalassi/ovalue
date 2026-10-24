@@ -1,6 +1,6 @@
 # OValue — OGame Tools Suite
 
-> Strumenti avanzati per [OGame](https://ogame.gameforge.com): calcolatore produzione miniere, ottimizzatore pacchetti, lista della spesa, scadenziario ufficiali e planner strategico.
+> Strumenti avanzati per [OGame](https://ogame.gameforge.com): calcolatore produzione miniere, ottimizzatore pacchetti, lista della spesa e planner strategico.
 
 ---
 
@@ -39,12 +39,6 @@ Algoritmo greedy che pianifica il percorso ottimale per raggiungere un target di
 - Riepilogo upgrade per pianeta
 - Import della roadmap nella coda Pack Exchange
 
-### Scadenziario `/expirations`
-Monitora le scadenze di ufficiali e item globali dell'account:
-- Stato attivo/inattivo per ogni ufficiale
-- Countdown per item a tempo
-- Evidenziazione elementi in scadenza imminente
-
 ---
 
 ## OValue Exporter (Userscript)
@@ -52,12 +46,12 @@ Monitora le scadenze di ufficiali e item globali dell'account:
 `util/OValue_Exporter_v3.user.js` è uno userscript Greasemonkey/Tampermonkey da installare nel browser. Si inietta nelle pagine di OGame e raccoglie automaticamente i dati dell'account.
 
 **Dati raccolti:**
-- Classe giocatore, ufficiali e relative scadenze
+- Classe giocatore e ufficiali attivi (geologo, staff completo)
 - Livelli miniere, cristallo e deuterio per ogni pianeta
 - Specie LifeForm per pianeta e livelli edifici LF
 - Ricerche LF attive per pianeta (dalla pagina `lfresearch`)
 - Bonus metallo e collezionista totali
-- Plasma, crawler, item amplificatori, item globali a tempo
+- Plasma, crawler, item amplificatori di metallo/risorse per pianeta
 - Livelli edifici amplificatori ricerche (Metropolis, HPT, CMP, Clone Lab)
 
 **Installazione:** installa lo userscript dal link nella pagina Production Core, poi naviga le pagine di OGame indicate (Panoramica, LifeForm, Ricerche LF, Impero). Il pannello OValue nel menu di navigazione guida il processo e mostra lo stato di raccolta per ogni sezione.
@@ -82,8 +76,7 @@ OValue supporta profili multipli, uno per server OGame. Ogni profilo è indipend
   name, lastSync,
   production:   { settings, planets[], daily },
   packExchange: { settings, stock, queue[] },
-  shoppingList: { cart[], activeEvent },
-  expirations:  { officers{}, globalItems[] }
+  shoppingList: { cart[], activeEvent }
 }
 ```
 
@@ -136,8 +129,8 @@ src/
 ├── components/
 │   └── PlanetCard.vue       # card pianeta con ricerche LF collassabili
 ├── locales/                 # it.json, en.json, de.json, fr.json
-└── services/
-    └── rssFeedService.js    # feed RSS OGame con fallback CORS proxy
+└── workers/
+    └── planner.worker.js    # calcolo del planner in background
 
 util/
 ├── OValue_Exporter_v3.user.js   # userscript raccolta dati OGame

@@ -58,7 +58,7 @@ Monitora le scadenze di ufficiali e item globali dell'account:
 - Classe giocatore, ufficiali e relative scadenze
 - Livelli miniere, cristallo e deuterio per ogni pianeta
 - Specie LifeForm per pianeta e livelli edifici LF
-- Ricerche LF attive per pianeta (dalla pagina `lfresearch`)
+- Ricerche LF attive per pianeta (da `accountInfo` su v13, dalla pagina `lfresearch` come fallback)
 - Bonus metallo e collezionista totali
 - Plasma, crawler, item amplificatori metallo e risorse, item globali a tempo
 - Livelli edifici amplificatori ricerche (Metropolis, HPT, CMP, Clone Lab)

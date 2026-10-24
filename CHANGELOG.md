@@ -64,15 +64,19 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 ## OValue Exporter — [4.2.0]
 
 ### Corretto
-- **Amplificatore di risorse non rilevato.** Il nome reale è
-  `Amplificatore di risorse (20 %) Bronzo`: la regex pretendeva un formato diverso e
-  non agganciava mai l'item, lasciando vuoto il campo nel Production Core.
-- **Amplificatore risorse *per spedizioni* escluso** dalla produzione dei pianeti:
-  condivide il prefisso con quello di produzione e sarebbe stato conteggiato come
-  bonus minerario. Finisce nel tracker scadenze, dov'è corretto.
-- Il riconoscimento usa ora il solo nome dell'item (parte prima della `|` del tooltip):
-  la descrizione dell'amplificatore risorse cita "metallo, cristallo e deuterio" e
-  termina con "Bronzo", e veniva letta come booster metallo Bronzo.
+- **Amplificatore risorse *per spedizioni* escluso** dalla produzione dei pianeti.
+  Condivide il prefisso con l'amplificatore di produzione
+  (`Amplificatore risorse per spedizioni (25 %)` vs `Amplificatore di risorse (20 %) Bronzo`)
+  e veniva conteggiato come bonus minerario, gonfiando la produzione simulata. Ora
+  finisce nel tracker scadenze, dov'è corretto.
+- **Riconoscimento sul solo nome dell'item.** I tooltip DOM hanno forma
+  `Nome|<html descrizione>`: la descrizione dell'amplificatore risorse cita
+  "metallo, cristallo e deuterio" e termina con "Bronzo", e veniva letta come
+  amplificatore di metallo Bronzo (+10%). Ora si confronta solo la parte prima della `|`.
+- La percentuale deve essere seguita da `%` ed essere compresa fra 1 e 100: evita di
+  agganciare numeri casuali presenti nel nome.
+- Pagina Impero: fra più item sullo stesso pianeta si tiene il valore più alto
+  (`Math.max`), come già faceva l'amplificatore di metallo.
 
 ## OValue Exporter — [4.0.0]
 

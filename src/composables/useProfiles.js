@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue';
-import { OGAME_DB } from '../data/ogame_db';
-import { useOgameFormulas } from './useOgameFormulas';
+import { applyExportToProduction } from './exporterImport';
+import { useToast } from './useToast';
+import { useLanguage } from './useLanguage';
 
 // Global state shared across all instances of useProfiles
 const profiles = ref([]);
@@ -48,22 +49,9 @@ const createDefaultShoppingList = () => ({
     activeEvent: 'none'
 });
 
-// Calcola la produzione giornaliera di metallo dato un profilo production completo.
-// Delega a calcPlanetMetalProduction (stessa formula di MetalCalc.vue) per aggiornare
-// production.daily al momento dell'import.
-const calcDailyProduction = (settings, planets) => {
-    if (!Array.isArray(planets) || planets.length === 0) return 0;
-    const { calcLFResearchBonus, calcPlanetMetalProduction } = useOgameFormulas();
-    // Bonus globale: somma di tutti i pianeti, applicato ugualmente a ciascuno
-    const lfResearchPct = calcLFResearchBonus(planets);
-    let hourly = 0;
-    planets.forEach(p => {
-        hourly += calcPlanetMetalProduction(p, settings, lfResearchPct).total;
-    });
-    return Math.floor(hourly * 24);
-};
-
 export function useProfiles() {
+    const { show: showToast } = useToast();
+    const { t } = useLanguage();
     const activeProfile = computed(() => profiles.value.find(p => p.id === activeProfileId.value));
 
     const loadProfiles = () => {
@@ -129,12 +117,18 @@ export function useProfiles() {
             localStorage.removeItem('ovalue_exporter_pending');
         }
 
-        // Live sync: when user has OValue tab open while browsing OGame and comes back
+        // Sync live: con OValue già aperto, l'exporter (scheda ovalue.net) rilancia
+        // l'evento ogni volta che la scheda di OGame salva dati nuovi. I dati si leggono
+        // da localStorage, scritto dall'exporter prima dell'evento: `e.detail` arriva da
+        // un altro contesto (sandbox dello userscript) e in alcuni browser non è leggibile.
         if (!syncListenerAttached) {
             syncListenerAttached = true;
             window.addEventListener('ovalue-exporter-sync', (e) => {
-                importFromExporter(e.detail);
+                let data = null;
+                try { data = JSON.parse(localStorage.getItem('ovalue_exporter_pending')); } catch (_) {}
+                if (!data) { try { data = e.detail; } catch (_) {} }
                 localStorage.removeItem('ovalue_exporter_pending');
+                if (data && importFromExporter(data)) showToast(t('msg_exporter_synced'), 'success');
             });
         }
     };
@@ -251,17 +245,6 @@ export function useProfiles() {
     const importFromExporter = (allData) => {
         if (!allData || typeof allData !== 'object') return false;
 
-        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'kaelesh' };
-        const classMap = {
-            // vecchio formato IT (esportatore ≤3.2.x)
-            'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
-            // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
-            'collector': 'collector', 'general': 'other', 'explorer': 'other',
-            'Collector': 'collector', 'General': 'other', 'Explorer': 'other',
-            'Sammler': 'collector', 'Allgemein': 'other', 'Entdecker': 'other',
-            'Collecteur': 'collector', 'Général': 'other', 'Explorateur': 'other'
-        };
-
         let blockedServers = [];
         try { blockedServers = JSON.parse(localStorage.getItem('ovalue_blocked_servers') || '[]'); } catch (e) {}
 
@@ -289,7 +272,7 @@ export function useProfiles() {
                     production: createDefaultProduction(),
                     packExchange: createDefaultPackExchange(),
                     shoppingList: createDefaultShoppingList(),
-                            autoSync: true,
+                    autoSync: true,
                     lastSync: null,
                     syncServer: serverKey
                 };
@@ -305,84 +288,10 @@ export function useProfiles() {
                 continue;
             }
 
-            // Importa impostazioni di produzione
-            if (raw.playerClass && raw.playerClass !== 'none') {
-                profile.production.settings.playerClass = classMap[raw.playerClass] ?? profile.production.settings.playerClass;
-            }
-            // Classe alleanza (esportatore ≥3.7.0): OValue applica il +5% solo per 'trader'
-            if (raw.allianceClass) {
-                profile.production.settings.allyClass = raw.allianceClass === 'trader' ? 'trader' : 'none';
-            }
-            if (raw.settings?.plasma != null) profile.production.settings.plasma = Number(raw.settings.plasma);
-            if (raw.universeSpeed != null) profile.production.settings.ecoSpeed = Number(raw.universeSpeed);
-            if (raw.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(String(raw.lfBonuses.metal).replace(',', '.')) || 0;
-
-            // Officer → impostazioni produzione
-            // Compatibile con vecchio formato IT (≤3.2.x) e nuovo formato CSS-class (≥3.3.0)
-            if (raw.officers) {
-                const geologo = raw.officers['geologist'] || raw.officers['Geologo'];
-                if (geologo) profile.production.settings.geologist = geologo.active === true;
-                // Vecchio: ['Comandante','Ammiraglio','Ingegnere','Geologo','Tecnico']
-                const OLD = ['Comandante', 'Ammiraglio', 'Ingegnere', 'Geologo', 'Tecnico'];
-                const NEW = ['commander', 'admiral', 'engineer', 'geologist', 'technocrat'];
-                const useNew = NEW.some(n => raw.officers[n] !== undefined);
-                const ORDER  = useNew ? NEW : OLD;
-                const allFive = ORDER.every(n => raw.officers[n]?.active === true);
-                if (ORDER.some(n => raw.officers[n] !== undefined)) {
-                    profile.production.settings.staff = allFive;
-                }
-            }
-
-            // Importa pianeti — lfMap[rawLf] ?? 'humans' gestisce anche 'none'/null
-            if (Array.isArray(raw.planets) && raw.planets.length > 0) {
-                profile.production.planets = raw.planets.map(p => {
-                    const rawLf = p.lifeform || (raw.planetLifeforms?.[p.id]) || null;
-                    const lifeform = lfMap[rawLf] ?? 'humans';
-                    // Map lifeform species number for lfLevels lookup
-                    const lfNumber = { humans: 1, rocktal: 2, mecha: 3, kaelesh: 4 }[lifeform];
-                    // Priorità: lfLevels dalla pagina LF (più affidabile) > per-pianeta dall'impero
-                    const lifeformLevel = raw.lfLevels?.[String(lfNumber)] || p.lifeformLevel || 0;
-                    // lfActive: activeResearches è un array di numeri, le chiavi sono stringhe
-                    // lfActive: default inattivo. Solo le true esplicite contano nel calcolo.
-                    // Priorità: planetResearches (da lfresearch page) > activeResearches (da lfbonuses)
-                    const lfActive = {};
-                    const perPlanetResearches = raw.planetResearches?.[String(p.id)];
-                    if (perPlanetResearches) {
-                        // Ricerche lette dalla pagina lfresearch: tutte attive, livelli più affidabili
-                        Object.keys(perPlanetResearches).forEach(key => { lfActive[key] = true; });
-                    } else if (raw.lf_collected && Array.isArray(raw.activeResearches)) {
-                        raw.activeResearches.forEach(numId => {
-                            const key = String(numId);
-                            if (key in (p.lfResearch || {})) lfActive[key] = true;
-                        });
-                    }
-                    // Se planetResearches è disponibile per questo pianeta, usa quei livelli (più precisi)
-                    const lfResearch = perPlanetResearches
-                        ? { ...(p.lfResearch ?? {}), ...perPlanetResearches }
-                        : (p.lfResearch ?? {});
-                    return {
-                        name: p.name ?? '',
-                        pos: p.pos ?? 8,
-                        metal: p.metal ?? 0,
-                        crystal: p.crystal ?? 0,
-                        deuterium: p.deuterium ?? 0,
-                        magma: p.magma ?? 0,
-                        human: p.human ?? 0,
-                        crawlers: p.crawlers ?? 0,
-                        item: p.item ?? 0,
-                        itemCustom: p.itemCustom ?? 0,
-                        lifeform,
-                        overload: p.overload ?? false,
-                        lifeformLevel,
-                        lfResearch,
-                        lfBuildings: p.lfBuildings ?? {},
-                        lfActive
-                    };
-                });
-            }
+            // Impostazioni di produzione, pianeti e produzione giornaliera
+            applyExportToProduction(profile.production, raw);
 
             if (raw.playerName) profile.playerName = raw.playerName;
-            profile.production.daily = calcDailyProduction(profile.production.settings, profile.production.planets);
             profile.lastSync = Date.now();
             didImport = true;
         }
@@ -397,84 +306,9 @@ export function useProfiles() {
         const profile = activeProfile.value;
         if (!profile || !rawData || typeof rawData !== 'object') return false;
 
-        const lfMap = { 'Humans': 'humans', 'Rocktal': 'rocktal', 'Mechas': 'mecha', 'Kaelesh': 'kaelesh' };
-        const classMap = {
-            // vecchio formato IT (esportatore ≤3.2.x)
-            'Collezionista': 'collector', 'Generale': 'other', 'Esploratore': 'other',
-            // nuovo formato neutro (esportatore ≥3.3.0) + EN/DE/FR
-            'collector': 'collector', 'general': 'other', 'explorer': 'other',
-            'Collector': 'collector', 'General': 'other', 'Explorer': 'other',
-            'Sammler': 'collector', 'Allgemein': 'other', 'Entdecker': 'other',
-            'Collecteur': 'collector', 'Général': 'other', 'Explorateur': 'other'
-        };
-
-        if (rawData.playerClass && rawData.playerClass !== 'none') {
-            profile.production.settings.playerClass = classMap[rawData.playerClass] ?? profile.production.settings.playerClass;
-        }
-        // Classe alleanza (esportatore ≥3.7.0): OValue applica il +5% solo per 'trader'
-        if (rawData.allianceClass) {
-            profile.production.settings.allyClass = rawData.allianceClass === 'trader' ? 'trader' : 'none';
-        }
-        if (rawData.settings?.plasma != null) profile.production.settings.plasma = Number(rawData.settings.plasma);
-        if (rawData.universeSpeed != null) profile.production.settings.ecoSpeed = Number(rawData.universeSpeed);
-        if (rawData.lfBonuses?.metal) profile.production.settings.lfBonus = parseFloat(String(rawData.lfBonuses.metal).replace(',', '.')) || 0;
-
-        if (rawData.officers) {
-            // Supporta sia nuovo formato CSS-class (≥3.3.0) sia vecchio formato IT (≤3.2.x)
-            const geologo = rawData.officers['geologist'] || rawData.officers['Geologo'];
-            if (geologo) profile.production.settings.geologist = geologo.active === true;
-            const OLD = ['Comandante', 'Ammiraglio', 'Ingegnere', 'Geologo', 'Tecnico'];
-            const NEW = ['commander', 'admiral', 'engineer', 'geologist', 'technocrat'];
-            const useNew = NEW.some(n => rawData.officers[n] !== undefined);
-            const ORDER  = useNew ? NEW : OLD;
-            const allFive = ORDER.every(n => rawData.officers[n]?.active === true);
-            if (ORDER.some(n => rawData.officers[n] !== undefined)) {
-                profile.production.settings.staff = allFive;
-            }
-        }
-
-        if (Array.isArray(rawData.planets) && rawData.planets.length > 0) {
-            profile.production.planets = rawData.planets.map(p => {
-                const rawLf = p.lifeform || (rawData.planetLifeforms?.[p.id]) || null;
-                const lifeform = lfMap[rawLf] ?? 'humans';
-                const lfNumber = { humans: 1, rocktal: 2, mecha: 3, kaelesh: 4 }[lifeform];
-                const lifeformLevel = rawData.lfLevels?.[String(lfNumber)] || p.lifeformLevel || 0;
-                const lfActive = {};
-                const perPlanetResearches = rawData.planetResearches?.[String(p.id)];
-                if (perPlanetResearches) {
-                    Object.keys(perPlanetResearches).forEach(key => { lfActive[key] = true; });
-                } else if (rawData.lf_collected && Array.isArray(rawData.activeResearches)) {
-                    rawData.activeResearches.forEach(numId => {
-                        const key = String(numId);
-                        if (key in (p.lfResearch || {})) lfActive[key] = true;
-                    });
-                }
-                const lfResearch = perPlanetResearches
-                    ? { ...(p.lfResearch ?? {}), ...perPlanetResearches }
-                    : (p.lfResearch ?? {});
-                return {
-                    name: p.name ?? '',
-                    pos: p.pos ?? 8,
-                    metal: p.metal ?? 0,
-                    crystal: p.crystal ?? 0,
-                    deuterium: p.deuterium ?? 0,
-                    magma: p.magma ?? 0,
-                    human: p.human ?? 0,
-                    crawlers: p.crawlers ?? 0,
-                    item: p.item ?? 0,
-                    itemCustom: p.itemCustom ?? 0,
-                    lifeform,
-                    overload: p.overload ?? false,
-                    lifeformLevel,
-                    lfResearch,
-                    lfBuildings: p.lfBuildings ?? {},
-                    lfActive
-                };
-            });
-        }
+        applyExportToProduction(profile.production, rawData);
 
         if (rawData.playerName) profile.playerName = rawData.playerName;
-        profile.production.daily = calcDailyProduction(profile.production.settings, profile.production.planets);
         profile.lastSync = Date.now();
         saveProfiles();
         return true;

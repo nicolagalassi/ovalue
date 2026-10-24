@@ -1,0 +1,47 @@
+{
+  "_note": "Export reale (account Veritate, ridotto ai campi usati dai calcoli). Pacchetto Metallo in gioco: 357.126.503.",
+  "_gamePackMetal": 357126503,
+  "playerClass": "explorer",
+  "allianceClass": "trader",
+  "universeSpeed": 8,
+  "settings": { "plasma": 16 },
+  "lfBonuses": { "metal": "15,07%", "classBonus": "0%" },
+  "officers": {
+    "commander": { "active": true }, "admiral": { "active": true }, "engineer": { "active": true },
+    "geologist": { "active": true }, "technocrat": { "active": true }
+  },
+  "lf_collected": true,
+  "lfLevels": { "1": 57, "2": 55, "3": 58, "4": 53 },
+  "planets": [
+    { "id": 33620503, "name": "Penne",        "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1700, "item": 0,  "itemCustom": 30, "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33620551, "name": "Garganelli",   "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 0,  "itemCustom": 30, "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33620873, "name": "Tortellini",   "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 0,  "itemCustom": 30, "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33626555, "name": "Orecchiette",  "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 0,  "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33620647, "name": "Passatelli",   "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 0,  "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33630691, "name": "Rigatoni",     "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 0,  "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": {} },
+    { "id": 33621010, "name": "Gnocchi",      "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 0,  "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33622163, "name": "Linguine",     "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 0,  "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33621088, "name": "Trofie",       "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 0,  "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33632428, "name": "Farfalle",     "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 40, "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": {} },
+    { "id": 33622042, "name": "Strozzapreti", "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 40, "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33637136, "name": "Colonia",      "pos": 8, "lifeform": "Mechas", "metal": 38, "crystal": 32, "deuterium": 33, "crawlers": 0,    "item": 0,  "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": {} },
+    { "id": 33620920, "name": "Fusilli",      "pos": 8, "lifeform": "Mechas", "metal": 41, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 40, "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } },
+    { "id": 33622541, "name": "Cappelletti",  "pos": 8, "lifeform": "Mechas", "metal": 40, "crystal": 32, "deuterium": 33, "crawlers": 1100, "item": 40, "itemCustom": 0,  "magma": 0, "human": 0, "overload": false, "lfBuildings": { "3007": 9, "3011": 7 } }
+  ],
+  "planetResearches": {
+    "33620503": { "1101": 17, "1108": 6, "2103": 9, "2110": 6, "3102": 10, "3109": 4, "4104": 10, "4105": 13, "4106": 9, "4107": 10, "4111": 12, "4112": 6, "4113": 10, "4114": 8 },
+    "33620551": { "1108": 6, "1117": 9, "2103": 9, "2110": 7, "3101": 9, "3102": 10, "3109": 4, "4104": 10, "4105": 13, "4106": 8, "4107": 10, "4111": 12, "4112": 6, "4113": 10, "4114": 8 },
+    "33620647": { "1108": 6, "1117": 9, "2103": 8, "2110": 7, "3101": 9, "3102": 10, "3109": 4, "4104": 9, "4105": 13, "4106": 9, "4107": 10, "4111": 12, "4112": 5, "4113": 10, "4114": 7 },
+    "33620873": { "1108": 6, "1117": 7, "2103": 9, "2110": 7, "3101": 9, "3102": 10, "3109": 4, "4104": 10, "4105": 13, "4106": 8, "4107": 10, "4111": 12, "4112": 6, "4113": 10, "4114": 8 },
+    "33620920": { "1108": 5, "1117": 10, "2103": 9, "2110": 7, "3101": 9, "3102": 10, "3109": 3, "4104": 10, "4105": 13, "4106": 6, "4107": 10, "4111": 12, "4112": 5, "4113": 10, "4114": 8, "4118": 3 },
+    "33621010": { "1108": 6, "2103": 10, "2110": 6, "3101": 9, "3102": 10, "3106": 6, "3109": 4, "4104": 9, "4105": 13, "4107": 10, "4111": 12, "4112": 5, "4113": 10, "4114": 8 },
+    "33621088": { "1108": 5, "1117": 10, "2103": 8, "2110": 7, "3101": 9, "3102": 10, "3109": 3, "4104": 9, "4105": 13, "4106": 7, "4107": 10, "4111": 12, "4112": 5, "4113": 10, "4114": 7 },
+    "33622042": { "1108": 6, "1117": 9, "2103": 9, "2110": 6, "3101": 9, "3102": 10, "3109": 4, "4104": 10, "4105": 13, "4106": 7, "4107": 10, "4111": 12, "4112": 5, "4113": 10, "4114": 6, "4115": 1 },
+    "33622163": { "1108": 5, "2103": 9, "2110": 7, "3101": 9, "3102": 10, "3109": 3, "4104": 9, "4105": 13, "4106": 6, "4107": 10, "4111": 12, "4112": 5, "4113": 10, "4114": 7 },
+    "33622541": { "1108": 5, "1117": 10, "2103": 8, "2110": 6, "3101": 9, "3102": 10, "3109": 4, "4104": 10, "4105": 13, "4106": 7, "4107": 10, "4111": 12, "4112": 5, "4113": 10, "4114": 6 },
+    "33626555": { "1108": 4, "1117": 10, "2103": 7, "2110": 6, "3101": 9, "3102": 9, "3109": 2, "4104": 8, "4105": 13, "4106": 7, "4107": 10, "4111": 12, "4112": 3, "4113": 10, "4114": 6 },
+    "33630691": { "1102": 4, "3101": 6, "4104": 7, "4105": 12, "4107": 10, "4111": 8, "4113": 10, "4114": 3 },
+    "33632428": { "1102": 1, "1108": 1, "2110": 1, "3101": 3, "3106": 1, "4104": 7, "4105": 13, "4107": 10, "4111": 6, "4113": 10, "4114": 3 },
+    "33637136": { "4105": 10, "4107": 10, "4111": 8 }
+  }
+}

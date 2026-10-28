@@ -138,17 +138,30 @@ const { formatNum } = useOgameFormulas();
           </router-link>
 
         </div>
+
+        <!-- ── PIANO FUSIONI ─────────────────────────────────────────────────
+             the merge rankings, a separate static site proxied under /fusion/ (public/_redirects): a full page
+             load, not a router-link, so the Vue app and its service worker stay out of the way -->
+        <a :href="fusionHref()"
+           class="fusion-banner group relative mt-5 w-full max-w-6xl mx-auto flex items-center gap-4 md:gap-6 rounded-2xl px-5 md:px-8 py-5 md:py-6 overflow-hidden">
+          <div class="flex-shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-xl bg-amber-950/60 border border-amber-400/40 flex items-center justify-center group-hover:border-amber-300/70 transition-colors">
+            <svg class="w-6 h-6 md:w-7 md:h-7 text-amber-300" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/></svg>
+          </div>
+          <div class="flex-grow min-w-0 text-left">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-lg md:text-2xl font-bold text-amber-200 uppercase tracking-tight">{{ t('home_fusion_title') }}</h2>
+              <span class="text-[10px] md:text-xs font-bold uppercase tracking-widest text-amber-950 bg-amber-300 rounded px-1.5 py-0.5">2026</span>
+            </div>
+            <p class="text-sm md:text-base text-slate-400 leading-snug mt-1">{{ t('home_fusion_desc') }}</p>
+          </div>
+          <span class="flex-shrink-0 text-2xl md:text-3xl text-amber-400/70 group-hover:text-amber-300 group-hover:translate-x-1 transition-all" aria-hidden="true">›</span>
+        </a>
       </div>
 
       <!-- ── EXTERNAL LINKS — riga compatta ───────────────────────────────── -->
       <div class="px-4 md:px-6 py-3 max-w-4xl mx-auto w-full">
         <div class="flex items-center justify-center gap-2 flex-wrap">
-          <!-- the merge rankings, a separate static site proxied under /fusion/ (public/_redirects): a full page
-               load, not a router-link, so the Vue app and its service worker stay out of the way -->
-          <a :href="fusionHref()" class="ext-link group">
-            <svg class="w-3.5 h-3.5 text-sky-500/60 group-hover:text-sky-400 transition-colors" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/></svg>
-            <span>{{ t('home_fusion_title') }}</span>
-          </a>
+          <!-- external links -->
           <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer"
              class="ext-link group">
             <img src="/Immagini%20Ogame/ostats-logo-v3.png" :alt="''" aria-hidden="true" class="h-4 w-4 object-contain opacity-60 group-hover:opacity-100 transition-opacity" />
@@ -213,6 +226,21 @@ const { formatNum } = useOgameFormulas();
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+/* ── Piano Fusioni: highlighted, warm against the blue page ───────── */
+.fusion-banner {
+  display: flex;
+  text-decoration: none;
+  background: linear-gradient(100deg, rgba(120, 72, 10, 0.32), rgba(15, 23, 42, 0.6) 60%);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  box-shadow: inset 0 1px 0 rgba(253, 230, 138, 0.08);
+  transition: border-color 0.2s, background 0.2s;
+}
+.fusion-banner:hover {
+  border-color: rgba(252, 211, 77, 0.7);
+  background: linear-gradient(100deg, rgba(146, 88, 12, 0.42), rgba(15, 23, 42, 0.6) 60%);
+}
+.fusion-banner:focus-visible { outline: 2px solid rgb(252, 211, 77); outline-offset: 3px; }
 
 /* ── External links riga compatta ────────────────────────────────── */
 .ext-link {

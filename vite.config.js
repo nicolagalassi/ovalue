@@ -38,6 +38,9 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,png,ico,svg,woff2}'],
+        // /fusion/ is the Exodus rankings, proxied from GitHub Pages (public/_redirects): the service worker must
+        // let those pages through instead of answering with the Vue app's index.html
+        navigateFallbackDenylist: [/^\/fusion/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/cloud\.umami\.is\/.*/i,

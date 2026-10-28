@@ -4,7 +4,9 @@ import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import Footer from '../components/Footer.vue';
 
-const { t } = useLanguage();
+const { t, currentLang } = useLanguage();
+// Exodus speaks Italian and English only: Italian stays Italian, every other language opens it in English
+const fusionHref = () => `/fusion/?lang=${currentLang.value === 'it' ? 'it' : 'en'}`;
 const { activeProfile } = useProfiles();
 const { formatNum } = useOgameFormulas();
 
@@ -141,6 +143,12 @@ const { formatNum } = useOgameFormulas();
       <!-- ── EXTERNAL LINKS — riga compatta ───────────────────────────────── -->
       <div class="px-4 md:px-6 py-3 max-w-4xl mx-auto w-full">
         <div class="flex items-center justify-center gap-2 flex-wrap">
+          <!-- the merge rankings, a separate static site proxied under /fusion/ (public/_redirects): a full page
+               load, not a router-link, so the Vue app and its service worker stay out of the way -->
+          <a :href="fusionHref()" class="ext-link group">
+            <svg class="w-3.5 h-3.5 text-sky-500/60 group-hover:text-sky-400 transition-colors" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/></svg>
+            <span>{{ t('home_fusion_title') }}</span>
+          </a>
           <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer"
              class="ext-link group">
             <img src="/Immagini%20Ogame/ostats-logo-v3.png" :alt="''" aria-hidden="true" class="h-4 w-4 object-contain opacity-60 group-hover:opacity-100 transition-opacity" />

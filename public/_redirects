@@ -1,1 +1,8 @@
+# Exodus, the merged rankings of the 2026 merges: built and published by its own repo
+# (nicolagalassi/ogame-exodus) on GitHub Pages every 3 hours, shown here under /fusion/ through a proxy, so
+# its data refreshes never cost a Netlify build. Only the official public OGame API is read there.
+# These must stay above the catch-all of the Vue app.
+/fusion    /fusion/   301
+/fusion/*  https://nicolagalassi.github.io/ogame-exodus/:splat  200
+
 /* /index.html  200

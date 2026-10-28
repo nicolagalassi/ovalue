@@ -126,7 +126,7 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 ## App OValue
 
 ### Aggiunto
-- **Piano Fusioni** in home, riquadro evidenziato sotto i quattro strumenti (tradotto in IT/EN/DE/FR): apre `/fusion/`, le classifiche unite
+- **Piano Fusioni** in home, riquadro evidenziato sotto i quattro strumenti, largo come due (tradotto in IT/EN/DE/FR): apre `/fusion/`, le classifiche unite
   delle fusioni 2026 (Exodus). Il sito resta nel suo repo (`nicolagalassi/ogame-exodus`) su
   GitHub Pages e Netlify lo mostra sotto `/fusion/` con un proxy (`public/_redirects`), così gli
   aggiornamenti dei dati non costano build. Il service worker non intercetta `/fusion/`

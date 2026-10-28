@@ -142,20 +142,23 @@ const { formatNum } = useOgameFormulas();
         <!-- ── PIANO FUSIONI ─────────────────────────────────────────────────
              the merge rankings, a separate static site proxied under /fusion/ (public/_redirects): a full page
              load, not a router-link, so the Vue app and its service worker stay out of the way -->
-        <a :href="fusionHref()"
-           class="fusion-banner group relative mt-5 w-full max-w-6xl mx-auto flex items-center gap-4 md:gap-6 rounded-2xl px-5 md:px-8 py-5 md:py-6 overflow-hidden">
-          <div class="flex-shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-xl bg-amber-950/60 border border-amber-400/40 flex items-center justify-center group-hover:border-amber-300/70 transition-colors">
-            <svg class="w-6 h-6 md:w-7 md:h-7 text-amber-300" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/></svg>
-          </div>
-          <div class="flex-grow min-w-0 text-left">
-            <div class="flex items-center gap-2 flex-wrap">
-              <h2 class="text-lg md:text-2xl font-bold text-amber-200 uppercase tracking-tight">{{ t('home_fusion_title') }}</h2>
-              <span class="text-[10px] md:text-xs font-bold uppercase tracking-widest text-amber-950 bg-amber-300 rounded px-1.5 py-0.5">2026</span>
+        <!-- the same 4-column grid as the cards, so the banner is exactly two cards wide and centred -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-6xl mx-auto mt-5">
+          <a :href="fusionHref()"
+             class="fusion-banner group relative sm:col-span-2 lg:col-start-2 flex items-center gap-3 md:gap-4 rounded-2xl px-4 md:px-5 py-3.5 md:py-4 overflow-hidden">
+            <div class="flex-shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-xl bg-amber-950/60 border border-amber-400/40 flex items-center justify-center group-hover:border-amber-300/70 transition-colors">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-amber-300" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/></svg>
             </div>
-            <p class="text-sm md:text-base text-slate-400 leading-snug mt-1">{{ t('home_fusion_desc') }}</p>
-          </div>
-          <span class="flex-shrink-0 text-2xl md:text-3xl text-amber-400/70 group-hover:text-amber-300 group-hover:translate-x-1 transition-all" aria-hidden="true">›</span>
-        </a>
+            <div class="flex-grow min-w-0 text-left">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="text-base md:text-lg font-bold text-amber-200 uppercase tracking-tight">{{ t('home_fusion_title') }}</h2>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-amber-950 bg-amber-300 rounded px-1.5 py-0.5">2026</span>
+              </div>
+              <p class="text-xs md:text-sm text-slate-400 leading-snug mt-0.5">{{ t('home_fusion_desc') }}</p>
+            </div>
+            <span class="flex-shrink-0 text-xl md:text-2xl text-amber-400/70 group-hover:text-amber-300 group-hover:translate-x-1 transition-all" aria-hidden="true">›</span>
+          </a>
+        </div>
       </div>
 
       <!-- ── EXTERNAL LINKS — riga compatta ───────────────────────────────── -->

@@ -25,3 +25,6 @@ local/
 *.njsproj
 *.sln
 *.sw?
+
+# Cloudflare wrangler local state
+.wrangler/

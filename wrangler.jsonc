@@ -1,0 +1,14 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "ovalue",
+	"compatibility_date": "2026-10-01",
+	"main": "./worker/index.js",
+	"assets": {
+		"directory": "./dist/",
+		"binding": "ASSETS",
+		// Vue Router in history mode: every unknown path gets index.html.
+		"not_found_handling": "single-page-application",
+		// Only /fusion goes through the Worker (proxy to Exodus); everything else is a plain static asset.
+		"run_worker_first": ["/fusion", "/fusion/*"]
+	}
+}

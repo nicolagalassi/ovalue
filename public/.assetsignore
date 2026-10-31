@@ -1,3 +1,0 @@
-# Read by Cloudflare (Workers static assets), copied into dist/ by Vite.
-# _redirects is Netlify's: its external 200 proxy is not supported here, /fusion is handled by worker/index.js.
-_redirects

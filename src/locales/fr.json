@@ -496,5 +496,6 @@
     "strategy_stale_sim_title": "Les hypothèses de simulation ont changé après ce calcul",
     "strategy_sim_crawlers_profile_hint": "Seulement vos crawlers : le départ correspond au Production Core, mais monter les mines n'augmente pas le bonus crawlers tant que vous n'en construisez pas d'autres.",
     "strategy_sim_on": "Activé",
-    "strategy_sim_off": "Désactivé"
+    "strategy_sim_off": "Désactivé",
+    "strategy_sim_overload_noeffect": "Sans effet avec la classe actuelle : la surcharge ne compte que pour le Collecteur. Choisissez Collecteur dans Classe du joueur pour la simuler."
 }

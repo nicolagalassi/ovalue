@@ -832,5 +832,6 @@
     "strategy_stale_sim_title": "Hai cambiato le ipotesi di simulazione dopo questo calcolo",
     "strategy_sim_crawlers_profile_hint": "Solo i crawler che hai: la partenza coincide col Production Core, ma alzare le miniere non aumenta il bonus crawler finché non ne costruisci altri.",
     "strategy_sim_on": "Attivo",
-    "strategy_sim_off": "Spento"
+    "strategy_sim_off": "Spento",
+    "strategy_sim_overload_noeffect": "Senza effetto con la classe attuale: il sovraccarico conta solo da Collezionista. Scegli Collezionista in Classe giocatore per simularlo."
 }

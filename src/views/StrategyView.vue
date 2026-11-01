@@ -221,7 +221,9 @@ const simOptions = computed(() => {
           hint: t(crawlerMode.value === 'max' ? 'strategy_sim_crawlers_max_hint' : 'strategy_sim_crawlers_profile_hint') },
         { key: 'overload', label: 'strategy_sim_overload', model: overloadMode,
           choices: [{ value: 'all', text: t('strategy_sim_on') }, { value: 'none', text: t('strategy_sim_off') }, profile],
-          hint: t('strategy_sim_overload_hint') },
+          // Senza Collezionista il sovraccarico non cambia nulla: lo si dice invece di tacere
+          hint: t(currentSimState.value?.settings?.playerClass === 'collector'
+              ? 'strategy_sim_overload_hint' : 'strategy_sim_overload_noeffect') },
         { key: 'item', label: 'lbl_item', model: itemMode,
           choices: [profile, none, ...ITEM_STEPS.map(v => ({ value: v, text: `+${v}%` }))] },
         { key: 'itemCustom', label: 'lbl_item_additional', model: itemCustomMode,

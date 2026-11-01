@@ -830,5 +830,6 @@
     "strategy_stale_sim_title": "Simulation assumptions changed after this plan was computed",
     "strategy_sim_crawlers_profile_hint": "Only the crawlers you own: the start matches the Production Core, but raising mines does not increase the crawler bonus until you build more.",
     "strategy_sim_on": "On",
-    "strategy_sim_off": "Off"
+    "strategy_sim_off": "Off",
+    "strategy_sim_overload_noeffect": "No effect with the current class: overload only applies to the Collector. Choose Collector under Player class to simulate it."
 }

@@ -496,5 +496,6 @@
     "strategy_stale_sim_title": "Die Simulationsannahmen haben sich nach dieser Berechnung geändert",
     "strategy_sim_crawlers_profile_hint": "Nur die vorhandenen Crawler: Der Start entspricht dem Production Core, aber höhere Minen erhöhen den Crawler-Bonus erst, wenn du mehr baust.",
     "strategy_sim_on": "An",
-    "strategy_sim_off": "Aus"
+    "strategy_sim_off": "Aus",
+    "strategy_sim_overload_noeffect": "Ohne Wirkung mit der aktuellen Klasse: Überlastung gilt nur für den Sammler. Wähle Sammler unter Spielerklasse, um sie zu simulieren."
 }

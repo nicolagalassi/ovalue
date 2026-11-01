@@ -42,15 +42,14 @@ export function useOgameFormulas() {
     // Restituisce tutti i valori numerici necessari al display e al calcolo.
     //
     // options:
-    //   lifeform       — override della lifeform (per il planner); default: planet.lifeform
-    //   useMaxCrawlers — usa il cap come crawler effettivi (planner); default: false
+    //   lifeform — override della lifeform (per il planner); default: planet.lifeform
     //
     // Nota: "bonusProd" è il contributo del totPerc sul mineBase (non arrotondato);
     // il totale orario è natProd + mineBase + bonusProd e va arrotondato solo sul
     // giornaliero (Math.floor(hourly * 24)). La somma di .total su tutti i pianeti
     // è esattamente uguale all'hourly del footer MetalCalc.
     const calcPlanetMetalProduction = (planet, settings, lfResearchPct, options = {}) => {
-        const { lifeform: lfOverride = null, useMaxCrawlers = false } = options;
+        const { lifeform: lfOverride = null } = options;
 
         const ecoSpeed   = settings.ecoSpeed || 1;
         const isCollector = settings.playerClass === 'collector';
@@ -85,7 +84,7 @@ export function useOgameFormulas() {
         const maxCraw  = calcCrawlerCap(met, planet.crystal, planet.deuterium,
                                         isCollector, settings.geologist, settings.rocktalEnhancement);
         const rawCraw  = parseInt(planet.crawlers) || 0;
-        const actCraw  = useMaxCrawlers ? maxCraw : Math.min(rawCraw, maxCraw);
+        const actCraw  = Math.min(rawCraw, maxCraw);
         if (actCraw > 0) {
             let mult = 0.02;
             if (isCollector) {

@@ -105,3 +105,18 @@ describe('planner — avanzamento del piano', () => {
         expect(fingerprint(other, plan.steps)).not.toBe(fingerprint(profile, null));
     });
 });
+
+// Senza ipotesi di simulazione il planner parte dalla stessa produzione del
+// Production Core. Prima assumeva i crawler sempre al cap e "veritate" (un
+// pianeta senza crawler) partiva ~1,8M/giorno più in alto.
+describe('planner — partenza uguale al Production Core', () => {
+    for (const name of ['veritate', 'nembus', 'amico']) {
+        it(name, () => {
+            const profile = profileFromFixture(name);
+            const state = buildInitialState(profile, []);
+            expect(simulateDailyProduction(state)).toBe(profile.production.daily);
+            const plan = runPlanner(state, { ...OPTS, target: profile.production.daily + 1, maxSteps: 1 });
+            expect(plan.initialProd).toBe(profile.production.daily);
+        });
+    }
+});

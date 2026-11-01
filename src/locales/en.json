@@ -816,5 +816,15 @@
     "diag_blocked_forget_confirm_one": "Delete the data for {server} stored by the exporter? If you play there again it will be collected again when you open the Overview in OGame.",
     "diag_blocked_forget_confirm_many": "Delete the data for {n} universes stored by the exporter? If you play there again it will be collected again when you open the Overview in OGame.",
     "diag_blocked_forget_pending": "Deleting…",
-    "diag_blocked_forget_pending_hint": "Waiting for the exporter (version 4.5.2 or later, active on this page). If it stays here, update the exporter and reload OValue."
+    "diag_blocked_forget_pending_hint": "Waiting for the exporter (version 4.5.2 or later, active on this page). If it stays here, update the exporter and reload OValue.",
+    "strategy_sim_title": "Simulation assumptions",
+    "strategy_sim_profile": "Profile",
+    "strategy_sim_all": "All",
+    "strategy_sim_crawlers": "Crawlers",
+    "strategy_sim_crawlers_max": "At cap",
+    "strategy_sim_crawlers_max_hint": "Every planet always has the maximum allowed crawlers, which grows with the mines.",
+    "strategy_sim_overload": "Crawler overload (150%)",
+    "strategy_sim_overload_hint": "Only applies to the Collector class.",
+    "strategy_sim_start_prod": "Simulated production",
+    "strategy_lf_activate_hint": "Selected researches that have levels on your planets also count as active in the starting production."
 }

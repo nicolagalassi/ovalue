@@ -818,5 +818,15 @@
     "diag_blocked_forget_confirm_one": "Eliminare i dati di {server} salvati dall'exporter? Se tornerai a giocarci verranno raccolti di nuovo aprendo la Panoramica in OGame.",
     "diag_blocked_forget_confirm_many": "Eliminare i dati di {n} universi salvati dall'exporter? Se tornerai a giocarci verranno raccolti di nuovo aprendo la Panoramica in OGame.",
     "diag_blocked_forget_pending": "In eliminazione…",
-    "diag_blocked_forget_pending_hint": "In attesa dell'exporter (serve la versione 4.5.2 o successiva, attiva su questa pagina). Se resta qui, aggiorna l'exporter e ricarica OValue."
+    "diag_blocked_forget_pending_hint": "In attesa dell'exporter (serve la versione 4.5.2 o successiva, attiva su questa pagina). Se resta qui, aggiorna l'exporter e ricarica OValue.",
+    "strategy_sim_title": "Ipotesi di simulazione",
+    "strategy_sim_profile": "Profilo",
+    "strategy_sim_all": "Tutti",
+    "strategy_sim_crawlers": "Crawler",
+    "strategy_sim_crawlers_max": "Al massimo",
+    "strategy_sim_crawlers_max_hint": "Ogni pianeta ha sempre i crawler al massimo consentito, che sale con le miniere.",
+    "strategy_sim_overload": "Sovraccarico crawler (150%)",
+    "strategy_sim_overload_hint": "Conta solo da Collezionista.",
+    "strategy_sim_start_prod": "Produzione simulata",
+    "strategy_lf_activate_hint": "Le ricerche selezionate che hanno livelli sui pianeti contano come attive anche nella produzione di partenza."
 }

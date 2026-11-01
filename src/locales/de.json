@@ -482,5 +482,15 @@
     "diag_blocked_forget_confirm_one": "Die vom Exporter gespeicherten Daten von {server} löschen? Spielst du dort wieder, werden sie beim Öffnen der Übersicht in OGame erneut erfasst.",
     "diag_blocked_forget_confirm_many": "Die vom Exporter gespeicherten Daten von {n} Universen löschen? Spielst du dort wieder, werden sie beim Öffnen der Übersicht in OGame erneut erfasst.",
     "diag_blocked_forget_pending": "Wird gelöscht…",
-    "diag_blocked_forget_pending_hint": "Warte auf den Exporter (Version 4.5.2 oder neuer, auf dieser Seite aktiv). Bleibt es hier stehen, aktualisiere den Exporter und lade OValue neu."
+    "diag_blocked_forget_pending_hint": "Warte auf den Exporter (Version 4.5.2 oder neuer, auf dieser Seite aktiv). Bleibt es hier stehen, aktualisiere den Exporter und lade OValue neu.",
+    "strategy_sim_title": "Simulationsannahmen",
+    "strategy_sim_profile": "Profil",
+    "strategy_sim_all": "Alle",
+    "strategy_sim_crawlers": "Crawler",
+    "strategy_sim_crawlers_max": "Maximal",
+    "strategy_sim_crawlers_max_hint": "Jeder Planet hat immer die maximal erlaubten Crawler; das Maximum steigt mit den Minen.",
+    "strategy_sim_overload": "Crawler-Überlastung (150%)",
+    "strategy_sim_overload_hint": "Gilt nur für die Sammler-Klasse.",
+    "strategy_sim_start_prod": "Simulierte Produktion",
+    "strategy_lf_activate_hint": "Ausgewählte Forschungen mit Stufen auf deinen Planeten zählen auch in der Startproduktion als aktiv."
 }

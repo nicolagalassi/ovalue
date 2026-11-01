@@ -482,5 +482,20 @@
     "diag_blocked_forget_confirm_one": "Die vom Exporter gespeicherten Daten von {server} löschen? Spielst du dort wieder, werden sie beim Öffnen der Übersicht in OGame erneut erfasst.",
     "diag_blocked_forget_confirm_many": "Die vom Exporter gespeicherten Daten von {n} Universen löschen? Spielst du dort wieder, werden sie beim Öffnen der Übersicht in OGame erneut erfasst.",
     "diag_blocked_forget_pending": "Wird gelöscht…",
-    "diag_blocked_forget_pending_hint": "Warte auf den Exporter (Version 4.5.2 oder neuer, auf dieser Seite aktiv). Bleibt es hier stehen, aktualisiere den Exporter und lade OValue neu."
+    "diag_blocked_forget_pending_hint": "Warte auf den Exporter (Version 4.5.2 oder neuer, auf dieser Seite aktiv). Bleibt es hier stehen, aktualisiere den Exporter und lade OValue neu.",
+    "strategy_sim_title": "Simulationsannahmen",
+    "strategy_sim_profile": "Profil",
+    "strategy_sim_all": "Alle",
+    "strategy_sim_crawlers": "Crawler",
+    "strategy_sim_crawlers_max": "Maximal",
+    "strategy_sim_crawlers_max_hint": "Standard. Jeder Planet hat immer die maximal erlaubten Crawler, und das Maximum steigt mit den Minen: Upgrades enthalten die zusätzlich zu bauenden Crawler. Hat ein Planet weniger, liegt die Startproduktion über dem Production Core (siehe Differenz oben).",
+    "strategy_sim_overload": "Crawler-Überlastung (150%)",
+    "strategy_sim_overload_hint": "Crawler auf 150 % auf allen Planeten. Gilt nur für den Sammler; die Wahl der Sammler-Klasse schaltet es ein.",
+    "strategy_sim_start_prod": "Simulierte Produktion",
+    "strategy_lf_activate_hint": "Ausgewählte Forschungen mit Stufen auf deinen Planeten zählen auch in der Startproduktion als aktiv.",
+    "strategy_stale_sim_title": "Die Simulationsannahmen haben sich nach dieser Berechnung geändert",
+    "strategy_sim_crawlers_profile_hint": "Nur die vorhandenen Crawler: Der Start entspricht dem Production Core, aber höhere Minen erhöhen den Crawler-Bonus erst, wenn du mehr baust.",
+    "strategy_sim_on": "An",
+    "strategy_sim_off": "Aus",
+    "strategy_sim_overload_noeffect": "Ohne Wirkung mit der aktuellen Klasse: Überlastung gilt nur für den Sammler. Wähle Sammler unter Spielerklasse, um sie zu simulieren."
 }

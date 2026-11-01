@@ -76,9 +76,12 @@ const toMSU = (cost, pack) => {
 };
 
 // ───── Simulatore produzione ───────────────────────────────────────────────
-// Wrapper su calcPlanetMetalProduction (unica fonte di verità in useOgameFormulas).
-// Differenze rispetto a MetalCalc: useMaxCrawlers=true (assume crawler sempre al cap)
-// e supporta l'override della lifeform per-pianeta tramite lfChoice.
+// Wrapper su calcPlanetMetalProduction (unica fonte di verità in useOgameFormulas):
+// stesso calcolo del Production Core, crawler compresi (min tra posseduti e cap).
+// Le ipotesi di simulazione (crawler al massimo, sovraccarico, item, classe) non
+// vivono qui: le applica la vista sullo stato prima di passarlo al planner, così
+// senza ipotesi la produzione di partenza coincide con quella del Production Core.
+// Unica differenza: l'override della lifeform per-pianeta tramite lfChoice.
 //
 // Accetta opzionalmente `precomp.lfBonus` (risultato già calcolato di
 // calcLFResearchBonus) per evitare di ricalcolarlo per ogni candidato nel loop.
@@ -88,8 +91,7 @@ const simulateDailyProduction = (state, precomp = null) => {
     let hourly = 0;
     planets.forEach((p, idx) => {
         hourly += calcPlanetMetalProduction(p, settings, lfResearchPct, {
-            lifeform: effectiveLifeform(p, lfChoice[idx]),
-            useMaxCrawlers: true
+            lifeform: effectiveLifeform(p, lfChoice[idx])
         }).total;
     });
     return Math.floor(hourly * 24);
@@ -339,8 +341,7 @@ export const runPlanner = (initialState, options = {}) => {
 
     const planetCalc = (idx, pct = lfPct) =>
         calcPlanetMetalProduction(state.planets[idx], state.settings, pct, {
-            lifeform: effectiveLifeform(state.planets[idx], state.lfChoice[idx]),
-            useMaxCrawlers: true
+            lifeform: effectiveLifeform(state.planets[idx], state.lfChoice[idx])
         });
     const planetHourly = (idx, pct = lfPct) => planetCalc(idx, pct).total;
 

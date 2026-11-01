@@ -816,5 +816,20 @@
     "diag_blocked_forget_confirm_one": "Delete the data for {server} stored by the exporter? If you play there again it will be collected again when you open the Overview in OGame.",
     "diag_blocked_forget_confirm_many": "Delete the data for {n} universes stored by the exporter? If you play there again it will be collected again when you open the Overview in OGame.",
     "diag_blocked_forget_pending": "Deleting…",
-    "diag_blocked_forget_pending_hint": "Waiting for the exporter (version 4.5.2 or later, active on this page). If it stays here, update the exporter and reload OValue."
+    "diag_blocked_forget_pending_hint": "Waiting for the exporter (version 4.5.2 or later, active on this page). If it stays here, update the exporter and reload OValue.",
+    "strategy_sim_title": "Simulation assumptions",
+    "strategy_sim_profile": "Profile",
+    "strategy_sim_all": "All",
+    "strategy_sim_crawlers": "Crawlers",
+    "strategy_sim_crawlers_max": "At cap",
+    "strategy_sim_crawlers_max_hint": "Default. Every planet always has the maximum allowed crawlers, and the maximum grows with the mines: upgrades include the extra crawlers to build. If some planet has fewer, the starting production is higher than the Production Core (see the difference above).",
+    "strategy_sim_overload": "Crawler overload (150%)",
+    "strategy_sim_overload_hint": "Crawlers at 150% on every planet. Only applies to the Collector; choosing Collector as class turns it on.",
+    "strategy_sim_start_prod": "Simulated production",
+    "strategy_lf_activate_hint": "Selected researches that have levels on your planets also count as active in the starting production.",
+    "strategy_stale_sim_title": "Simulation assumptions changed after this plan was computed",
+    "strategy_sim_crawlers_profile_hint": "Only the crawlers you own: the start matches the Production Core, but raising mines does not increase the crawler bonus until you build more.",
+    "strategy_sim_on": "On",
+    "strategy_sim_off": "Off",
+    "strategy_sim_overload_noeffect": "No effect with the current class: overload only applies to the Collector. Choose Collector under Player class to simulate it."
 }

@@ -41,6 +41,21 @@ const packMode = ref('dynamic');           // 'dynamic' | 'fixed'
 const packBatch = ref(10);                 // pacchi per aggiornamento valore dinamico
 const playerClassOverride = ref('inherit'); // 'inherit' | 'collector'
 
+// Ipotesi di simulazione. Con tutte su 'profile' la produzione di partenza del
+// planner coincide con quella del Production Core.
+//   crawlerMode:    'max' | 'profile'          (sempre al cap, oppure solo i posseduti)
+//   overloadMode:   'profile' | 'all' | 'none' (sovraccarico 150%, solo Collezionista)
+//   itemMode:       'profile' | 0 | 10..40     (amplificatore metallo per pianeta)
+//   itemCustomMode: 'profile' | 0 | 15..40     (amplificatore di risorse per pianeta)
+// Crawler al massimo di default: alzando le miniere sale anche il cap e il planner
+// deve poter contare i crawler in più, altrimenti sottostima miniere e cap crawler.
+// La card mostra comunque il valore del Production Core e lo scarto.
+const crawlerMode = ref('max');
+const overloadMode = ref('profile');
+const itemMode = ref('profile');
+const itemCustomMode = ref('profile');
+const ITEM_STEPS = [10, 20, 30, 40];
+const ITEM_CUSTOM_STEPS = [15, 20, 25, 30, 40];
 // ───── Persistenza configurazione ────────────────────────────────────────
 const STRATEGY_CFG_KEY = 'ovalue_strategy_config';
 const _saveConfig = () => {
@@ -61,6 +76,10 @@ const _saveConfig = () => {
             maxSteps: maxSteps.value,
             shopDiscount: shopDiscount.value,
             moBonus: moBonus.value,
+            crawlerMode: crawlerMode.value,
+            overloadMode: overloadMode.value,
+            itemMode: itemMode.value,
+            itemCustomMode: itemCustomMode.value,
         }));
     } catch {}
 };
@@ -170,13 +189,47 @@ onMounted(() => {
         if (cfg.maxSteps !== undefined)              maxSteps.value = cfg.maxSteps;
         if (cfg.shopDiscount !== undefined)          shopDiscount.value = cfg.shopDiscount;
         if (cfg.moBonus !== undefined)               moBonus.value = cfg.moBonus;
+        if (cfg.crawlerMode !== undefined)           crawlerMode.value = cfg.crawlerMode;
+        if (cfg.overloadMode !== undefined)          overloadMode.value = cfg.overloadMode;
+        if (cfg.itemMode !== undefined)              itemMode.value = cfg.itemMode;
+        if (cfg.itemCustomMode !== undefined)        itemCustomMode.value = cfg.itemCustomMode;
     } catch {}
 });
 watch(
     [packMode, packBatch, playerClassOverride, includeMines, includeCrawlerMines, includePlasma, includeLf, includeLfResearch,
-     capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus],
+     capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus,
+     crawlerMode, overloadMode, itemMode, itemCustomMode],
     _saveConfig
 );
+// Simulare il Collezionista partendo da un'altra classe: in pratica lo si gioca col
+// sovraccarico dei crawler, quindi lo si propone attivo (resta modificabile).
+// Solo sul click dell'utente, non al caricamento della configurazione salvata.
+const chooseClassOverride = (v) => {
+    if (v === 'collector' && playerClassOverride.value !== 'collector' && overloadMode.value === 'profile') {
+        overloadMode.value = 'all';
+    }
+    playerClassOverride.value = v;
+};
+
+// Opzioni del riquadro "Ipotesi di simulazione" (model = ref da impostare)
+const simOptions = computed(() => {
+    const profile = { value: 'profile', text: t('strategy_sim_profile') };
+    const none = { value: 0, text: t('opt_none') };
+    return [
+        { key: 'crawler', label: 'strategy_sim_crawlers', model: crawlerMode,
+          choices: [{ value: 'max', text: t('strategy_sim_crawlers_max') }, profile],
+          hint: t(crawlerMode.value === 'max' ? 'strategy_sim_crawlers_max_hint' : 'strategy_sim_crawlers_profile_hint') },
+        { key: 'overload', label: 'strategy_sim_overload', model: overloadMode,
+          choices: [{ value: 'all', text: t('strategy_sim_on') }, { value: 'none', text: t('strategy_sim_off') }, profile],
+          // Senza Collezionista il sovraccarico non cambia nulla: lo si dice invece di tacere
+          hint: t(currentSimState.value?.settings?.playerClass === 'collector'
+              ? 'strategy_sim_overload_hint' : 'strategy_sim_overload_noeffect') },
+        { key: 'item', label: 'lbl_item', model: itemMode,
+          choices: [profile, none, ...ITEM_STEPS.map(v => ({ value: v, text: `+${v}%` }))] },
+        { key: 'itemCustom', label: 'lbl_item_additional', model: itemCustomMode,
+          choices: [profile, none, ...ITEM_CUSTOM_STEPS.map(v => ({ value: v, text: `+${v}%` }))] },
+    ];
+});
 
 // ───── Stato del planner per profilo ─────────────────────────────────────
 // La configurazione sopra è globale (preferenze di calcolo). Target, selezioni
@@ -340,11 +393,25 @@ const restoreProfileState = (profile) => {
     coreHashAtPlan.value = saved.coreHash || null;
 };
 
-// Il piano è disallineato se il core è cambiato dopo il calcolo.
-const planIsStale = computed(() => {
-    if (!result.value || !coreHashAtPlan.value) return false;
-    return coreFingerprint(activeProfile.value, result.value.steps) !== coreHashAtPlan.value;
+// Il piano è disallineato se il core è cambiato dopo il calcolo, oppure se sono
+// cambiate le ipotesi con cui è stato calcolato (classe, crawler, item, ricerche…).
+// I piani salvati prima che esistesse simKey non hanno ipotesi da confrontare.
+const simAssumptionsKey = computed(() => JSON.stringify({
+    cls: playerClassOverride.value,
+    craw: crawlerMode.value,
+    ovl: overloadMode.value,
+    item: itemMode.value,
+    amp: itemCustomMode.value,
+    lf: includeLfResearch.value ? [...lfResearchIds.value].map(String).sort() : null,
+    lfc: lfChoice.value
+}));
+const staleReason = computed(() => {
+    if (!result.value) return null;
+    if (coreHashAtPlan.value && coreFingerprint(activeProfile.value, result.value.steps) !== coreHashAtPlan.value) return 'core';
+    if (result.value.simKey && result.value.simKey !== simAssumptionsKey.value) return 'sim';
+    return null;
 });
+const planIsStale = computed(() => staleReason.value !== null);
 
 // Sync con profilo attivo: ripristina lo stato salvato per quel profilo.
 // `activeProfile` ri-emette anche a ogni salvataggio del profilo (sync, modifiche
@@ -374,12 +441,35 @@ onMounted(() => window.addEventListener('pagehide', onPageHide));
 watch([target, lfResearchIds, doneSteps, typeFilter, result, stock, goalMode, goalMSU], saveProfileState);
 watch(lfChoice, saveProfileState, { deep: true });
 
-// Applica gli override locali (classe) allo stato iniziale.
+// Applica le ipotesi di simulazione allo stato iniziale (copia: il profilo non
+// viene mai toccato). Con tutte le opzioni su "come nel profilo" lo stato resta
+// identico a quello del Production Core.
 const applyOverrides = (state) => {
     if (!state) return state;
     if (playerClassOverride.value && playerClassOverride.value !== 'inherit') {
         state.settings.playerClass = playerClassOverride.value;
     }
+    // Ricerche LF selezionate: se hanno livelli su un pianeta contano come attive.
+    // Così "attivale tutte" alza la produzione di partenza invece di valere solo
+    // per gli upgrade futuri. Solo con la categoria Ricerche LF accesa (la lista
+    // è visibile solo lì) e senza mai spegnere quelle già attive nel profilo.
+    const activateIds = includeLfResearch.value ? new Set(lfResearchIds.value.map(String)) : null;
+    state.planets.forEach(p => {
+        // Crawler al massimo: tanti da arrivare sempre al cap, che cresce con le miniere
+        if (crawlerMode.value === 'max') p.crawlers = Number.MAX_SAFE_INTEGER;
+        if (overloadMode.value === 'all') p.overload = true;
+        else if (overloadMode.value === 'none') p.overload = false;
+        if (itemMode.value !== 'profile') p.item = Number(itemMode.value) || 0;
+        if (itemCustomMode.value !== 'profile') p.itemCustom = Number(itemCustomMode.value) || 0;
+        if (activateIds) {
+            Object.entries(p.lfResearch || {}).forEach(([id, lvl]) => {
+                if ((parseInt(lvl) || 0) > 0 && activateIds.has(String(id))) {
+                    if (!p.lfActive) p.lfActive = {};
+                    p.lfActive[id] = true;
+                }
+            });
+        }
+    });
     return state;
 };
 
@@ -749,7 +839,8 @@ const finalizePlan = (planRes, initialState, kept = null) => {
     result.value = {
         ...res,
         lfChoiceSnapshot: [...lfChoice.value],
-        targetSnapshot: parseInt(target.value) || 0
+        targetSnapshot: parseInt(target.value) || 0,
+        simKey: simAssumptionsKey.value
     };
     // Impronta del core usata per questo calcolo: se cambia, il piano va segnalato.
     // Con step tenuti si riavvolge anche il loro avanzamento, come fa planIsStale.
@@ -1114,9 +1205,19 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 items-start">
                 <!-- Produzione attuale -->
                 <div class="col-span-2 md:col-span-1 bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
-                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_current_prod') }}</div>
+                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">
+                        {{ currentProd !== profileDailyProd && profileDailyProd > 0 ? t('strategy_sim_start_prod') : t('strategy_current_prod') }}
+                    </div>
                     <div class="text-2xl font-black text-slate-200 font-mono">{{ formatNum(currentProd) }}</div>
                     <div class="text-[10px] text-slate-600 mt-1">{{ t('lbl_dm') }} / {{ t('strategy_per_day') }}</div>
+                    <!-- Con ipotesi attive la partenza differisce dal Production Core: si mostrano entrambi -->
+                    <div v-if="currentProd !== profileDailyProd && profileDailyProd > 0"
+                         class="text-[10px] text-slate-500 mt-1.5 font-mono">
+                        Production Core: {{ formatNum(profileDailyProd) }}
+                        <span :class="currentProd > profileDailyProd ? 'text-emerald-400' : 'text-red-400'">
+                            ({{ currentProd > profileDailyProd ? '+' : '' }}{{ ((currentProd / profileDailyProd - 1) * 100).toFixed(1) }}%)
+                        </span>
+                    </div>
                 </div>
                 <!-- Obiettivo: produzione da raggiungere oppure spesa da fare -->
                 <div class="col-span-2 md:col-span-1 bg-ogame-surface rounded-xl p-4 border border-emerald-500/25">
@@ -1275,12 +1376,12 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
                     <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">{{ t('lbl_player_class') }}</div>
                     <div class="flex gap-1 bg-black/30 p-1 rounded-xl border border-slate-700/20">
-                        <button @click="playerClassOverride = 'inherit'"
+                        <button @click="chooseClassOverride('inherit')"
                                 class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
                                 :class="playerClassOverride === 'inherit' ? 'bg-slate-700/70 text-slate-100' : 'text-slate-600 hover:text-slate-400'">
                             {{ t('strategy_lf_inherit') }}
                         </button>
-                        <button @click="playerClassOverride = 'collector'"
+                        <button @click="chooseClassOverride('collector')"
                                 class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
                                 :class="playerClassOverride === 'collector' ? 'bg-amber-500/20 border border-amber-400/35 text-amber-200' : 'text-slate-600 hover:text-slate-400'">
                             Collezionista
@@ -1291,6 +1392,27 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             ? t(playerClassLabelKey)
                             : t('opt_collector') }}
                     </p>
+                </div>
+            </div>
+
+            <!-- Ipotesi di simulazione: su "Profilo" la partenza coincide col Production Core -->
+            <div class="pt-4 pb-1 border-t border-slate-700/20">
+                <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">{{ t('strategy_sim_title') }}</div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                    <div v-for="opt in simOptions" :key="opt.key" class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
+                        <div class="text-[10px] text-slate-400 font-semibold mb-2">{{ t(opt.label) }}</div>
+                        <div class="flex flex-wrap gap-1">
+                            <button v-for="c in opt.choices" :key="String(c.value)"
+                                    @click="opt.model.value = c.value"
+                                    class="px-2 py-1 text-[10px] font-semibold rounded-md border transition-colors"
+                                    :class="opt.model.value === c.value
+                                        ? 'bg-emerald-500/15 border-emerald-400/35 text-emerald-200'
+                                        : 'border-slate-700/30 text-slate-500 hover:text-slate-300'">
+                                {{ c.text }}
+                            </button>
+                        </div>
+                        <p v-if="opt.hint" class="text-[9px] text-slate-600 mt-1.5 leading-tight">{{ opt.hint }}</p>
+                    </div>
                 </div>
             </div>
 
@@ -1312,6 +1434,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         </button>
                     </div>
                 </div>
+                <p class="text-[10px] text-slate-500 -mt-1 mb-2 leading-snug">{{ t('strategy_lf_activate_hint') }}</p>
                 <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
                     <!-- Griglia a colonne fisse invece di flex-wrap: i nomi hanno
                          lunghezze molto diverse e a capo libero le chip risultavano
@@ -1513,7 +1636,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                 </svg>
                 <div class="flex-1 min-w-0">
-                    <div class="text-[12px] font-bold text-amber-200 leading-snug">{{ t('strategy_stale_title') }}</div>
+                    <div class="text-[12px] font-bold text-amber-200 leading-snug">{{ t(staleReason === 'sim' ? 'strategy_stale_sim_title' : 'strategy_stale_title') }}</div>
                     <div class="text-[11px] text-amber-400/70 leading-snug mt-0.5">{{ t('strategy_stale_hint') }}</div>
                 </div>
                 <button @click="computePlan('rest')" :disabled="isComputing"

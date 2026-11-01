@@ -43,11 +43,14 @@ const playerClassOverride = ref('inherit'); // 'inherit' | 'collector'
 
 // Ipotesi di simulazione. Con tutte su 'profile' la produzione di partenza del
 // planner coincide con quella del Production Core.
-//   crawlerMode:    'profile' | 'max'          (crawler posseduti o sempre al cap)
+//   crawlerMode:    'max' | 'profile'          (sempre al cap, oppure solo i posseduti)
 //   overloadMode:   'profile' | 'all' | 'none' (sovraccarico 150%, solo Collezionista)
 //   itemMode:       'profile' | 0 | 10..40     (amplificatore metallo per pianeta)
 //   itemCustomMode: 'profile' | 0 | 15..40     (amplificatore di risorse per pianeta)
-const crawlerMode = ref('profile');
+// Crawler al massimo di default: alzando le miniere sale anche il cap e il planner
+// deve poter contare i crawler in più, altrimenti sottostima miniere e cap crawler.
+// La card mostra comunque il valore del Production Core e lo scarto.
+const crawlerMode = ref('max');
 const overloadMode = ref('profile');
 const itemMode = ref('profile');
 const itemCustomMode = ref('profile');
@@ -214,10 +217,10 @@ const simOptions = computed(() => {
     const none = { value: 0, text: t('opt_none') };
     return [
         { key: 'crawler', label: 'strategy_sim_crawlers', model: crawlerMode,
-          choices: [profile, { value: 'max', text: t('strategy_sim_crawlers_max') }],
-          hint: crawlerMode.value === 'max' ? t('strategy_sim_crawlers_max_hint') : null },
+          choices: [{ value: 'max', text: t('strategy_sim_crawlers_max') }, profile],
+          hint: t(crawlerMode.value === 'max' ? 'strategy_sim_crawlers_max_hint' : 'strategy_sim_crawlers_profile_hint') },
         { key: 'overload', label: 'strategy_sim_overload', model: overloadMode,
-          choices: [profile, { value: 'all', text: t('strategy_sim_all') }, { value: 'none', text: t('opt_none') }],
+          choices: [{ value: 'all', text: t('strategy_sim_on') }, { value: 'none', text: t('strategy_sim_off') }, profile],
           hint: t('strategy_sim_overload_hint') },
         { key: 'item', label: 'lbl_item', model: itemMode,
           choices: [profile, none, ...ITEM_STEPS.map(v => ({ value: v, text: `+${v}%` }))] },

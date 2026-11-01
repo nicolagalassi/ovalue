@@ -824,10 +824,13 @@
     "strategy_sim_all": "Tutti",
     "strategy_sim_crawlers": "Crawler",
     "strategy_sim_crawlers_max": "Al massimo",
-    "strategy_sim_crawlers_max_hint": "Ogni pianeta ha sempre i crawler al massimo consentito, che sale con le miniere.",
+    "strategy_sim_crawlers_max_hint": "Predefinito. Ogni pianeta ha sempre i crawler al massimo consentito, e il massimo sale con le miniere: gli upgrade includono i crawler da costruire in più. Se su qualche pianeta ne hai meno, la partenza risulta più alta del Production Core (vedi lo scarto sopra).",
     "strategy_sim_overload": "Sovraccarico crawler (150%)",
-    "strategy_sim_overload_hint": "Conta solo da Collezionista.",
+    "strategy_sim_overload_hint": "Crawler al 150% su tutti i pianeti. Conta solo da Collezionista; scegliendo Collezionista come classe si attiva da solo.",
     "strategy_sim_start_prod": "Produzione simulata",
     "strategy_lf_activate_hint": "Le ricerche selezionate che hanno livelli sui pianeti contano come attive anche nella produzione di partenza.",
-    "strategy_stale_sim_title": "Hai cambiato le ipotesi di simulazione dopo questo calcolo"
+    "strategy_stale_sim_title": "Hai cambiato le ipotesi di simulazione dopo questo calcolo",
+    "strategy_sim_crawlers_profile_hint": "Solo i crawler che hai: la partenza coincide col Production Core, ma alzare le miniere non aumenta il bonus crawler finché non ne costruisci altri.",
+    "strategy_sim_on": "Attivo",
+    "strategy_sim_off": "Spento"
 }

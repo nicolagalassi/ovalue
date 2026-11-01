@@ -388,11 +388,25 @@ const restoreProfileState = (profile) => {
     coreHashAtPlan.value = saved.coreHash || null;
 };
 
-// Il piano è disallineato se il core è cambiato dopo il calcolo.
-const planIsStale = computed(() => {
-    if (!result.value || !coreHashAtPlan.value) return false;
-    return coreFingerprint(activeProfile.value, result.value.steps) !== coreHashAtPlan.value;
+// Il piano è disallineato se il core è cambiato dopo il calcolo, oppure se sono
+// cambiate le ipotesi con cui è stato calcolato (classe, crawler, item, ricerche…).
+// I piani salvati prima che esistesse simKey non hanno ipotesi da confrontare.
+const simAssumptionsKey = computed(() => JSON.stringify({
+    cls: playerClassOverride.value,
+    craw: crawlerMode.value,
+    ovl: overloadMode.value,
+    item: itemMode.value,
+    amp: itemCustomMode.value,
+    lf: includeLfResearch.value ? [...lfResearchIds.value].map(String).sort() : null,
+    lfc: lfChoice.value
+}));
+const staleReason = computed(() => {
+    if (!result.value) return null;
+    if (coreHashAtPlan.value && coreFingerprint(activeProfile.value, result.value.steps) !== coreHashAtPlan.value) return 'core';
+    if (result.value.simKey && result.value.simKey !== simAssumptionsKey.value) return 'sim';
+    return null;
 });
+const planIsStale = computed(() => staleReason.value !== null);
 
 // Sync con profilo attivo: ripristina lo stato salvato per quel profilo.
 // `activeProfile` ri-emette anche a ogni salvataggio del profilo (sync, modifiche
@@ -820,7 +834,8 @@ const finalizePlan = (planRes, initialState, kept = null) => {
     result.value = {
         ...res,
         lfChoiceSnapshot: [...lfChoice.value],
-        targetSnapshot: parseInt(target.value) || 0
+        targetSnapshot: parseInt(target.value) || 0,
+        simKey: simAssumptionsKey.value
     };
     // Impronta del core usata per questo calcolo: se cambia, il piano va segnalato.
     // Con step tenuti si riavvolge anche il loro avanzamento, come fa planIsStale.
@@ -1616,7 +1631,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                 </svg>
                 <div class="flex-1 min-w-0">
-                    <div class="text-[12px] font-bold text-amber-200 leading-snug">{{ t('strategy_stale_title') }}</div>
+                    <div class="text-[12px] font-bold text-amber-200 leading-snug">{{ t(staleReason === 'sim' ? 'strategy_stale_sim_title' : 'strategy_stale_title') }}</div>
                     <div class="text-[11px] text-amber-400/70 leading-snug mt-0.5">{{ t('strategy_stale_hint') }}</div>
                 </div>
                 <button @click="computePlan('rest')" :disabled="isComputing"

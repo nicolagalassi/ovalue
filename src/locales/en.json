@@ -826,5 +826,6 @@
     "strategy_sim_overload": "Crawler overload (150%)",
     "strategy_sim_overload_hint": "Only applies to the Collector class.",
     "strategy_sim_start_prod": "Simulated production",
-    "strategy_lf_activate_hint": "Selected researches that have levels on your planets also count as active in the starting production."
+    "strategy_lf_activate_hint": "Selected researches that have levels on your planets also count as active in the starting production.",
+    "strategy_stale_sim_title": "Simulation assumptions changed after this plan was computed"
 }

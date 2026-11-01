@@ -120,3 +120,14 @@ describe('planner — partenza uguale al Production Core', () => {
         });
     }
 });
+
+// "Crawler al massimo" = crawler posseduti illimitati: ogni pianeta resta al cap.
+// Deve dare lo stesso valore del vecchio planner, che assumeva sempre il cap
+// (veritate: 358.947.959 contro 357.126.503 del Production Core).
+describe('planner — ipotesi crawler al massimo', () => {
+    it('veritate', () => {
+        const state = buildInitialState(profileFromFixture('veritate'), []);
+        state.planets.forEach(p => { p.crawlers = Number.MAX_SAFE_INTEGER; });
+        expect(simulateDailyProduction(state)).toBe(358947959);
+    });
+});

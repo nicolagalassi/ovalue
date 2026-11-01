@@ -828,5 +828,6 @@
     "strategy_sim_overload": "Sovraccarico crawler (150%)",
     "strategy_sim_overload_hint": "Conta solo da Collezionista.",
     "strategy_sim_start_prod": "Produzione simulata",
-    "strategy_lf_activate_hint": "Le ricerche selezionate che hanno livelli sui pianeti contano come attive anche nella produzione di partenza."
+    "strategy_lf_activate_hint": "Le ricerche selezionate che hanno livelli sui pianeti contano come attive anche nella produzione di partenza.",
+    "strategy_stale_sim_title": "Hai cambiato le ipotesi di simulazione dopo questo calcolo"
 }

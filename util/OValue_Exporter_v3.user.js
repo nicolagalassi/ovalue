@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.5.3
+// @version      4.5.4
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -957,6 +957,49 @@
         return (pct > 0 && pct <= 100) ? pct : 0;
     }
 
+    // Amplificatori riconosciuti dall'uuid dell'item (campo itemUuid dei buff
+    // accountInfo, attributo ref nello Shop). L'uuid identifica il TIPO di item, è
+    // uguale in tutte le lingue e cambia per durata (7/30/90 giorni), quindi ogni
+    // amplificatore ha più uuid. Serve soprattutto per l'amplificatore di risorse:
+    // accountInfo lo chiama "Amplificatore di risorse (#amount# %) Bronzo", senza la
+    // percentuale, che si ricava solo da qui.
+    // Fonte: Shop IT + buff accountInfo, novembre 2026. Un uuid assente ricade sul nome;
+    // `buffNames` nell'export mostra gli uuid nuovi da aggiungere.
+    const AMP_BY_UUID = {
+        // Amplificatore di metallo → item (10/20/30/40)
+        'de922af379061263a56d7204d1c395cefcfb7d75': ['metal', 10],
+        'ba85cc2b8a5d986bbfba6954e2164ef71af95d4a': ['metal', 20],
+        '6f44dcd2bd84875527abba69158b4e976c308bbc': ['metal', 20],
+        '742743b3b0ae1f0b8a1e01921042810b58f12f39': ['metal', 20],
+        '05294270032e5dc968672425ab5611998c409166': ['metal', 30],
+        '21c1a65ca6aecf54ffafb94c01d0c60d821b325d': ['metal', 30],
+        '6fecb993169fe918d9c63cd37a2e541cc067664e': ['metal', 30],
+        'a83cfdc15b8dba27c82962d57e50d8101d263cfb': ['metal', 40],
+        'ca7f903a65467b70411e513b0920d66c417aa3a2': ['metal', 40],
+        'c690f492cffe5f9f2952337e8eed307a8a62d6cf': ['metal', 40],
+        '0fe8a0ef6f1b9a1b080c0a63fd683933fbc361d2': ['metal', 40],
+        'f987d3c403a49959b267f18f137a19c879d3f020': ['metal', 40],
+        // Amplificatore di risorse (produzione pianeta) → itemCustom (%)
+        '302b246f44585109ca5b3ed94178707d7d4c32c0': ['resource', 15],
+        '828c11637d6177cf7369dddeffa63521d9f05c8c': ['resource', 15],
+        'beff9da8ce9ed2a03f73fb412347ef02adf4e9f4': ['resource', 20],
+        'bfc5896632e0d809947dac4d8ced39ad7974f686': ['resource', 20],
+        'f76a859138dab12d181590ff46bb11d0be5b79bd': ['resource', 25],
+        '4fa71c28e076fd5a5f1fdba2d83b9537e7557295': ['resource', 25],
+        'be06b5c24ec29aadfe9e348ec022e698a5367dd0': ['resource', 30],
+        '98fb2c053a8bd8608e9a307fe6f94e9b87754504': ['resource', 30],
+        '8cc0f382c3e6bb0751b42b8e9b9a0d3648313f25': ['resource', 40],
+        '370a7d4f976480fa054ef23068c442fc6e476301': ['resource', 40]
+    };
+
+    // Amplificatore di risorse riconosciuto dal nome ma senza percentuale leggibile
+    // (accountInfo: "(#amount# %)"). Il chiamante usa allora un'altra fonte.
+    function isResourceAmpName(t) {
+        const n = itemName(t);
+        return !!n && !EXPEDITION_ITEM_RE.test(n) &&
+            /Amplificatore(?:\s+di)?\s+risorse|Resource\s+Amplifier|Ressourcenverst[äa]rker|Amplificateur\s+de\s+ressources/i.test(n);
+    }
+
     // Estrae dall'array `buffs` di un pianeta accountInfo (v13) gli unici item che
     // incidono sulla produzione: amplificatore metallo (item) e amplificatore risorse
     // (itemCustom), per-pianeta come nel DOM. Gli altri item (slot flotta, spedizioni,
@@ -964,19 +1007,29 @@
     // `names` = nomi grezzi di tutti i buff del pianeta: finiscono nell'export
     // (d.buffNames) come diagnostica, così una segnalazione mostra lingua e nome
     // reale di un item che non viene riconosciuto.
+    // Ordine: uuid (indipendente dalla lingua) → nome. `itemCustomUnknown` = c'è un
+    // amplificatore di risorse attivo ma né l'uuid né il nome dicono la percentuale.
     function parseBuffs(buffs) {
-        let item = 0, itemCustom = 0;
+        let item = 0, itemCustom = 0, itemCustomUnknown = false;
         const names = [];
         for (const b of (Array.isArray(buffs) ? buffs : [])) {
             const name = (b && b.name) || '';
-            if (!name) continue;
-            names.push({ name, uuid: (b && b.itemUuid) || null, rarity: (b && b.rarity) || null });
+            const uuid = (b && b.itemUuid) || null;
+            if (!name && !uuid) continue;
+            names.push({ name, uuid, rarity: (b && b.rarity) || null });
+            const known = uuid ? AMP_BY_UUID[String(uuid).toLowerCase()] : null;
+            if (known) {
+                if (known[0] === 'metal') item = Math.max(item, known[1]);
+                else itemCustom = Math.max(itemCustom, known[1]);
+                continue;
+            }
             const ml = metalAmpLevel(name);
             if (ml) { item = Math.max(item, ml); continue; }
             const rp = resourceAmpPct(name);
             if (rp) itemCustom = Math.max(itemCustom, rp);
+            else if (isResourceAmpName(name)) itemCustomUnknown = true;
         }
-        return { item, itemCustom, names };
+        return { item, itemCustom, itemCustomUnknown: itemCustomUnknown && !itemCustom, names };
     }
 
     // Amplificatori di un pianeta dai buffs accountInfo. accountInfo elenca TUTTI gli
@@ -984,6 +1037,8 @@
     // amplificatore scaduto deve tornare a 0 (prima restava il valore vecchio).
     // Restituisce null se il pianeta non viene da accountInfo (endpoint empire legacy,
     // nessun campo buffs): in quel caso il chiamante tiene la sua fonte di ripiego.
+    // itemCustom = null: amplificatore di risorse attivo ma percentuale ignota (uuid
+    // nuovo) → il chiamante tiene il valore noto (Panoramica) o legge il DOM (Impero).
     function buffsAmplifiers(ap, planetId) {
         if (!ap || !ap._fromAccountInfo) return null;
         const parsed = parseBuffs(ap.buffs);
@@ -991,7 +1046,7 @@
             d.buffNames = d.buffNames || {};
             d.buffNames[planetId] = parsed.names;
         }
-        return { item: parsed.item, itemCustom: parsed.itemCustom };
+        return { item: parsed.item, itemCustom: parsed.itemCustomUnknown ? null : parsed.itemCustom };
     }
 
     // Chiama l'API empire (LEGACY, server pre-v13). Su OGame v13 questo endpoint
@@ -1161,7 +1216,10 @@
                 // Amplificatori per-pianeta dai buffs accountInfo (v13): si idratano
                 // senza aprire la pagina Impero, e si azzerano quando scadono.
                 const amps = buffsAmplifiers(ap, sp.id);
-                if (amps) ({ item, itemCustom } = amps);
+                if (amps) {
+                    item = amps.item;
+                    if (amps.itemCustom !== null) itemCustom = amps.itemCustom;
+                }
             }
 
             return {
@@ -1329,16 +1387,19 @@
             // Amplificatori: buffs accountInfo (stessa fonte della Panoramica, così le due
             // pagine non si contraddicono) → tooltip DOM solo se accountInfo non c'è.
             let item = 0, itemCustom = 0;
+            let domItem = 0, domItemCustom = 0;
+            p.querySelectorAll('.item_img').forEach(img => {
+                const t = img.getAttribute('data-tooltip-title') || '';
+                domItem  = Math.max(domItem, metalAmpLevel(t));
+                const rp = resourceAmpPct(t);
+                if (rp) domItemCustom = Math.max(domItemCustom, rp);
+            });
             const amps = buffsAmplifiers(ap, planetId);
             if (amps) {
-                ({ item, itemCustom } = amps);
+                item       = amps.item;
+                itemCustom = amps.itemCustom !== null ? amps.itemCustom : domItemCustom;
             } else {
-                p.querySelectorAll('.item_img').forEach(img => {
-                    const t = img.getAttribute('data-tooltip-title') || '';
-                    item     = Math.max(item, metalAmpLevel(t));
-                    const rp = resourceAmpPct(t);
-                    if (rp) itemCustom = Math.max(itemCustom, rp);
-                });
+                item = domItem; itemCustom = domItemCustom;
             }
 
             // Lifeform: solo DOM — l'API non espone la razza in modo affidabile.

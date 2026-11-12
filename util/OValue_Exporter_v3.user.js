@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.5.2
+// @version      4.5.3
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -961,17 +961,37 @@
     // incidono sulla produzione: amplificatore metallo (item) e amplificatore risorse
     // (itemCustom), per-pianeta come nel DOM. Gli altri item (slot flotta, spedizioni,
     // energia…) servivano solo al vecchio tracker scadenze e non vengono più letti.
+    // `names` = nomi grezzi di tutti i buff del pianeta: finiscono nell'export
+    // (d.buffNames) come diagnostica, così una segnalazione mostra lingua e nome
+    // reale di un item che non viene riconosciuto.
     function parseBuffs(buffs) {
         let item = 0, itemCustom = 0;
+        const names = [];
         for (const b of (Array.isArray(buffs) ? buffs : [])) {
             const name = (b && b.name) || '';
             if (!name) continue;
+            names.push({ name, uuid: (b && b.itemUuid) || null, rarity: (b && b.rarity) || null });
             const ml = metalAmpLevel(name);
             if (ml) { item = Math.max(item, ml); continue; }
             const rp = resourceAmpPct(name);
             if (rp) itemCustom = Math.max(itemCustom, rp);
         }
-        return { item, itemCustom };
+        return { item, itemCustom, names };
+    }
+
+    // Amplificatori di un pianeta dai buffs accountInfo. accountInfo elenca TUTTI gli
+    // item attivi del pianeta, quindi è autorevole anche quando un item manca: un
+    // amplificatore scaduto deve tornare a 0 (prima restava il valore vecchio).
+    // Restituisce null se il pianeta non viene da accountInfo (endpoint empire legacy,
+    // nessun campo buffs): in quel caso il chiamante tiene la sua fonte di ripiego.
+    function buffsAmplifiers(ap, planetId) {
+        if (!ap || !ap._fromAccountInfo) return null;
+        const parsed = parseBuffs(ap.buffs);
+        if (planetId != null) {
+            d.buffNames = d.buffNames || {};
+            d.buffNames[planetId] = parsed.names;
+        }
+        return { item: parsed.item, itemCustom: parsed.itemCustom };
     }
 
     // Chiama l'API empire (LEGACY, server pre-v13). Su OGame v13 questo endpoint
@@ -1018,6 +1038,7 @@
         flat.lifeform = p.selectedSpeciesId ? (p.selectedSpeciesId - 700) : 0;
         flat.coords = `${p.galaxy}:${p.system}:${p.position}`;
         flat.buffs = Array.isArray(p.buffs) ? p.buffs : [];  // item attivi (amplificatori + booster impero)
+        flat._fromAccountInfo = true;  // buffs autorevoli: assenza di un item = item non attivo
         return flat;
     }
 
@@ -1138,10 +1159,9 @@
                     d.planetLifeforms[sp.id] = lfFromAPI;
                 }
                 // Amplificatori per-pianeta dai buffs accountInfo (v13): si idratano
-                // senza aprire la pagina Impero.
-                const parsed = parseBuffs(ap.buffs);
-                if (parsed.item)       item       = parsed.item;
-                if (parsed.itemCustom) itemCustom = parsed.itemCustom;
+                // senza aprire la pagina Impero, e si azzerano quando scadono.
+                const amps = buffsAmplifiers(ap, sp.id);
+                if (amps) ({ item, itemCustom } = amps);
             }
 
             return {
@@ -1301,18 +1321,25 @@
             const planetId = (idMatch ? parseInt(idMatch[0]) : null) || coordToId[coords] || null;
             const pos      = parseInt(cm[3]);
 
-            let item = 0, itemCustom = 0;
-            p.querySelectorAll('.item_img').forEach(img => {
-                const t = img.getAttribute('data-tooltip-title') || '';
-                item     = Math.max(item, metalAmpLevel(t));
-                const rp = resourceAmpPct(t);
-                if (rp) itemCustom = Math.max(itemCustom, rp);
-            });
-
             // Dati API per questo pianeta — cerca per id O per planetID (i due campi possono differire)
             const ap = apiPlanets.find(a =>
                 String(a.id) === String(planetId) || String(a.planetID) === String(planetId)
             ) || null;
+
+            // Amplificatori: buffs accountInfo (stessa fonte della Panoramica, così le due
+            // pagine non si contraddicono) → tooltip DOM solo se accountInfo non c'è.
+            let item = 0, itemCustom = 0;
+            const amps = buffsAmplifiers(ap, planetId);
+            if (amps) {
+                ({ item, itemCustom } = amps);
+            } else {
+                p.querySelectorAll('.item_img').forEach(img => {
+                    const t = img.getAttribute('data-tooltip-title') || '';
+                    item     = Math.max(item, metalAmpLevel(t));
+                    const rp = resourceAmpPct(t);
+                    if (rp) itemCustom = Math.max(itemCustom, rp);
+                });
+            }
 
             // Lifeform: solo DOM — l'API non espone la razza in modo affidabile.
             // Priorità: valore già acquisito da navigazione precedente → icona DOM → null.

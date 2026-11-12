@@ -2,6 +2,7 @@
 import { onMounted } from 'vue';
 import { useProfiles } from './composables/useProfiles';
 import Header from './components/Header.vue';
+import ExporterBanner from './components/ExporterBanner.vue';
 import MaintenanceView from './views/MaintenanceView.vue';
 import AppToast from './components/AppToast.vue';
 
@@ -26,6 +27,7 @@ onMounted(() => {
   <!-- ── SITO NORMALE ── -->
   <div v-else class="min-h-screen flex flex-col font-sans antialiased text-slate-200 selection:bg-sky-500/20">
     <Header />
+    <ExporterBanner />
 
     <main class="flex-grow flex flex-col relative w-full">
       <router-view />

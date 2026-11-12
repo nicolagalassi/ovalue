@@ -3,12 +3,16 @@ import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import Footer from '../components/Footer.vue';
+import { useExporterStatus } from '../composables/useExporterStatus';
+import { EXPORTER_INSTALL_URL } from '../data/links';
 
 const { t, currentLang } = useLanguage();
 // Exodus speaks Italian and English only: Italian stays Italian, every other language opens it in English
 const fusionHref = () => `/fusion/?lang=${currentLang.value === 'it' ? 'it' : 'en'}`;
 const { activeProfile } = useProfiles();
 const { formatNum } = useOgameFormulas();
+const { exporterDetected } = useExporterStatus();
+const installSteps = ['home_step_install', 'home_step_overview', 'home_step_back'];
 
 
 </script>
@@ -25,20 +29,36 @@ const { formatNum } = useOgameFormulas();
 
         <div class="hero-content relative z-10">
 
-          <!-- Primo accesso: tagline + CTA install script -->
+          <!-- Primo accesso: tagline + passi per installare lo script -->
           <template v-if="!activeProfile?.lastSync">
             <p class="text-sm text-slate-400 mb-5 leading-relaxed max-w-lg mx-auto text-balance">
               {{ t('index_desc') }}
             </p>
-            <div class="flex flex-col items-center gap-2 mb-2">
-              <a href="https://update.greasyfork.org/scripts/574448/OValue%20Exporter.user.js"
-                 target="_blank" rel="noopener noreferrer"
-                 class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500/[0.10] hover:bg-sky-500/[0.18] text-sky-300 text-xs font-bold uppercase tracking-widest border border-sky-500/25 hover:border-sky-400/50 transition-all duration-200">
-                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                {{ t('btn_download_script') }}
-              </a>
-              <span class="text-[11px] text-slate-600">{{ t('home_install_hint') }}</span>
+
+            <!-- Script non rilevato: riquadro in evidenza con i 3 passi -->
+            <div v-if="!exporterDetected"
+                 class="w-full max-w-2xl mx-auto mb-3 rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] shadow-[0_0_40px_rgba(56,189,248,0.08)] px-5 py-5 md:px-7 md:py-6 text-left">
+              <p class="text-[10px] font-black uppercase tracking-[0.2em] text-sky-400/80 mb-1">{{ t('home_script_kicker') }}</p>
+              <h2 class="text-lg md:text-xl font-bold text-slate-100 mb-4 text-balance">{{ t('home_script_title') }}</h2>
+              <ol class="grid gap-3 sm:grid-cols-3 mb-5">
+                <li v-for="(key, i) in installSteps" :key="key" class="flex sm:flex-col gap-3 sm:gap-2">
+                  <span class="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-black"
+                        :class="i === 0 ? 'bg-sky-400 text-ogame-bg' : 'bg-white/[0.06] text-slate-300 border border-white/10'">{{ i + 1 }}</span>
+                  <span class="text-sm text-slate-300 leading-snug">{{ t(key) }}</span>
+                </li>
+              </ol>
+              <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                <a :href="EXPORTER_INSTALL_URL" target="_blank" rel="noopener noreferrer"
+                   class="flex-shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-sky-500/[0.2] hover:bg-sky-500/[0.3] text-sky-100 text-sm font-bold uppercase tracking-widest border border-sky-400/50 hover:border-sky-300/70 transition-all duration-200">
+                  <svg class="w-4 h-4 flex-shrink-0" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  {{ t('btn_download_script') }}
+                </a>
+                <span class="text-[11px] text-slate-500 leading-snug">{{ t('home_script_note') }}</span>
+              </div>
             </div>
+
+            <!-- Script rilevato ma nessun dato ancora: manca solo la Panoramica -->
+            <p v-else class="text-xs text-emerald-400/80 mb-2">{{ t('home_script_detected_hint') }}</p>
           </template>
 
           <div v-if="activeProfile?.lastSync" class="flex items-center justify-center gap-2 flex-wrap">

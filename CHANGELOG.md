@@ -3,6 +3,17 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.6.0]
+
+### Aggiunto
+- **Link diretto a OValue nel pannello.** Il titolo "⬡ OValue ↗" in cima al pannello e
+  il nuovo pulsante "↗ Apri OValue" in fondo aprono ovalue.net in una nuova scheda.
+
+### Rimosso
+- **Lettura degli ufficiali dalla Panoramica.** Il pannello non mostra più ufficiali e
+  scadenze. Lo stato attivo/non attivo arriva solo da accountInfo e serve ancora a
+  OValue per il Geologo e lo staff completo, che incidono sulla produzione.
+
 ## OValue Exporter — [4.5.4]
 
 ### Corretto

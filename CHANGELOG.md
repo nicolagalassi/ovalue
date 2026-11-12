@@ -3,6 +3,28 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.5.4]
+
+### Corretto
+- **Amplificatori riconosciuti in tutte le lingue.** Amplificatore di metallo e
+  amplificatore di risorse si riconoscono dall'uuid dell'item, che è lo stesso su tutti
+  i server, invece che dal nome tradotto (prima funzionava in pratica solo in italiano
+  e inglese). Il nome resta come ripiego per gli item che non sono ancora in tabella.
+- **Amplificatore di risorse non più a 0.** accountInfo scrive il nome dell'item senza
+  percentuale (`Amplificatore di risorse (#amount# %)`), quindi la percentuale non si
+  poteva leggere e dalla 4.5.3 l'amplificatore risultava sempre 0. Ora la percentuale
+  si ricava dall'uuid. Se l'uuid è sconosciuto, in Panoramica resta il valore già noto
+  e sulla pagina Impero si legge il tooltip.
+- **Amplificatori scaduti azzerati** (dalla 4.5.3). Quando un amplificatore scade il
+  pianeta torna a "nessun item" già aprendo la Panoramica; prima restava contato
+  finché non si apriva la pagina Impero. Panoramica e Impero ora leggono la stessa
+  fonte e non si contraddicono più.
+
+### Aggiunto
+- **Diagnostica `buffNames` nell'export** (dalla 4.5.3): per ogni pianeta, nome, uuid
+  e rarità degli item attivi così come li dà il gioco. Serve nelle segnalazioni per
+  vedere se un item non viene riconosciuto e aggiungere l'uuid mancante.
+
 ## OValue Exporter — [4.4.0]
 
 ### Aggiunto

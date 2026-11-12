@@ -3,6 +3,59 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.5.4]
+
+### Corretto
+- **Amplificatori riconosciuti in tutte le lingue.** Amplificatore di metallo e
+  amplificatore di risorse si riconoscono dall'uuid dell'item, che è lo stesso su tutti
+  i server, invece che dal nome tradotto (prima funzionava in pratica solo in italiano
+  e inglese). Il nome resta come ripiego per gli item che non sono ancora in tabella.
+- **Amplificatore di risorse non più a 0.** accountInfo scrive il nome dell'item senza
+  percentuale (`Amplificatore di risorse (#amount# %)`), quindi la percentuale non si
+  poteva leggere e con la 4.5.3 l'amplificatore risultava sempre 0. Ora la percentuale
+  si ricava dall'uuid. Se l'uuid è sconosciuto, in Panoramica resta il valore già noto
+  e sulla pagina Impero si legge il tooltip.
+
+## OValue Exporter — [4.5.3]
+
+### Corretto
+- **Amplificatori scaduti azzerati.** Quando un amplificatore scade, il pianeta torna a
+  "nessun item" già aprendo la Panoramica; prima restava contato finché non si apriva
+  la pagina Impero.
+- **Panoramica e Impero non si contraddicono più.** Le due pagine leggevano gli
+  amplificatori da fonti diverse (dati di accountInfo e tooltip della pagina) e il
+  valore dipendeva dall'ultima pagina aperta. Ora usano entrambe accountInfo; i
+  tooltip restano solo se accountInfo non risponde.
+
+### Aggiunto
+- **Diagnostica `buffNames` nell'export:** per ogni pianeta, nome, uuid e rarità degli
+  item attivi così come li dà il gioco. Serve nelle segnalazioni per vedere se un item
+  non viene riconosciuto e aggiungere l'uuid mancante.
+
+## OValue Exporter — [4.5.2]
+
+### Aggiunto
+- **Eliminare i dati dei server bloccati.** Dalla sezione Diagnostica delle Impostazioni
+  di OValue si possono cancellare i dati salvati dall'exporter per gli universi che non
+  si giocano più (uno per uno o "Elimina tutti"). L'exporter riceve la richiesta su
+  ovalue.net, cancella i dati di quel server dallo storage di Tampermonkey e conferma
+  all'app; accetta solo nomi di server OGame.
+
+## OValue Exporter — [4.5.1]
+
+### Aggiunto
+- **Segnale di presenza su ovalue.net.** L'exporter avvisa OValue di essere attivo
+  (versione e universi salvati) anche quando non ha ancora dati da inviare. Così la
+  Diagnostica distingue "script assente o disattivato" da "script attivo ma senza dati
+  raccolti" (per esempio Panoramica mai aperta).
+
+## OValue Exporter — [4.5.0]
+
+### Aggiunto
+- **Dati per la diagnostica della sincronizzazione.** L'exporter invia a OValue la
+  propria versione e il momento in cui ha raccolto i dati nel gioco, usati dal nuovo
+  registro delle sincronizzazioni nelle Impostazioni.
+
 ## OValue Exporter — [4.4.0]
 
 ### Aggiunto

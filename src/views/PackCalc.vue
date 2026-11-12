@@ -458,6 +458,9 @@ const copyShareText = async () => {
                             <option value="facilities" class="bg-ogame-panel text-white">{{ t('cat_facilities') }}</option>
                             <option value="research" class="bg-ogame-panel text-white">{{ t('cat_research') }}</option>
                             <option value="fleet" class="bg-ogame-panel text-white">{{ t('cat_fleet') }}</option>
+
+                            <!-- Project Orion -->
+                            <option value="orion" class="bg-ogame-panel text-cyan-300 font-bold">{{ t('cat_orion') }}</option>
                             
                             <!-- LifeForms -->
                             <option value="lf_humans" class="bg-ogame-panel text-blue-300 font-bold">{{ t('cat_lf_humans') }} — {{ t('cat_lf_buildings') }}</option>

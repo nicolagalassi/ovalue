@@ -31,6 +31,23 @@ export const OGAME_DB = {
             jump_gate: { cost: [2000000, 4000000, 2000000], factor: 2 }
         }
     },
+    // Project Orion (server di test s808-en dal 30/09/2026). Costi verificati sul gioco,
+    // al livello esatto, con lo script "OGLight Orion Addons": costo(L) = floor(base × 1,5^(L−1)).
+    // Lo scanner è una struttura del pianeta (id 45), gli altri sono gli edifici del
+    // centro di controllo Orion (id 4001-4007).
+    orion: {
+        type: 'building',
+        items: {
+            orion_anomaly_scanner:     { cost: [90, 45, 15], factor: 1.5, id: 45 },     // prezzo cambiato l'08/10/2026 (prima 84|42|14 × 1,4)
+            orion_recovery_center:     { cost: [75000, 52500, 22500], factor: 1.5, id: 4001 },
+            orion_lithium_lab:         { cost: [52500, 37500, 37500], factor: 1.5, id: 4002 },
+            orion_metal_recycling:     { cost: [112500, 37500, 18000], factor: 1.5, id: 4003 },
+            orion_crystal_processing:  { cost: [37500, 67500, 27000], factor: 1.5, id: 4004 },
+            orion_anomaly_analysis:    { cost: [67500, 37500, 22500], factor: 1.5, id: 4005 },
+            orion_deuterium_tanks:     { cost: [30000, 37500, 45000], factor: 1.5, id: 4006 },
+            orion_conversion_catalyst: { cost: [127500, 112500, 52500], factor: 1.5, id: 4007 }
+        }
+    },
     research: {
         type: 'research',
         items: {

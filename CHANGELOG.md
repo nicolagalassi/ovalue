@@ -3,6 +3,18 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.7.0]
+
+### Aggiunto
+- **Sovraccarico crawler senza aprire le Impostazioni risorse.** Per i Collezionisti lo
+  script confronta la produzione reale di ogni pianeta, già presente in accountInfo, con
+  quella calcolata con i crawler al 100% e al 150%, e tiene il valore che coincide (⚡ nel
+  pannello). Se i crawler sono già al tetto del +50% il sovraccarico non cambia nulla e
+  non va letto. Solo se nessuno dei due calcoli coincide (energia insufficiente, miniere
+  sotto il 100%…) resta da aprire la pagina di quel pianeta. Nessuna chiamata in più.
+- **Diagnostica `overloadCheck` nell'export:** per pianeta, produzione reale, i due
+  calcoli e l'esito.
+
 ## OValue Exporter — [4.6.0]
 
 ### Aggiunto

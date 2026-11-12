@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.6.0
+// @version      4.7.0
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -184,7 +184,8 @@
             missingLf:      n => `⚠ Razze Mancanti (${n})`,
             activeLf:       n => `Razze Attive (${n})`,
             crawlerOverload: (n, tot) => `⚡ Sovraccarico Crawler (${n}/${tot})`,
-            hintOverload: 'Il fattore crawler (sovraccarico >100%) non è nell\'API: apri le <b>Impostazioni risorse</b> di ogni pianeta (girando i pianeti) per leggerlo.',
+            hintOverload: 'Per questi pianeti il sovraccarico non si deduce dalla produzione: apri le loro <b>Impostazioni risorse</b> per leggerlo.',
+            overloadCapped: 'al tetto, ininfluente', overloadAuto: 'Dedotto dalla produzione reale',
             bonusMetal: 'Bonus Metallo', bonusClass: 'Bonus Classe',
             lfApiNote: 'Bonus e ricerche letti dall\'API — nessuna pagina da visitare.',
             lifeformLevels: 'Livelli Forme di Vita',
@@ -219,7 +220,8 @@
             missingLf:      n => `⚠ Missing Species (${n})`,
             activeLf:       n => `Active Species (${n})`,
             crawlerOverload: (n, tot) => `⚡ Crawler Overload (${n}/${tot})`,
-            hintOverload: 'The crawler factor (overload >100%) is not in the API: open each planet\'s <b>Resource Settings</b> (cycle through your planets) to read it.',
+            hintOverload: 'For these planets the overload cannot be worked out from production: open their <b>Resource Settings</b> to read it.',
+            overloadCapped: 'at cap, no effect', overloadAuto: 'Worked out from real production',
             bonusMetal: 'Metal Bonus', bonusClass: 'Class Bonus',
             lfApiNote: 'Bonuses and researches read from the API — no page to visit.',
             lifeformLevels: 'Lifeform Levels',
@@ -253,7 +255,8 @@
             missingLf:      n => `⚠ Fehlende Spezies (${n})`,
             activeLf:       n => `Aktive Spezies (${n})`,
             crawlerOverload: (n, tot) => `⚡ Crawler-Überladung (${n}/${tot})`,
-            hintOverload: 'Der Crawler-Faktor (Überladung >100%) ist nicht in der API: öffne die <b>Ressourcen-Einstellungen</b> jedes Planeten (Planeten durchgehen), um ihn zu lesen.',
+            hintOverload: 'Für diese Planeten lässt sich die Überladung nicht aus der Produktion ableiten: öffne ihre <b>Ressourcen-Einstellungen</b>, um sie zu lesen.',
+            overloadCapped: 'am Limit, ohne Wirkung', overloadAuto: 'Aus der realen Produktion abgeleitet',
             bonusMetal: 'Metall-Bonus', bonusClass: 'Klassen-Bonus',
             lfApiNote: 'Boni und Forschungen aus der API — keine Seite nötig.',
             lifeformLevels: 'Lebensform-Stufen',
@@ -287,7 +290,8 @@
             missingLf:      n => `⚠ Espèces manquantes (${n})`,
             activeLf:       n => `Espèces actives (${n})`,
             crawlerOverload: (n, tot) => `⚡ Surcharge Crawler (${n}/${tot})`,
-            hintOverload: 'Le facteur crawler (surcharge >100%) n\'est pas dans l\'API : ouvrez les <b>Paramètres de ressources</b> de chaque planète (parcourez vos planètes) pour le lire.',
+            hintOverload: 'Pour ces planètes, la surcharge ne peut pas être déduite de la production : ouvrez leurs <b>Paramètres de ressources</b> pour la lire.',
+            overloadCapped: 'au plafond, sans effet', overloadAuto: 'Déduit de la production réelle',
             bonusMetal: 'Bonus métal', bonusClass: 'Bonus classe',
             lfApiNote: 'Bonus et recherches lus depuis l\'API — aucune page à visiter.',
             lifeformLevels: 'Niveaux des formes de vie',
@@ -703,6 +707,7 @@
         if (factor === null) return;               // non rilevato → non sovrascrivere
         d.crawlerFactorByPlanet = d.crawlerFactorByPlanet || {};
         d.crawlerFactorByPlanet[planetId] = factor;
+        if (d.overloadCheck && d.overloadCheck[planetId]) d.overloadCheck[planetId].result = 'page';
         // Aggiorna anche il pianeta già letto dall'impero, se presente
         if (Array.isArray(d.planets)) {
             const p = d.planets.find(p => p.id === planetId);
@@ -1086,6 +1091,16 @@
             d.officers = off;
         }
 
+        // Produzione oraria reale di metallo per pianeta: serve a dedurre il sovraccarico
+        // crawler (inferOverloadFromProduction), che non è nei dati di accountInfo.
+        if (acc.planets) {
+            d.realMetal = {};
+            for (const [pid, p] of Object.entries(acc.planets)) {
+                const m = Number(p && p.production && p.production.metal);
+                if (m > 0) d.realMetal[pid] = m;
+            }
+        }
+
         // Ricerche LF ATTIVE per pianeta, direttamente dall'API — così la sezione
         // "Ricerche LF" si completa senza dover aprire ogni pianeta.
         // selectedSpeciesTechnologyIds = slot tech attivi (edifici + ricerche): filtriamo
@@ -1143,6 +1158,45 @@
         // Fallback legacy (sui server v13 dà 405 → array vuoto → i consumer usano il DOM)
         d.empire_source = 'empire';
         try { return await callEmpireAPI(); } catch (_) { return []; }
+    }
+
+    // Sovraccarico crawler dedotto dalla produzione reale (accountInfo `production.metal`),
+    // senza aprire le Impostazioni risorse: per ogni pianeta si calcola la produzione con
+    // crawler al 100% e al 150% e si tiene il valore che coincide con quella reale.
+    // Solo Collezionista (per le altre classi il sovraccarico non ha effetto). Esiti in
+    // d.overloadCheck[id] (anche diagnostica nell'export):
+    //   'api'    → dedotto, scritto in crawlerFactorByPlanet (100 o 150);
+    //   'capped' → crawler al tetto del +50% in entrambi i casi: il sovraccarico non
+    //              cambia nulla, non serve leggerlo;
+    //   'nomatch'→ nessuno dei due coincide (energia insufficiente, miniere sotto il
+    //              100%, dati incompleti…): resta la lettura dalla pagina, se c'è.
+    // Nessuna chiamata: usa la risposta accountInfo già scaricata e i dati raccolti.
+    const OVERLOAD_TOLERANCE = 0.005;   // scarto relativo massimo per accettare un calcolo
+    function inferOverloadFromProduction() {
+        if (d.playerClass !== 'collector' || !d.realMetal || !Array.isArray(d.planets)) return;
+        const model = buildProductionModel();
+        const lfPct = lfResearchPercent(model.planets);
+        d.overloadCheck = {};
+        d.crawlerFactorByPlanet = d.crawlerFactorByPlanet || {};
+        d.planets.forEach((p, i) => {
+            const real = d.realMetal[p.id];
+            const mp = model.planets[i];
+            if (!real || !mp || !(parseInt(mp.crawlers) > 0)) return;
+            const h100 = planetHourlyMetal({ ...mp, overload: false }, model.settings, lfPct);
+            const h150 = planetHourlyMetal({ ...mp, overload: true }, model.settings, lfPct);
+            const check = { real: Math.round(real), calc100: Math.round(h100), calc150: Math.round(h150) };
+            const e100 = Math.abs(h100 - real) / real, e150 = Math.abs(h150 - real) / real;
+            if (Math.abs(h150 - h100) / real < OVERLOAD_TOLERANCE) {
+                check.result = 'capped';
+            } else if (e150 <= OVERLOAD_TOLERANCE && e100 > OVERLOAD_TOLERANCE) {
+                check.result = 'api'; d.crawlerFactorByPlanet[p.id] = 150; p.overload = true;
+            } else if (e100 <= OVERLOAD_TOLERANCE && e150 > OVERLOAD_TOLERANCE) {
+                check.result = 'api'; d.crawlerFactorByPlanet[p.id] = 100; p.overload = false;
+            } else {
+                check.result = 'nomatch';
+            }
+            d.overloadCheck[p.id] = check;
+        });
     }
 
     // Costruisce/aggiorna d.planets dalla sidebar + dati API.
@@ -1205,6 +1259,7 @@
 
         d.empire_collected = true;
         d.empire_api = true;
+        inferOverloadFromProduction();
         return true;
     }
 
@@ -1405,6 +1460,7 @@
             });
         });
         d.planets = planets;
+        if (d.empire_api) inferOverloadFromProduction();
 
         d.empire_collected = true;
         save();
@@ -1634,20 +1690,27 @@
                     });
                 }
 
-                // Sovraccarico crawler — per-pianeta, solo Collezionista. Non è nell'API:
-                // va letto dalle Impostazioni risorse di OGNI pianeta → invita a "girare i pianeti".
+                // Sovraccarico crawler — per-pianeta, solo Collezionista. Dedotto dalla
+                // produzione reale quando possibile (⚡), ininfluente se i crawler sono al
+                // tetto; altrimenti va letto dalle Impostazioni risorse di quel pianeta.
                 if (d.playerClass === 'collector') {
                     const facMap   = d.crawlerFactorByPlanet || {};
+                    const chk      = d.overloadCheck || {};
+                    const capped   = id => chk[id] && chk[id].result === 'capped';
                     const plist    = getSidebarPlanets();
-                    const readList = plist.filter(p => p.id != null && facMap[p.id] !== undefined);
+                    const readList = plist.filter(p => p.id != null && (facMap[p.id] !== undefined || capped(p.id)));
                     html += subTitle(L.crawlerOverload(readList.length, plist.length));
                     readList.forEach(p => {
-                        const f  = facMap[p.id];
-                        const on = f > 100;
-                        html += `<div class="ov_row"><span class="ov_lbl">P${String(p.pos).padStart(2,'0')} · ${p.name||'—'}</span>` +
-                                `<span class="${on ? 'ov_ok_txt' : 'ov_dim'}">${f}%</span></div>`;
+                        const lbl = `<span class="ov_lbl">P${String(p.pos).padStart(2,'0')} · ${p.name||'—'}</span>`;
+                        if (facMap[p.id] === undefined) {
+                            html += `<div class="ov_row">${lbl}<span class="ov_dim">${L.overloadCapped}</span></div>`;
+                            return;
+                        }
+                        const f    = facMap[p.id];
+                        const auto = chk[p.id] && chk[p.id].result === 'api' ? ` <span class="ov_dim" title="${L.overloadAuto}">⚡</span>` : '';
+                        html += `<div class="ov_row">${lbl}<span class="${f > 100 ? 'ov_ok_txt' : 'ov_dim'}">${f}%${auto}</span></div>`;
                     });
-                    const ovMissing = plist.filter(p => p.id != null && facMap[p.id] === undefined);
+                    const ovMissing = plist.filter(p => p.id != null && facMap[p.id] === undefined && !capped(p.id));
                     if (ovMissing.length) {
                         html += `<div class="ov_hint">${L.hintOverload}</div>`;
                         ovMissing.forEach(p => {

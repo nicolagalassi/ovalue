@@ -10,5 +10,25 @@
 		"not_found_handling": "single-page-application",
 		// Only /fusion goes through the Worker (proxy to Exodus); everything else is a plain static asset.
 		"run_worker_first": ["/fusion", "/fusion/*"]
+	},
+	// Required by `npx wrangler preview`, the deploy command Workers Builds runs for
+	// non-production branches (PR previews). Empty: the top-level config applies.
+	"previews": {},
+	// Same settings as the dashboard (Observability), so a deploy does not reset them.
+	"observability": {
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"invocation_logs": true,
+			"persist": true
+		},
+		"traces": {
+			"enabled": false,
+			"head_sampling_rate": 1,
+			"persist": true
+		},
+		"issue_detection": {
+			"enabled": false
+		}
 	}
 }

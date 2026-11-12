@@ -3,10 +3,31 @@ import { ref, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
+import { useExporterStatus } from '../composables/useExporterStatus';
+import { EXPORTER_INSTALL_URL } from '../data/links';
 
 const { currentLang, setLanguage, t } = useLanguage();
 const { profiles, activeProfileId, activeProfile, switchProfile } = useProfiles();
 const route = useRoute();
+const { exporterDetected, exporterVersion, exporterOutdated, exporterLatest } = useExporterStatus();
+// Stato del pulsante dello script: 'install' (non rilevato), 'update' (versione vecchia), 'ok'
+const scriptState = computed(() =>
+    !exporterDetected.value ? 'install' : (exporterOutdated.value ? 'update' : 'ok'));
+const scriptTitle = computed(() => {
+    if (scriptState.value === 'install') return t('nav_install_script_title');
+    if (scriptState.value === 'update') return t('nav_update_script_title')
+        .replace('{latest}', exporterLatest || '?')
+        .replace('{current}', exporterVersion.value || '?');
+    return t('nav_script_installed_title') + (exporterVersion.value ? ` (v${exporterVersion.value})` : '');
+});
+const scriptLabel = computed(() => ({
+    install: t('nav_install_script'), update: t('nav_update_script'), ok: t('nav_script')
+})[scriptState.value]);
+const scriptBtnClass = {
+    install: 'bg-sky-500/[0.12] border-sky-400/40 text-sky-300 hover:bg-sky-500/[0.2] hover:border-sky-300/60 shadow-[0_0_14px_rgba(56,189,248,0.18)]',
+    update:  'bg-amber-500/[0.10] border-amber-400/40 text-amber-300 hover:bg-amber-500/[0.18] hover:border-amber-300/60 shadow-[0_0_14px_rgba(251,191,36,0.15)]',
+    ok:      'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:bg-white/[0.06] hover:border-white/10 hover:text-slate-300'
+};
 
 const isProfileMenuOpen = ref(false);
 const isLangMenuOpen = ref(false);
@@ -77,6 +98,25 @@ const navLinks = [
       <div class="flex items-center gap-1.5 flex-shrink-0">
 
         <div id="header-actions" class="flex items-center gap-1.5 empty:hidden"></div>
+
+        <!-- Script Exporter: sempre visibile. Azzurro finché lo script non è rilevato,
+             ambra se la versione installata è vecchia, poi discreto (reinstalla/aggiorna). -->
+        <a :href="EXPORTER_INSTALL_URL" target="_blank" rel="noopener noreferrer"
+           :title="scriptTitle" :aria-label="scriptTitle"
+           class="hdr-btn relative h-10 md:h-8 min-w-10 md:min-w-8 flex items-center justify-center gap-1.5 px-2.5 rounded-md transition-all duration-200"
+           :class="scriptBtnClass[scriptState]">
+          <span v-if="scriptState !== 'ok'" class="absolute -top-0.5 -right-0.5 flex w-2 h-2" aria-hidden="true">
+            <span class="motion-safe:animate-ping absolute inline-flex w-full h-full rounded-full opacity-60"
+                  :class="scriptState === 'update' ? 'bg-amber-400' : 'bg-sky-400'"></span>
+            <span class="relative inline-flex w-2 h-2 rounded-full"
+                  :class="scriptState === 'update' ? 'bg-amber-400' : 'bg-sky-400'"></span>
+          </span>
+          <svg class="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <span class="text-[11px] font-semibold tracking-wide whitespace-nowrap"
+                :class="scriptState === 'ok' ? 'hidden lg:inline' : 'hidden sm:inline'">
+            {{ scriptLabel }}
+          </span>
+        </a>
 
         <!-- Hamburger (mobile only) -->
         <button
@@ -203,10 +243,10 @@ const navLinks = [
           </svg>
         </a>
 
-        <!-- Settings -->
+        <!-- Settings (desktop only: su mobile la barra è piena, è nel menu a tendina) -->
         <router-link
           to="/settings"
-          class="hdr-btn w-10 h-10 md:w-8 md:h-8 flex items-center justify-center rounded-md transition-all duration-200"
+          class="hidden md:flex hdr-btn md:w-8 md:h-8 items-center justify-center rounded-md transition-all duration-200"
           :class="$route.path === '/settings'
             ? 'bg-white/[0.07] border-white/15 text-slate-200'
             : 'bg-white/[0.03] border-white/[0.07] text-slate-600 hover:bg-white/[0.06] hover:border-white/10 hover:text-slate-300'"
@@ -244,6 +284,20 @@ const navLinks = [
               {{ t(link.labelKey) }}
             </router-link>
             <div class="border-t border-slate-700/20 mt-1.5 pt-1.5">
+              <router-link to="/settings"
+                 @click="isMobileMenuOpen = false"
+                 class="flex items-center gap-3 px-4 py-3.5 rounded-lg transition-colors text-sm font-semibold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
+                 :class="$route.path === '/settings' ? 'text-slate-200 bg-white/[0.06]' : 'text-slate-400 active:bg-white/[0.05]'">
+                <svg class="w-4 h-4 flex-shrink-0" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                {{ t('settings_title') }}
+              </router-link>
+              <a :href="EXPORTER_INSTALL_URL" target="_blank" rel="noopener noreferrer"
+                 @click="isMobileMenuOpen = false"
+                 class="flex items-center gap-3 px-4 py-3.5 rounded-lg transition-colors text-sm font-semibold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/30"
+                 :class="{ install: 'text-sky-300 active:bg-sky-500/[0.06]', update: 'text-amber-300 active:bg-amber-500/[0.06]', ok: 'text-slate-400 active:bg-white/[0.05]' }[scriptState]">
+                <svg class="w-4 h-4 flex-shrink-0" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                {{ scriptState === 'ok' ? t('nav_script_reinstall') : scriptLabel }}
+              </a>
               <a href="https://ko-fi.com/galax95" target="_blank" rel="noopener noreferrer"
                  @click="isMobileMenuOpen = false"
                  class="flex items-center gap-3 px-4 py-3.5 rounded-lg transition-colors text-sm font-semibold text-amber-400/70 active:bg-amber-500/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-400/30">

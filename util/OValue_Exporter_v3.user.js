@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.5.4
+// @version      4.6.0
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -179,7 +179,6 @@
             overview: '👤 Panoramica', lifeform: '🧬 LifeForm', empire: '🌍 Impero',
             badgeMissing: '✗ MANCANTE', badgeOk: '✓ LETTO',
             player: 'Giocatore', pclass: 'Classe', allyClass: 'Classe All.', planets: 'Pianeti', plasma: 'Plasma',
-            absent: 'assente', permanent: 'Permanente',
             dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Pianeti Mancanti (${n})`,
             missingLf:      n => `⚠ Razze Mancanti (${n})`,
@@ -201,7 +200,7 @@
             hintMissingLf: 'Clicca su ciascun pianeta per registrare la specie.',
             export: '⬇ Esporta Dati OValue', reset: '🗑 Svuota Cache Universo', close: '✕',
             refresh: '↻ Aggiorna Dati',
-            refreshing: '↻ Aggiornamento…',
+            refreshing: '↻ Aggiornamento…', openOValue: '↗ Apri OValue',
             prod24h: 'Metallo / 24h',
             prodSim: 'simulato',
             prodVsCurrent: 'vs attuale',
@@ -215,7 +214,6 @@
             overview: '👤 Overview', lifeform: '🧬 LifeForm', empire: '🌍 Empire',
             badgeMissing: '✗ MISSING', badgeOk: '✓ READ',
             player: 'Player', pclass: 'Class', allyClass: 'Ally Class', planets: 'Planets', plasma: 'Plasma',
-            absent: 'absent', permanent: 'Permanent',
             dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Missing Planets (${n})`,
             missingLf:      n => `⚠ Missing Species (${n})`,
@@ -236,7 +234,7 @@
             hintMissingPlanets: url => `Visit the <a class="ov_empire_link" href="${url}" target="_blank">Empire page</a> to collect them.`,
             hintMissingLf: 'Click each planet to register its species.',
             export: '⬇ Export OValue Data', reset: '🗑 Clear Universe Cache', close: '✕',
-            refresh: '↻ Refresh Data', refreshing: '↻ Refreshing…',
+            refresh: '↻ Refresh Data', refreshing: '↻ Refreshing…', openOValue: '↗ Open OValue',
             prod24h: 'Metal / 24h',
             prodSim: 'simulated',
             prodVsCurrent: 'vs current',
@@ -250,7 +248,6 @@
             overview: '👤 Übersicht', lifeform: '🧬 Lebensform', empire: '🌍 Imperium',
             badgeMissing: '✗ FEHLT', badgeOk: '✓ GELESEN',
             player: 'Spieler', pclass: 'Klasse', allyClass: 'Allianz-Kl.', planets: 'Planeten', plasma: 'Plasma',
-            absent: 'abwesend', permanent: 'Permanent',
             dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Fehlende Planeten (${n})`,
             missingLf:      n => `⚠ Fehlende Spezies (${n})`,
@@ -271,7 +268,7 @@
             hintMissingPlanets: url => `Besuche die <a class="ov_empire_link" href="${url}" target="_blank">Imperium-Seite</a> um sie zu lesen.`,
             hintMissingLf: 'Klicke jeden Planeten an, um seine Spezies zu registrieren.',
             export: '⬇ OValue-Daten exportieren', reset: '🗑 Universum-Cache leeren', close: '✕',
-            refresh: '↻ Daten aktualisieren', refreshing: '↻ Wird geladen…',
+            refresh: '↻ Daten aktualisieren', refreshing: '↻ Wird geladen…', openOValue: '↗ OValue öffnen',
             prod24h: 'Metall / 24h',
             prodSim: 'simuliert',
             prodVsCurrent: 'vs aktuell',
@@ -285,7 +282,6 @@
             overview: '👤 Aperçu', lifeform: '🧬 Forme de vie', empire: '🌍 Empire',
             badgeMissing: '✗ MANQUANT', badgeOk: '✓ LU',
             player: 'Joueur', pclass: 'Classe', allyClass: "Classe All.", planets: 'Planètes', plasma: 'Plasma',
-            absent: 'absent', permanent: 'Permanent',
             dataSourceApi: '⚡ API', dataSourceDom: '📄 DOM',
             missingPlanets: n => `⚠ Planètes manquantes (${n})`,
             missingLf:      n => `⚠ Espèces manquantes (${n})`,
@@ -306,7 +302,7 @@
             hintMissingPlanets: url => `Visitez la <a class="ov_empire_link" href="${url}" target="_blank">page Empire</a> pour les collecter.`,
             hintMissingLf: 'Cliquez sur chaque planète pour enregistrer son espèce.',
             export: '⬇ Exporter les données OValue', reset: '🗑 Vider le cache univers', close: '✕',
-            refresh: '↻ Actualiser les données', refreshing: '↻ Chargement…',
+            refresh: '↻ Actualiser les données', refreshing: '↻ Chargement…', openOValue: '↗ Ouvrir OValue',
             prod24h: 'Métal / 24h',
             prodSim: 'simulé',
             prodVsCurrent: 'vs actuelle',
@@ -319,14 +315,7 @@
     };
     const L = UI[UI_LANG] || UI[GAME_LANG] || UI.en;
 
-    // Nomi localizzati ufficiali per ufficiali e classi giocatore (usati solo nel pannello UI)
-    const OFF_NAMES = {
-        it: { commander: 'Comandante', admiral: 'Ammiraglio', engineer: 'Ingegnere', geologist: 'Geologo', technocrat: 'Tecnico' },
-        en: { commander: 'Commander',  admiral: 'Admiral',    engineer: 'Engineer',   geologist: 'Geologist', technocrat: 'Technocrat' },
-        de: { commander: 'Kommandant', admiral: 'Admiral',    engineer: 'Ingenieur',  geologist: 'Geologe',   technocrat: 'Technokrat' },
-        fr: { commander: 'Commandant', admiral: 'Amiral',     engineer: 'Ingénieur',  geologist: 'Géologue',  technocrat: 'Technocrate' }
-    }[UI_LANG] || { commander: 'Commander', admiral: 'Admiral', engineer: 'Engineer', geologist: 'Geologist', technocrat: 'Technocrat' };
-
+    // Nomi localizzati delle classi giocatore (usati solo nel pannello UI)
     const CLASS_NAMES = {
         it: { collector: 'Collezionista', general: 'Generale',  explorer: 'Esploratore' },
         en: { collector: 'Collector',     general: 'General',   explorer: 'Explorer' },
@@ -776,34 +765,6 @@
             else if (sprite.classList.contains('explorer')) d.playerClass = 'explorer';
         }
 
-        // Ufficiali: usa CSS class come chiave (language-neutral)
-        const officers = {};
-        for (const role of OFFICER_ROLES) {
-            const el = document.querySelector(`#officers a.${role}`);
-            if (!el) continue;
-            const active   = el.classList.contains('on');
-            const timerEl  = el.querySelector('.custom-timer-base.custom-timer-officer');
-            let timeRemaining = timerEl?.textContent.trim() || '';
-
-            if (!timeRemaining && active) {
-                // Timer vuoto = ufficiale attivo per >6 giorni.
-                // Il tempo rimanente è nel tooltip: "Hire X|Still active for more than 6 days"
-                const tooltipTitle = el.getAttribute('data-tooltip-title') || '';
-                const afterPipe    = tooltipTitle.split('|').slice(1).join('|');
-                // Estrae qualsiasi numero direttamente associato a una parola "giorni/days/..."
-                // Copre: "per altri 66 giorni", "more than 6 days", "für weitere 80 Tage", ecc.
-                const m = afterPipe.match(/(\d+)\s*(?:giorni?|days?|Tage?|jours?)/i);
-                if (m) {
-                    timeRemaining = m[1] + 'd';
-                } else if (/active|attivo|aktiv|actif/i.test(afterPipe)) {
-                    timeRemaining = '>6d';
-                }
-            }
-
-            if (!timeRemaining) timeRemaining = L.permanent;
-            officers[role] = { active, timeRemaining };
-        }
-        d.officers = officers;
         d.overview_collected = true;
         // Opportunistico: alcune versioni OGame mostrano la classe alleanza in overview.
         // Se presente la leggiamo qui (stesso DOM già caricato), altrimenti resta la
@@ -1117,14 +1078,11 @@
                 if (info && info.level > 0) d.lfLevels[n] = info.level;
             }
         }
-        // Ufficiali: solo bootstrap se la Panoramica non è mai stata letta — così non
-        // sovrascriviamo il timeRemaining (scadenze) raccolto dal DOM overview.
-        if (acc.officers && !d.overview_collected) {
+        // Ufficiali: solo attivo/non attivo, da accountInfo. Servono a OValue per il
+        // Geologo e lo staff completo (produzione); le scadenze non vengono più lette.
+        if (acc.officers) {
             const off = {};
-            for (const role of OFFICER_ROLES) {
-                const on = !!acc.officers[role];
-                off[role] = { active: on, timeRemaining: on ? '>6d' : '' };
-            }
+            for (const role of OFFICER_ROLES) off[role] = { active: !!acc.officers[role] };
             d.officers = off;
         }
 
@@ -1583,23 +1541,12 @@
             if (!d.overview_collected) {
                 ovBody.innerHTML = `<div class="ov_hint">${L.hintOverview}</div>`;
             } else {
-                // Nick e classe giocatore vivono ora nell'hero in cima al pannello;
-                // qui la Panoramica resta focalizzata su classe alleanza + ufficiali.
-                let html = '';
-                if (d.allianceClass && d.allianceClass !== 'none') {
-                    const an = ALLY_NAMES[d.allianceClass] || d.allianceClass;
-                    html += row(L.allyClass, `<span style="color:#ffb800;font-weight:bold">${an}</span>`);
-                }
-                for (const role of OFFICER_ROLES) {
-                    const off  = d.officers[role];
-                    const name = OFF_NAMES[role] || role;
-                    if (!off) { html += row(`✗ ${name}`, '<span class="ov_dim">—</span>'); continue; }
-                    if (!off.active) { html += row(`<span class="ov_dim">✗ ${name}</span>`, `<span class="ov_dim">${L.absent}</span>`); continue; }
-                    const perm = /^(Permanente|Permanent|∞)$/i.test(off.timeRemaining);
-                    html += row(`<span class="ov_ok_txt">✓ ${name}</span>`,
-                        `<span class="${perm ? 'ov_perm' : 'ov_warn'}">${off.timeRemaining}</span>`);
-                }
-                ovBody.innerHTML = html;
+                // Nick e classe giocatore vivono nell'hero in cima al pannello;
+                // qui la Panoramica mostra la classe alleanza.
+                const ally = d.allianceClass && d.allianceClass !== 'none'
+                    ? `<span style="color:#ffb800;font-weight:bold">${ALLY_NAMES[d.allianceClass] || d.allianceClass}</span>`
+                    : '<span class="ov_dim">—</span>';
+                ovBody.innerHTML = row(L.allyClass, ally);
             }
         }
 
@@ -1817,7 +1764,7 @@
         #ov_hdr { background:#070c18; border-bottom:1px solid rgba(255,255,255,.07);
             padding:8px 10px; display:flex; align-items:center; gap:6px;
             cursor:move; flex-shrink:0; }
-        #ov_hdr_title { font-weight:700; color:#e2e8f0; font-size:10px; flex-grow:1;
+        #ov_hdr_title { font-weight:700; color:#e2e8f0; font-size:10px; flex-grow:1; text-decoration:none;
             font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
             text-transform:uppercase; letter-spacing:.1em; }
         #ov_speed { font-size:9px; color:#64748b; white-space:nowrap;
@@ -1862,7 +1809,6 @@
         .ov_val { color:#94a3b8; text-align:right; font-weight:600; }
         .ov_ok_txt { color:#00ff9d; font-weight:600; }
         .ov_warn { color:#ffb800; }
-        .ov_perm { color:#38bdf8; }
         .ov_dim  { color:#334155; font-style:italic; }
         .ov_api_ok { color:#00ff9d; font-size:8px; font-weight:900;
             font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -1878,9 +1824,11 @@
             text-transform:uppercase; letter-spacing:.1em;
             font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
         .ov_item_name { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        #ov_refresh, #ov_export, #ov_reset { display:block; width:100%; padding:7px 0;
+        #ov_open_app, #ov_refresh, #ov_export, #ov_reset { display:block; box-sizing:border-box; text-decoration:none; width:100%; padding:7px 0;
             border-radius:8px; font-size:11px; font-family:inherit; font-weight:600;
             text-align:center; cursor:pointer; transition:background 150ms,border-color 150ms; }
+        #ov_open_app { background:rgba(0,255,157,.08); border:1px solid rgba(0,255,157,.2); color:#00ff9d; font-weight:700; }
+        #ov_open_app:hover { background:rgba(0,255,157,.15); border-color:rgba(0,255,157,.35); }
         #ov_refresh { background:rgba(56,189,248,.07); border:1px solid rgba(56,189,248,.15); color:#38bdf8; }
         #ov_refresh:hover { background:rgba(56,189,248,.13); border-color:rgba(56,189,248,.25); }
         #ov_refresh:disabled { opacity:.4; cursor:not-allowed; }
@@ -1970,7 +1918,7 @@
 
         panel.innerHTML = `
             <div id="ov_hdr">
-                <span id="ov_hdr_title">⬡ OValue</span>
+                <a id="ov_hdr_title" href="https://ovalue.net/" target="_blank" rel="noopener noreferrer" title="${L.openOValue}">⬡ OValue ↗</a>
                 <span id="ov_speed"></span>
                 <button id="ov_close" title="${L.close}">${L.close}</button>
             </div>
@@ -1982,6 +1930,7 @@
                 ${mkSec('emp', empireUrl(), L.empire, 'ov_bdg_emp', 'ov_body_emp', `<div class="ov_hint">${L.hintEmpire(empireUrl())}</div>`, 'ov_empire_link')}
             </div>
             <div id="ov_footer">
+                <a id="ov_open_app" href="https://ovalue.net/" target="_blank" rel="noopener noreferrer">${L.openOValue}</a>
                 <button id="ov_refresh">${L.refresh}</button>
                 <button id="ov_export">${L.export}</button>
                 <button id="ov_reset">${L.reset}</button>
@@ -2022,7 +1971,7 @@
         let dragging = false, ox = 0, oy = 0;
         const hdr = document.getElementById('ov_hdr');
         hdr.addEventListener('mousedown', e => {
-            if (e.target.id === 'ov_close') return;
+            if (e.target.id === 'ov_close' || e.target.closest('a')) return;  // link: niente drag
             dragging = true;
             const r = panel.getBoundingClientRect();
             ox = e.clientX - r.left;

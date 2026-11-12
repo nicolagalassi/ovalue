@@ -784,6 +784,8 @@
     "lbl_opens_new_tab": "opens in a new tab",
     "nav_install_script": "Install script",
     "nav_script": "Script",
+    "nav_update_script": "Update script",
+    "nav_update_script_title": "Script version {latest} is available (you have {current}): click to update",
     "nav_script_reinstall": "Reinstall / update the script",
     "nav_install_script_title": "Install the Exporter script: it imports your data from OGame",
     "nav_script_installed_title": "Exporter script detected: click to reinstall or update it",

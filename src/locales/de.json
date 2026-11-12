@@ -450,6 +450,8 @@
     "lbl_opens_new_tab": "öffnet in einem neuen Tab",
     "nav_install_script": "Skript installieren",
     "nav_script": "Skript",
+    "nav_update_script": "Skript aktualisieren",
+    "nav_update_script_title": "Skript-Version {latest} ist verfügbar (du hast {current}): Klicke zum Aktualisieren",
     "nav_script_reinstall": "Skript neu installieren / aktualisieren",
     "nav_install_script_title": "Installiere das Exporter-Skript: Es importiert deine Daten aus OGame",
     "nav_script_installed_title": "Exporter-Skript erkannt: Klicke zum Neuinstallieren oder Aktualisieren",

@@ -1,7 +1,8 @@
 <script setup>
-// Planner apertura pacchi: dato un budget di MO, decide come dividerlo tra
-// amplificatori di metallo per pianeta e Pacchetti Metallo, massimizzando il
-// metallo ottenuto all'apertura.
+// Planner apertura pacchi: il giocatore ha già N Pacchetti Metallo e un
+// budget di MO. Le MO vanno in amplificatori per pianeta (che alzano il valore
+// di ogni pacco aperto) e quelle avanzate comprano pacchi extra: si cerca la
+// divisione che massimizza il metallo ottenuto all'apertura.
 //
 // Compliance (AGENTS.md): calcolatore puro sui dati del profilo locale.
 // Nessuna chiamata al gioco, nessuna automazione o acquisto: suggerisce
@@ -49,9 +50,8 @@ const factorFor = (key, tier, dur, eventId) => eventId === 'best'
 
 // ── Stato (persistito nel profilo) ────────────────────────────────────────
 const createDefaults = () => ({
-    mode: 'packs',            // 'packs' | 'mo'
-    packs: 100,
-    mo: 4200000,
+    packs: 100,               // pacchi già posseduti
+    mo: 500000,               // MO disponibili per item e pacchi extra
     packEvent: 'best',
     itemEvent: 'best',
     enabled: Object.fromEntries([...BOOSTERS, ...AMPS].map(o => [o.id, true])),
@@ -63,6 +63,7 @@ watch(activeProfile, (p) => {
     const d = createDefaults();
     Object.assign(state, d, saved ? JSON.parse(JSON.stringify(saved)) : {});
     state.enabled = { ...d.enabled, ...(saved?.enabled || {}) };
+    delete state.mode; // vecchio formato: budget = costo dei pacchi
 }, { immediate: true });
 
 let saveDebounce = null;
@@ -92,9 +93,8 @@ const priced = (o) => ({ ...o, cost: Math.round(o.base * factorFor(o.key, o.tier
 const boosterOpts = computed(() => BOOSTERS.map(priced));
 const ampOpts = computed(() => AMPS.map(priced));
 
-const budget = computed(() => state.mode === 'packs'
-    ? (parseInt(state.packs) || 0) * packPrice.value
-    : (parseInt(state.mo) || 0));
+const ownedPacks = computed(() => parseInt(state.packs) || 0);
+const budget = computed(() => parseInt(state.mo) || 0);
 
 // ── Produzione senza item ─────────────────────────────────────────────────
 // Si azzerano item/itemCustom di ogni pianeta: il profilo può avere item
@@ -152,18 +152,19 @@ const evaluate = (assign) => {
     });
     const left = budget.value - itemsCost;
     if (left < 0 || P <= 0) return null;
-    const packs = Math.floor(left / P);
+    const extraPacks = Math.floor(left / P);
+    const packs = ownedPacks.value + extraPacks;
     const packValue = production.value.dailyNoItems + gain;
-    return { assign, itemsCost, packs, packValue, total: packs * packValue, leftover: left - packs * P };
+    return { assign, itemsCost, extraPacks, packs, packValue, total: packs * packValue, leftover: left - extraPacks * P };
 };
 
 // Ottimo: knapsack a scelta multipla sul costo degli item (griglia di MO),
-// poi per ogni spesa possibile i pacchi comprati col resto.
+// poi per ogni spesa possibile i pacchi extra comprati col resto.
 const optimal = computed(() => {
     const rows = production.value.rows;
     const cs = combos.value;
     const B = budget.value;
-    if (!rows.length || B <= 0) return null;
+    if (!rows.length) return null;
 
     const maxSpend = Math.min(B, rows.length * cs[cs.length - 1].cost);
     const unit = Math.max(25, Math.ceil(maxSpend / 20000));
@@ -286,24 +287,13 @@ const strategyLabel = (s) => {
             <!-- Budget -->
             <div class="card-glass p-5 bg-amber-500/[0.03] border border-amber-500/20">
                 <h3 class="text-[11px] font-black text-amber-400 uppercase tracking-widest font-mono mb-3">{{ t('pop_budget_title') }}</h3>
-                <div class="grid grid-cols-2 gap-1 p-1 rounded-lg bg-black/40 mb-3" role="tablist">
-                    <button v-for="m in ['packs', 'mo']" :key="m" type="button" role="tab" :aria-selected="state.mode === m"
-                            @click="state.mode = m"
-                            class="py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-colors"
-                            :class="state.mode === m ? 'bg-amber-500/20 text-amber-300' : 'text-slate-500 hover:text-slate-300'">
-                        {{ t(m === 'packs' ? 'pop_mode_packs' : 'pop_mode_mo') }}
-                    </button>
-                </div>
-                <input v-if="state.mode === 'packs'" v-model.lazy="formPacks" type="text" inputmode="numeric" @focus="$event.target.select()"
-                       :aria-label="t('pop_mode_packs')"
-                       class="input-glass w-full px-4 py-3 text-white font-black text-center text-2xl">
-                <input v-else v-model.lazy="formMo" type="text" inputmode="numeric" @focus="$event.target.select()"
-                       :aria-label="t('pop_mode_mo')"
-                       class="input-glass w-full px-4 py-3 text-white font-black text-center text-2xl">
-                <p class="text-[11px] text-slate-500 mt-2 text-center">
-                    {{ t('pop_budget_total') }}: <span class="text-ogame-dm font-bold">{{ formatNum(budget) }} {{ t('lbl_dm') }}</span>
-                    <template v-if="state.mode === 'packs'"><br>{{ t('pop_budget_packs_hint') }}</template>
-                </p>
+                <label for="pop-owned" class="block text-[11px] font-bold text-slate-400 mb-1">{{ t('pop_owned_packs') }}</label>
+                <input id="pop-owned" v-model.lazy="formPacks" type="text" inputmode="numeric" @focus="$event.target.select()"
+                       class="input-glass w-full px-4 py-2.5 text-white font-black text-center text-xl mb-3">
+                <label for="pop-mo" class="block text-[11px] font-bold text-slate-400 mb-1">{{ t('pop_available_mo') }}</label>
+                <input id="pop-mo" v-model.lazy="formMo" type="text" inputmode="numeric" @focus="$event.target.select()"
+                       class="input-glass w-full px-4 py-2.5 text-ogame-dm font-black text-center text-xl">
+                <p class="text-[11px] text-slate-500 mt-2 text-center">{{ t('pop_budget_hint') }}</p>
             </div>
 
             <!-- Sconti -->
@@ -362,7 +352,10 @@ const strategyLabel = (s) => {
                     </div>
                     <div>
                         <div class="text-[10px] uppercase text-slate-500 font-bold">{{ t('pop_packs') }}</div>
-                        <div class="text-lg font-black text-amber-300 font-mono">{{ formatNum(optimal.packs) }}</div>
+                        <div class="text-lg font-black text-amber-300 font-mono">
+                            {{ formatNum(optimal.packs) }}
+                            <span v-if="optimal.extraPacks" class="text-xs text-slate-500">(+{{ formatNum(optimal.extraPacks) }})</span>
+                        </div>
                     </div>
                     <div>
                         <div class="text-[10px] uppercase text-slate-500 font-bold">{{ t('pop_pack_value') }}</div>
@@ -377,7 +370,7 @@ const strategyLabel = (s) => {
                 </div>
                 <div class="mt-4 pt-4 border-t border-slate-700/30 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-400">
                     <span>{{ t('pop_items_cost') }}: <b class="text-ogame-dm">{{ formatNum(optimal.itemsCost) }}</b></span>
-                    <span>{{ t('pop_packs_cost') }}: <b class="text-ogame-dm">{{ formatNum(optimal.packs * packPrice) }}</b></span>
+                    <span>{{ t('pop_packs_cost') }}: <b class="text-ogame-dm">{{ formatNum(optimal.extraPacks * packPrice) }}</b></span>
                     <span>{{ t('pop_leftover') }}: <b class="text-slate-300">{{ formatNum(optimal.leftover) }}</b></span>
                 </div>
                 <div v-if="shoppingSummary.length" class="mt-4 flex flex-wrap gap-2">
@@ -387,7 +380,6 @@ const strategyLabel = (s) => {
                     </span>
                 </div>
             </div>
-            <div v-else class="card-glass p-6 text-sm text-slate-400">{{ t('pop_not_affordable') }}</div>
 
             <!-- Confronto strategie -->
             <div class="card-glass p-6">
@@ -408,7 +400,9 @@ const strategyLabel = (s) => {
                                 :class="s.optimal ? 'bg-ogame-success/[0.05]' : ''">
                                 <td class="px-2 py-2" :class="s.optimal ? 'text-ogame-success font-bold' : 'text-slate-300'">{{ strategyLabel(s) }}</td>
                                 <td class="px-2 py-2 text-right font-mono text-ogame-dm">{{ formatNum(s.res.itemsCost) }}</td>
-                                <td class="px-2 py-2 text-right font-mono text-amber-300">{{ formatNum(s.res.packs) }}</td>
+                                <td class="px-2 py-2 text-right font-mono text-amber-300">
+                                    {{ formatNum(s.res.packs) }}<span v-if="s.res.extraPacks" class="text-slate-500"> (+{{ formatNum(s.res.extraPacks) }})</span>
+                                </td>
                                 <td class="px-2 py-2 text-right font-mono text-white">{{ formatNum(s.res.total) }}</td>
                                 <td class="px-2 py-2 text-right font-mono" :class="s.vsBest >= -0.0001 ? 'text-ogame-success' : 'text-ogame-danger'">
                                     {{ s.vsBest >= -0.0001 ? '—' : s.vsBest.toFixed(2) + '%' }}

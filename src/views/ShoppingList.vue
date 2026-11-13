@@ -209,6 +209,27 @@ const DISCOUNTABLE_NEW_ITEM = (itemKey) =>
     itemKey === 'exp_computer' ||
     /^scrap_offer_/.test(itemKey);
 
+// Evento Item Platino: lo sconto è scalare per tier — platino 20%, oro 15%,
+// argento 10%, bronzo 5%. Gli item senza tier (pacchetti risorse, classi,
+// staff, nuovi item) prendono lo sconto pieno del 20%.
+const PLATINUM_EVENT_TIER_FACTOR = { platinum: 0.80, gold: 0.85, silver: 0.90, bronze: 0.95 };
+const PLATINUM_EVENT_TIERED_ITEMS = [
+    'booster_metal', 'booster_crystal', 'booster_deut', 'booster_energy',
+    'fields_planet', 'fields_moon', 'moons',
+    'slot_fleet', 'slot_expedition',
+];
+const getPlatinumEventFactor = (itemKey, tier) => {
+    if (DISCOUNTABLE_NEW_ITEM(itemKey)) return 0.8;
+    if (String(itemKey).startsWith('res_package_')) return 0.8;
+    if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return 0.8;
+    // Amplificatori risorse/energia bronzo: non più in vendita → nessuno sconto.
+    if (String(itemKey).startsWith('booster_') && tier === 'bronze') return 1;
+    if (tier === 'platinum' || PLATINUM_EVENT_TIERED_ITEMS.includes(itemKey)) {
+        return PLATINUM_EVENT_TIER_FACTOR[tier] ?? 1;
+    }
+    return 1;
+};
+
 // Calculation Helpers
 const isItemDiscounted = (itemKey, tier, eventId) => {
     if (eventId === 'none') return false;
@@ -222,16 +243,7 @@ const isItemDiscounted = (itemKey, tier, eventId) => {
     if (eventId === 'boosters'     && String(itemKey).includes('booster')) return true;
     if (eventId === 'resources'    && String(itemKey).includes('res_package')) return true;
     if (eventId === 'classes'      && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return true;
-    if (eventId === 'platinum') {
-        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return true;
-        if (tier === 'platinum') return true;
-        if (String(itemKey).startsWith('res_package_')) return true;
-        if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return true;
-        if (['booster_metal', 'booster_crystal', 'booster_deut'].includes(itemKey) && tier !== 'bronze') return true;
-        if (itemKey === 'fields_planet' || itemKey === 'fields_moon' || itemKey === 'moons') return true;
-        if (itemKey === 'booster_energy' && tier !== 'bronze') return true;
-        if (itemKey === 'slot_fleet' || itemKey === 'slot_expedition') return true;
-    }
+    if (eventId === 'platinum') return getPlatinumEventFactor(itemKey, tier) < 1;
     if (eventId === 'merchant'     && itemKey === 'ingame_merchant') return true;
     if (eventId === 'relocate'     && itemKey === 'ingame_relocate') return true;
     if (eventId === 'slots'        && (itemKey === 'slot_fleet' || itemKey === 'slot_expedition')) return true;
@@ -274,16 +286,7 @@ const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
     }
     if (eventId === 'resources'  && String(itemKey).includes('res_package')) return 0.7;
     if (eventId === 'classes'    && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return 0.8;
-    if (eventId === 'platinum') {
-        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return 0.8;
-        if (tier === 'platinum') return 0.8;
-        if (String(itemKey).startsWith('res_package_')) return 0.8;
-        if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return 0.8;
-        if (['booster_metal', 'booster_crystal', 'booster_deut'].includes(itemKey) && tier !== 'bronze') return 0.8;
-        if (itemKey === 'fields_planet' || itemKey === 'fields_moon' || itemKey === 'moons') return 0.8;
-        if (itemKey === 'booster_energy' && tier !== 'bronze') return 0.8;
-        if (itemKey === 'slot_fleet' || itemKey === 'slot_expedition') return 0.8;
-    }
+    if (eventId === 'platinum') return getPlatinumEventFactor(itemKey, tier);
     if (eventId === 'merchant'   && itemKey === 'ingame_merchant') return 2000 / 3500;
     if (eventId === 'relocate'   && itemKey === 'ingame_relocate') return 0.5;
     if (eventId === 'slots'      && (itemKey === 'slot_fleet' || itemKey === 'slot_expedition')) return 0.7;

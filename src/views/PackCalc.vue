@@ -4,6 +4,7 @@ import { useLanguage } from '../composables/useLanguage';
 import { OGAME_DB, DM_PACKAGES, DM_EVENT_BONUSES } from '../data/ogame_db';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import { useProfiles } from '../composables/useProfiles';
+import PackOpeningPlanner from '../components/PackOpeningPlanner.vue';
 
 const { t, currentLang } = useLanguage();
 const { getBuildCostLF } = useOgameFormulas();
@@ -13,6 +14,12 @@ const { activeProfile, saveProfiles } = useProfiles();
 const queue = ref([]);
 const isAutoLoaded = ref(true);
 const showIntro = ref(false);
+
+// Scheda attiva: 'exchange' (scambio pacchi) | 'planner' (planner apertura).
+// Preferenza per-visitatore in localStorage; senza storage resta 'exchange'.
+const TAB_KEY = 'ovalue_pack_tab';
+const activeTab = ref((() => { try { return localStorage.getItem(TAB_KEY) === 'planner' ? 'planner' : 'exchange'; } catch { return 'exchange'; } })());
+watch(activeTab, (v) => { try { localStorage.setItem(TAB_KEY, v); } catch { /* storage non disponibile */ } });
 
 // Input e Stock
 const inputs = reactive({ metal: 0, crystal: 0, deuterium: 0 });
@@ -349,6 +356,21 @@ const copyShareText = async () => {
         <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-amber-500 to-amber-400 mx-auto rounded-full opacity-70"></div>
     </div>
 
+    <!-- Tabs -->
+    <div class="flex justify-center mb-8">
+        <div class="inline-grid grid-cols-2 gap-1 p-1 rounded-xl bg-black/40 border border-slate-700/30" role="tablist">
+            <button v-for="tab in ['exchange', 'planner']" :key="tab" type="button" role="tab"
+                    :aria-selected="activeTab === tab" @click="activeTab = tab"
+                    class="px-4 md:px-6 py-2 rounded-lg text-xs md:text-sm font-bold uppercase tracking-wider transition-colors"
+                    :class="activeTab === tab ? 'bg-amber-500/20 text-amber-300' : 'text-slate-500 hover:text-slate-300'">
+                {{ t(tab === 'exchange' ? 'pop_tab_exchange' : 'pop_tab_planner') }}
+            </button>
+        </div>
+    </div>
+
+    <PackOpeningPlanner v-if="activeTab === 'planner'" />
+
+    <template v-else>
     <!-- Intro Section -->
     <div class="card-glass mb-8 bg-amber-500/[0.03]">
 
@@ -951,14 +973,6 @@ const copyShareText = async () => {
             </div>
         </div>
     </div>
+    </template>
   </div>
 </template>
-
-<style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-@media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-  .fade-enter-active, .fade-leave-active { transition: none; }
-}
-</style>

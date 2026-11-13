@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { SHOP_ITEMS, DM_PACKAGES, DM_EVENT_BONUSES, dmPackageAmount } from '../data/ogame_db';
+import { DISCOUNTABLE_NEW_ITEM, getPlatinumEventFactor, getEventDiscountFactor } from '../data/shopDiscounts';
 
 /**
  * Shopping List V5 - "Event Spotlight" Layout
@@ -199,16 +200,6 @@ const DISCOUNT_EVENTS = [
 
 const getEventInfo = (eventId) => DISCOUNT_EVENTS.find(e => e.id === eventId);
 
-// Nuovi item (amplificatori risorse/spedizioni, computer spedizioni, offerte
-// mercante) resi idonei agli sconti "item 15%/20%" e "item platino" a
-// prescindere da categoria/tier — usato sia per l'idoneità sia per il fattore
-// di sconto, così le due funzioni restano coerenti.
-const DISCOUNTABLE_NEW_ITEM = (itemKey) =>
-    /^res_amp_/.test(itemKey) ||
-    /^exp_res_amp_/.test(itemKey) ||
-    itemKey === 'exp_computer' ||
-    /^scrap_offer_/.test(itemKey);
-
 // Calculation Helpers
 const isItemDiscounted = (itemKey, tier, eventId) => {
     if (eventId === 'none') return false;
@@ -222,16 +213,7 @@ const isItemDiscounted = (itemKey, tier, eventId) => {
     if (eventId === 'boosters'     && String(itemKey).includes('booster')) return true;
     if (eventId === 'resources'    && String(itemKey).includes('res_package')) return true;
     if (eventId === 'classes'      && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return true;
-    if (eventId === 'platinum') {
-        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return true;
-        if (tier === 'platinum') return true;
-        if (String(itemKey).startsWith('res_package_')) return true;
-        if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return true;
-        if (['booster_metal', 'booster_crystal', 'booster_deut'].includes(itemKey) && tier !== 'bronze') return true;
-        if (itemKey === 'fields_planet' || itemKey === 'fields_moon' || itemKey === 'moons') return true;
-        if (itemKey === 'booster_energy' && tier !== 'bronze') return true;
-        if (itemKey === 'slot_fleet' || itemKey === 'slot_expedition') return true;
-    }
+    if (eventId === 'platinum') return getPlatinumEventFactor(itemKey, tier) < 1;
     if (eventId === 'merchant'     && itemKey === 'ingame_merchant') return true;
     if (eventId === 'relocate'     && itemKey === 'ingame_relocate') return true;
     if (eventId === 'slots'        && (itemKey === 'slot_fleet' || itemKey === 'slot_expedition')) return true;
@@ -252,43 +234,6 @@ const isItemEventRelated = (itemKey, costs) => {
     if (isItemHighlighted(itemKey, costs)) return true;
     if (activeDiscountEvent.value === 'construction' && SHOP_ITEMS.items[itemKey]?.cat === 'construction') return true;
     return false;
-};
-
-const getEventDiscountFactor = (itemKey, tier, dur, eventId) => {
-    if (eventId === 'discount') {
-        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return 0.85;
-        const item = SHOP_ITEMS.items[itemKey];
-        const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
-        if (item && !excludeCats.includes(item.cat)) return 0.85;
-    }
-    if (eventId === 'discount_20') {
-        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return 0.80;
-        const item = SHOP_ITEMS.items[itemKey];
-        const excludeCats = ['officers_only', 'ingame', 'construction', 'expedition'];
-        if (item && !excludeCats.includes(item.cat)) return 0.80;
-    }
-    if (eventId === 'boosters' && String(itemKey).includes('booster')) {
-        if (dur === '7d')  return 0.9;
-        if (dur === '30d') return 0.85;
-        if (dur === '90d') return 0.8;
-    }
-    if (eventId === 'resources'  && String(itemKey).includes('res_package')) return 0.7;
-    if (eventId === 'classes'    && (String(itemKey).includes('class_') || (String(itemKey).includes('staff_') && itemKey !== 'staff_command'))) return 0.8;
-    if (eventId === 'platinum') {
-        if (DISCOUNTABLE_NEW_ITEM(itemKey)) return 0.8;
-        if (tier === 'platinum') return 0.8;
-        if (String(itemKey).startsWith('res_package_')) return 0.8;
-        if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return 0.8;
-        if (['booster_metal', 'booster_crystal', 'booster_deut'].includes(itemKey) && tier !== 'bronze') return 0.8;
-        if (itemKey === 'fields_planet' || itemKey === 'fields_moon' || itemKey === 'moons') return 0.8;
-        if (itemKey === 'booster_energy' && tier !== 'bronze') return 0.8;
-        if (itemKey === 'slot_fleet' || itemKey === 'slot_expedition') return 0.8;
-    }
-    if (eventId === 'merchant'   && itemKey === 'ingame_merchant') return 2000 / 3500;
-    if (eventId === 'relocate'   && itemKey === 'ingame_relocate') return 0.5;
-    if (eventId === 'slots'      && (itemKey === 'slot_fleet' || itemKey === 'slot_expedition')) return 0.7;
-    if (eventId === 'expedition' && String(itemKey).includes('exp_delay_')) return 0.8;
-    return 1;
 };
 
 const getCalculatedCost = (itemKey, tier, dur, baseCost) =>

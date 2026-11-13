@@ -210,9 +210,9 @@ const DISCOUNTABLE_NEW_ITEM = (itemKey) =>
     /^scrap_offer_/.test(itemKey);
 
 // Evento Item Platino: lo sconto è scalare per tier — platino 20%, oro 15%,
-// argento 10%, bronzo 5%. Gli item senza tier (pacchetti risorse, classi,
-// staff, nuovi item) prendono lo sconto pieno del 20%.
-const PLATINUM_EVENT_TIER_FACTOR = { platinum: 0.80, gold: 0.85, silver: 0.90, bronze: 0.95 };
+// argento 10%; il bronzo non è scontato. Gli item senza tier (pacchetti
+// risorse, classi, staff, nuovi item) prendono lo sconto pieno del 20%.
+const PLATINUM_EVENT_TIER_FACTOR = { platinum: 0.80, gold: 0.85, silver: 0.90 };
 const PLATINUM_EVENT_TIERED_ITEMS = [
     'booster_metal', 'booster_crystal', 'booster_deut', 'booster_energy',
     'fields_planet', 'fields_moon', 'moons',
@@ -222,8 +222,6 @@ const getPlatinumEventFactor = (itemKey, tier) => {
     if (DISCOUNTABLE_NEW_ITEM(itemKey)) return 0.8;
     if (String(itemKey).startsWith('res_package_')) return 0.8;
     if (String(itemKey).startsWith('class_') || (String(itemKey).startsWith('staff_') && itemKey !== 'staff_command')) return 0.8;
-    // Amplificatori risorse/energia bronzo: non più in vendita → nessuno sconto.
-    if (String(itemKey).startsWith('booster_') && tier === 'bronze') return 1;
     if (tier === 'platinum' || PLATINUM_EVENT_TIERED_ITEMS.includes(itemKey)) {
         return PLATINUM_EVENT_TIER_FACTOR[tier] ?? 1;
     }

@@ -45,6 +45,8 @@ Algoritmo greedy che pianifica il percorso ottimale per raggiungere un target di
 
 `util/OValue_Exporter_v3.user.js` è uno userscript Greasemonkey/Tampermonkey da installare nel browser. Si inietta nelle pagine di OGame e raccoglie automaticamente i dati dell'account.
 
+> ✅ **Tool approvato dal team OGame Origin.** Thread ufficiale sul forum: [OValue Exporter](https://forum.origin.ogame.gameforge.com/forum/thread/334-ovalue-exporter/).
+
 **Dati raccolti:**
 - Classe giocatore e ufficiali attivi (geologo, staff completo)
 - Livelli miniere, cristallo e deuterio per ogni pianeta

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.7.1
+// @version      4.7.2
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -1267,16 +1267,24 @@
         return true;
     }
 
-    // Recupera i dati dell'impero via API da qualsiasi pagina.
-    // force=true bypassa il throttle di 3 minuti (usato dal pulsante manuale).
-    async function collectEmpireFromAPI(force = false) {
+    // Unico punto da cui partono le chiamate accountInfo/empire (Panoramica, Impero,
+    // pulsante ↻): al massimo una ogni 3 minuti, qualunque pagina la richieda
+    // (AGENTS.md §4.1). Restituisce null se la chiamata è stata saltata per il throttle.
+    // force=true bypassa il throttle: solo per il pulsante manuale (1 clic = 1 chiamata).
+    const API_THROTTLE_MS = 3 * 60 * 1000;
+    async function fetchApiPlanetsThrottled(force = false) {
         const now = Date.now();
-        if (!force && (now - (d._lastEmpireAPIFetch || 0)) < 3 * 60 * 1000) return;
+        if (!force && (now - (d._lastEmpireAPIFetch || 0)) < API_THROTTLE_MS) return null;
         d._lastEmpireAPIFetch = now;
+        save();   // il timestamp va salvato anche se la chiamata fallisce o torna vuota
+        return fetchApiPlanets();
+    }
 
+    // Recupera i dati dell'impero via API da qualsiasi pagina.
+    async function collectEmpireFromAPI(force = false) {
         try {
-            const apiPlanets = await fetchApiPlanets();
-            if (!apiPlanets.length) return;
+            const apiPlanets = await fetchApiPlanetsThrottled(force);
+            if (!apiPlanets?.length) return;
             applyAPIToPlanets(apiPlanets);
             save();
             updatePanel();
@@ -1287,14 +1295,18 @@
 
     async function collectEmpire() {
         let apiPlanets = [];
-        d.empire_api = false;
         try {
-            // accountInfo (v13) → fallback empire; in forma flat, così il merge DOM sotto resta invariato
-            apiPlanets = await fetchApiPlanets();
-            // Plasma dalla chiave globale 122
-            const first = apiPlanets.find(ap => ap['122'] != null);
-            if (first) d.settings.plasma = first['122'] || 0;
-            d.empire_api = apiPlanets.length > 0;
+            // accountInfo (v13) → fallback empire; in forma flat, così il merge DOM sotto resta invariato.
+            // Entro 3 minuti dall'ultima chiamata non si richiama: la pagina Impero ha già nel DOM
+            // tutti i livelli, e sovraccarico/plasma restano quelli letti dall'ultima risposta.
+            const fetched = await fetchApiPlanetsThrottled();
+            if (fetched) {
+                apiPlanets = fetched;
+                // Plasma dalla chiave globale 122
+                const first = apiPlanets.find(ap => ap['122'] != null);
+                if (first) d.settings.plasma = first['122'] || 0;
+                d.empire_api = apiPlanets.length > 0;
+            }
         } catch (e) {
             console.warn('[OValue Exporter] Empire API fetch failed, using DOM fallback:', e.message);
         }
@@ -1464,16 +1476,19 @@
             });
         });
         d.planets = planets;
-        if (d.empire_api) inferOverloadFromProduction();
+        // Solo con una risposta API fresca: realMetal e livelli devono venire dalla stessa lettura
+        if (apiPlanets.length) inferOverloadFromProduction();
 
         d.empire_collected = true;
         save();
         updatePanel();
     }
 
-    function tryCollectEmpire() {
+    // Attende che la tabella Impero sia nel DOM (lettura locale, nessuna rete) per al
+    // massimo 10 s; poi rinuncia invece di ricontrollare all'infinito.
+    function tryCollectEmpire(retries = 20) {
         if (document.querySelectorAll('.planet .coords').length > 0) collectEmpire();
-        else setTimeout(tryCollectEmpire, 500);
+        else if (retries > 0) setTimeout(() => tryCollectEmpire(retries - 1), 500);
     }
 
     // Legge le ricerche LF attive dalla pagina lfresearch (per-pianeta).
@@ -1538,7 +1553,8 @@
         // Idrata mine/LF/classi di tutti i pianeti via accountInfo (v13) SOLO al page-load
         // (mai timer/loop/auto-refresh — AGENTS.md §1.3/§4), una sola risposta, senza cp=
         // (§4.2), con throttle di 3 min per non ripetere la chiamata a ogni navigazione.
-        setTimeout(() => collectEmpireFromAPI(), 2000);
+        // Parte subito al caricamento, senza ritardo: i dati arrivano dalla risposta, non dal DOM.
+        collectEmpireFromAPI();
     } else if (page === 'ingame' && component === 'lfbonuses') {
         setTimeout(collectLFBonuses, 1000);
     } else if (page === 'ingame' && component === 'lfresearch') {

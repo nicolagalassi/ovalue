@@ -3,6 +3,18 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.7.1]
+
+### Corretto
+- **Amplificatore di risorse 30% da 7 giorni non riconosciuto.** accountInfo lo chiama
+  "Amplificatore di risorse (#amount# %) Bronzo", senza percentuale, e il suo uuid non era
+  in tabella: il pianeta finiva con `itemCustom: 0` e il Pacchetto Metallo risultava più
+  basso del gioco (su un account reale 971.696.345 invece di 988.904.273). Ora l'uuid è
+  noto e il valore coincide con quello in gioco; anche il sovraccarico crawler di quei
+  pianeti torna deducibile (prima `nomatch`).
+- Aggiunto l'uuid dell'Amplificatore di metallo Oro visto in accountInfo (prima
+  riconosciuto solo dal nome).
+
 ## OValue Exporter — [4.7.0]
 
 ### Aggiunto

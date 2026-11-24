@@ -32,7 +32,9 @@ Lista della spesa per un evento o sessione di acquisti:
 
 ### Production Planner `/strategy` *(Alpha)*
 Algoritmo greedy che pianifica il percorso ottimale per raggiungere un target di produzione giornaliera:
+- Obiettivo configurabile su metallo, cristallo, deuterio o una combinazione (somma con peso uguale)
 - Valuta miniere, plasma, edifici LF e ricerche LF a ogni step
+- Per il deuterio accetta la Tmax per pianeta; senza dato usa la temperatura media della posizione
 - Ordina per ROI (ritorno sull'investimento in giorni/mesi/anni)
 - Modalità valore pacchetto dinamico o fisso
 - Roadmap step-by-step con raggruppamento blocchi economici
@@ -89,7 +91,7 @@ OValue supporta profili multipli, uno per server OGame. Ogni profilo è indipend
 | Vue 3 + `<script setup>` | Framework UI, composables reattivi |
 | Vue Router 4 | Routing lazy-loaded con meta SEO |
 | Tailwind CSS 3 | Styling con tema custom `ogame.*` |
-| Vite 7 + vite-plugin-pwa | Build e Progressive Web App |
+| Vite 8 + vite-plugin-pwa | Build e Progressive Web App |
 | `localStorage` | Persistenza profili (no Vuex/Pinia) |
 
 ---
@@ -102,6 +104,9 @@ npm run dev       # dev server → http://localhost:5173
 npm run build     # build produzione in dist/
 npm run preview   # anteprima build locale
 ```
+
+> Vite 8 richiede Node.js >= 22.12. Con Node 18 il dev server si ferma con
+> `SyntaxError: The requested module 'node:util' does not provide an export named 'styleText'`.
 
 ---
 

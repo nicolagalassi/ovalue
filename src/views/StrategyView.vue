@@ -3,15 +3,22 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeUnmount
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
-import { useStrategy, toMSU, isStepDoneInProfile, rewindPlanProgress, applyStepToState } from '../composables/useStrategy';
+import { useStrategy, toMSU, simulateDailyProductionByResource, isStepDoneInProfile, rewindPlanProgress, applyStepToState } from '../composables/useStrategy';
 import { useToast } from '../composables/useToast';
 import { OGAME_DB } from '../data/ogame_db';
 
 const { t } = useLanguage();
 const { show: showToast } = useToast();
 const { activeProfile, saveProfiles } = useProfiles();
-const { formatNum, calcLFResearchBonus } = useOgameFormulas();
-const { runPlanner, computeEuroCost, buildInitialState, simulateDailyProduction } = useStrategy();
+const { formatNum, calcLFResearchBonus, estimateMaxTemperature } = useOgameFormulas();
+const { runPlanner, computeEuroCost, buildInitialState, simulateDailyProduction, simulateProductionScore } = useStrategy();
+
+const RESOURCE_KEYS = ['metal', 'crystal', 'deuterium'];
+const RESOURCE_CHIP_CLASS = {
+    metal: 'bg-slate-500/20 border-slate-400/35 text-slate-200',
+    crystal: 'bg-sky-500/20 border-sky-400/35 text-sky-200',
+    deuterium: 'bg-emerald-500/20 border-emerald-400/35 text-emerald-200'
+};
 
 const showIntro = ref(false);
 const isComputing = ref(false);
@@ -24,7 +31,39 @@ const typeFilter = ref('all');     // filtro tipo nella roadmap
 const stock = ref({ metal: 0, crystal: 0, deuterium: 0 });
 
 // Form
-const target = ref(0);             // Δ goal in metallo/giorno
+const target = ref(0);             // Δ goal nella somma delle risorse selezionate/giorno
+// Risorse ottimizzate dal planner. Il default metallo-only conserva il
+// comportamento storico; l'obiettivo è la somma non pesata delle produzioni.
+const optimizeResources = ref(['metal']);
+// Tmax per pianeta, serve solo al calcolo del deuterio. Se vuoto si usa la
+// temperatura media della posizione: nessun dato viene letto dal gioco.
+const planetTemps = ref({});
+// Chiave stabile: i pianeti arrivano dall'import in ordine variabile, quindi
+// un indice d'array può attaccare la temperatura al pianeta sbagliato.
+const planetTempKey = (planet, idx) =>
+    `${planet?.name || `#${idx + 1}`}${planet?.pos != null ? `@${planet.pos}` : ''}`;
+const normalizePlanetTemps = (saved, planets) => {
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
+    const out = {};
+    Object.entries(saved).forEach(([key, value]) => {
+        if (/^\d+$/.test(key)) {
+            const p = planets[Number(key)];
+            if (p) out[planetTempKey(p, Number(key))] = value;
+        } else {
+            out[key] = value;
+        }
+    });
+    return out;
+};
+// Include anche i campi vuoti (come null): cancellare una Tmax deve rendere
+// il piano disallineato esattamente come cambiarla.
+const planetTempsForSimKey = (planets) => planets
+    .map((p, idx) => {
+        const key = planetTempKey(p, idx);
+        const value = planetTemps.value[key];
+        return [key, value === '' || value == null ? null : Number(value)];
+    })
+    .sort(([a], [b]) => a.localeCompare(b));
 // Obiettivo: 'production' (raggiungere una produzione) oppure 'spend' (fare un
 // acquisto, es. Astro 31, con meno pacchi totali alzando prima la produzione).
 const goalMode = ref('production');
@@ -64,6 +103,7 @@ const _saveConfig = () => {
             packMode: packMode.value,
             packBatch: packBatch.value,
             playerClassOverride: playerClassOverride.value,
+            optimizeResources: [...optimizeResources.value],
             includeMines: includeMines.value,
             includeCrawlerMines: includeCrawlerMines.value,
             includePlasma: includePlasma.value,
@@ -117,16 +157,34 @@ const stockInput = (key) => computed({
 const stockMet = stockInput('metal');
 const stockCry = stockInput('crystal');
 const stockDeu = stockInput('deuterium');
+
+const toggleOptimizeResource = (r) => {
+    if (!RESOURCE_KEYS.includes(r)) return;
+    const selected = optimizeResources.value.includes(r);
+    if (selected && optimizeResources.value.length === 1) return;  // almeno una risorsa
+    optimizeResources.value = RESOURCE_KEYS.filter(k =>
+        selected ? optimizeResources.value.includes(k) && k !== r
+                 : optimizeResources.value.includes(k) || k === r
+    );
+};
+
+// Score del profilo senza override: usato per i preset target e come riferimento
+// "Production Core" quando l'obiettivo comprende più risorse.
+const scoreForProfile = (profile) => {
+    if (!profile) return 0;
+    return simulateProductionScore(buildInitialState(profile, []), optimizeResources.value);
+};
+
 const includeMines = ref(true);
 const includeCrawlerMines = ref(false);
 const includePlasma = ref(true);
 const includeLf = ref(true);
 const includeLfResearch = ref(false);
 
-// Elenco delle ricerche LF candidabili dal planner: quelle con bonus metallo
-// diretto, più quelle che alzano il Potenziamento Collezionista (bonus[6]), che
-// non danno metallo ma amplificano bonus di classe e crawler. Queste ultime sono
-// marcate `indirect` per segnalarlo in UI e rendono solo da Collezionista.
+// Elenco delle ricerche LF candidabili dal planner: quelle con bonus diretto su
+// una risorsa selezionabile (metallo/cristallo/deuterio), più quelle che alzano
+// il Potenziamento Collezionista (bonus[6]), che amplificano bonus di classe e
+// crawler su tutte le risorse e rendono solo da Collezionista.
 const LF_RESEARCH_ALL = (() => {
     const out = [];
     for (const sp of ['humans', 'rocktal', 'mecha', 'kaelesh']) {
@@ -134,10 +192,13 @@ const LF_RESEARCH_ALL = (() => {
         if (!cat) continue;
         for (const [id, item] of Object.entries(cat.items || {})) {
             if (!item.bonus) continue;
-            const metal     = (item.bonus[0] || 0) > 0;
+            const resourceBonus = [0, 1, 2].some(i => (item.bonus[i] || 0) > 0);
             const collector = (item.bonus[6] || 0) > 0;
-            if (!metal && !collector) continue;
-            out.push({ id, name: item.name || id, species: sp, tier: parseInt(id) % 100, indirect: !metal });
+            if (!resourceBonus && !collector) continue;
+            out.push({
+                id, name: item.name || id, species: sp, tier: parseInt(id) % 100,
+                indirect: !resourceBonus, collector
+            });
         }
     }
     return out.sort((a, b) => a.tier - b.tier);
@@ -177,6 +238,10 @@ onMounted(() => {
         if (cfg.packMode !== undefined)              packMode.value = cfg.packMode;
         if (cfg.packBatch !== undefined)             packBatch.value = cfg.packBatch;
         if (cfg.playerClassOverride !== undefined)   playerClassOverride.value = cfg.playerClassOverride;
+        if (Array.isArray(cfg.optimizeResources)) {
+            const valid = cfg.optimizeResources.filter(r => RESOURCE_KEYS.includes(r));
+            if (valid.length) optimizeResources.value = [...new Set(valid)];
+        }
         if (cfg.includeMines !== undefined)          includeMines.value = cfg.includeMines;
         if (cfg.includeCrawlerMines !== undefined)   includeCrawlerMines.value = cfg.includeCrawlerMines;
         if (cfg.includePlasma !== undefined)         includePlasma.value = cfg.includePlasma;
@@ -193,10 +258,13 @@ onMounted(() => {
         if (cfg.overloadMode !== undefined)          overloadMode.value = cfg.overloadMode;
         if (cfg.itemMode !== undefined)              itemMode.value = cfg.itemMode;
         if (cfg.itemCustomMode !== undefined)        itemCustomMode.value = cfg.itemCustomMode;
+        // La configurazione globale può cambiare le risorse dell'obiettivo: il
+        // target di default del profilo va ricalcolato con le risorse caricate.
+        if (activeProfile.value) restoreProfileState(activeProfile.value);
     } catch {}
 });
 watch(
-    [packMode, packBatch, playerClassOverride, includeMines, includeCrawlerMines, includePlasma, includeLf, includeLfResearch,
+    [packMode, packBatch, playerClassOverride, optimizeResources, includeMines, includeCrawlerMines, includePlasma, includeLf, includeLfResearch,
      capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus,
      crawlerMode, overloadMode, itemMode, itemCustomMode],
     _saveConfig
@@ -303,6 +371,7 @@ const buildStateEntry = (withResult) => ({
     doneSteps: withResult ? [...doneSteps.value] : [],
     typeFilter: typeFilter.value,
     stock: { ...stock.value },
+    planetTemps: { ...planetTemps.value },
     goalMode: goalMode.value,
     goalMSU: goalMSU.value,
     goalRes: goalRes.value,
@@ -356,7 +425,8 @@ const restoreProfileState = (profile) => {
         goalMSU.value = 0;
         goalRes.value = null;
         lfChoice.value = planets.map(() => 'inherit');
-        target.value = Math.floor((profile?.production?.daily || 0) * 1.5);
+        planetTemps.value = {};
+        target.value = Math.floor(scoreForProfile(profile) * 1.5);
         // Prima volta per questo profilo: pre-seleziona le ricerche già attive
         const active = activeLfIdsOf(planets);
         lfResearchIds.value = active.length ? active : [...ALL_LF_IDS];
@@ -373,7 +443,8 @@ const restoreProfileState = (profile) => {
     lfChoice.value = Array.isArray(saved.lfChoice) && saved.lfChoice.length === planets.length
         ? [...saved.lfChoice]
         : planets.map(() => 'inherit');
-    target.value = saved.target || Math.floor((profile?.production?.daily || 0) * 1.5);
+    target.value = saved.target || Math.floor(scoreForProfile(profile) * 1.5);
+    planetTemps.value = normalizePlanetTemps(saved.planetTemps, planets);
     const activeNow = activeLfIdsOf(planets);
     if (Array.isArray(saved.lfResearchIds)) {
         const basis = Array.isArray(saved.lfActiveBasis) ? saved.lfActiveBasis : activeNow;
@@ -402,6 +473,8 @@ const simAssumptionsKey = computed(() => JSON.stringify({
     ovl: overloadMode.value,
     item: itemMode.value,
     amp: itemCustomMode.value,
+    res: [...optimizeResources.value].sort(),
+    tmp: planetTempsForSimKey(planets.value),
     lf: includeLfResearch.value ? [...lfResearchIds.value].map(String).sort() : null,
     lfc: lfChoice.value
 }));
@@ -440,6 +513,7 @@ onMounted(() => window.addEventListener('pagehide', onPageHide));
 // centinaia di step costerebbe caro); solo lfChoice viene mutato in posizione.
 watch([target, lfResearchIds, doneSteps, typeFilter, result, stock, goalMode, goalMSU], saveProfileState);
 watch(lfChoice, saveProfileState, { deep: true });
+watch(planetTemps, saveProfileState, { deep: true });
 
 // Applica le ipotesi di simulazione allo stato iniziale (copia: il profilo non
 // viene mai toccato). Con tutte le opzioni su "come nel profilo" lo stato resta
@@ -454,7 +528,12 @@ const applyOverrides = (state) => {
     // per gli upgrade futuri. Solo con la categoria Ricerche LF accesa (la lista
     // è visibile solo lì) e senza mai spegnere quelle già attive nel profilo.
     const activateIds = includeLfResearch.value ? new Set(lfResearchIds.value.map(String)) : null;
-    state.planets.forEach(p => {
+    state.planets.forEach((p, idx) => {
+        // Tmax manuale: solo simulazione locale del deuterio, mai una lettura dal gioco.
+        const temp = planetTemps.value[planetTempKey(p, idx)];
+        if (temp !== '' && temp !== null && temp !== undefined && isFinite(Number(temp))) {
+            p.temperature = Number(temp);
+        }
         // Crawler al massimo: tanti da arrivare sempre al cap, che cresce con le miniere
         if (crawlerMode.value === 'max') p.crawlers = Number.MAX_SAFE_INTEGER;
         if (overloadMode.value === 'all') p.overload = true;
@@ -523,8 +602,10 @@ const goalSummary = computed(() => {
     const g = result.value?.goal;
     if (!g || !currentSimState.value) return null;
     const { packs: upgradePacks, credit } = packAccounting.value;
-    const direct     = Math.ceil(Math.max(0, g.msu - stockMSU.value) / Math.max(1, result.value.initialProd));
-    const goalAfter  = Math.ceil(Math.max(0, g.msu - credit) / Math.max(1, result.value.finalProd));
+    const initValue  = result.value.initialValue ?? result.value.initialProd;
+    const finalValue = result.value.finalValue ?? result.value.finalProd;
+    const direct     = Math.ceil(Math.max(0, g.msu - stockMSU.value) / Math.max(1, initValue));
+    const goalAfter  = Math.ceil(Math.max(0, g.msu - credit) / Math.max(1, finalValue));
     const total      = upgradePacks + goalAfter;
     const r = g.res;   // ripartizione obiettivo, se nota
     const up = planCost.value;
@@ -558,17 +639,34 @@ const useQueueAsGoal = () => {
 // Il calcolo si può lanciare se c'è un obiettivo valido per la modalità scelta
 const canCompute = computed(() => goalMode.value === 'spend'
     ? goalMSU.value > 0
-    : target.value > profileDailyProd.value);
+    : target.value > currentScore.value);
 
 // Produzione "reale" del profilo importato — non influenzata da override di classe.
-// Usata per il display "Produzione attuale" e per i preset target.
-const profileDailyProd = computed(() => activeProfile.value?.production?.daily || 0);
+// Usata per il confronto con il Production Core e per i preset target.
+const profileScore = computed(() => scoreForProfile(activeProfile.value));
 
 // Produzione simulata con override applicati — usata come baseline per il planner.
 const currentProd = computed(() => {
     if (!currentSimState.value) return 0;
     return simulateDailyProduction(currentSimState.value);
 });
+// Valore ottimizzato: con una sola risorsa (metallo) coincide con currentProd.
+const currentScore = computed(() => {
+    if (!currentSimState.value) return 0;
+    return simulateProductionScore(currentSimState.value, optimizeResources.value);
+});
+const isMetalOnly = computed(() => optimizeResources.value.length === 1 && optimizeResources.value[0] === 'metal');
+// Valore usato per pacchi e ROI: metallo-only resta storico (solo metallo),
+// gli altri obiettivi usano il valore MSU della produzione simulata.
+const currentValue = computed(() => {
+    if (!currentSimState.value) return 0;
+    if (isMetalOnly.value) return currentScore.value;
+    const byRes = simulateDailyProductionByResource(currentSimState.value);
+    return toMSU([byRes.metal || 0, byRes.crystal || 0, byRes.deuterium || 0], currentSimState.value.pack);
+});
+const optimizeResourcesLabel = computed(() =>
+    optimizeResources.value.map(r => t(`res_${r}`)).join(' + ')
+);
 
 const planets = computed(() => activeProfile.value?.production?.planets || []);
 
@@ -589,7 +687,7 @@ const collectorDoubleCount = computed(() =>
     includeLfResearch.value
     && (currentSimState.value?.settings?.playerClass === 'collector')
     && (parseFloat(currentSimState.value?.settings?.rocktalEnhancement) || 0) > 0
-    && LF_RESEARCH_ALL.some(r => r.indirect && lfResearchIds.value.includes(r.id))
+    && LF_RESEARCH_ALL.some(r => r.collector && lfResearchIds.value.includes(r.id))
 );
 
 // La classe "other" del profilo (Generale/Esploratore) non ha una chiave `opt_other`:
@@ -810,6 +908,7 @@ const buildPlannerOptions = () => ({
     includePlasma: includePlasma.value,
     includeLf: includeLf.value,
     includeLfResearch: includeLfResearch.value,
+    resources: [...optimizeResources.value],
     lfResearchIds: [...lfResearchIds.value],
     packMode: packMode.value,
     packBatch: packBatch.value,
@@ -823,7 +922,7 @@ const buildPlannerOptions = () => ({
 
 // `kept`: step già fatti del piano precedente ("Ricalcola il resto"). Restano in
 // testa alla roadmap come fatti e il piano nuovo prosegue da lì.
-const finalizePlan = (planRes, initialState, kept = null) => {
+const finalizePlan = (planRes, initialState, kept = null, fullInitialState = null) => {
     let res = planRes;
     if (kept) {
         const steps = [...kept, ...planRes.steps].map((st, i) => ({ ...st, n: i + 1 }));
@@ -834,12 +933,24 @@ const finalizePlan = (planRes, initialState, kept = null) => {
             cumulativeMSU: steps.reduce((a, st) => a + (st.costMSU || 0), 0),
             cumulativePacks: steps.reduce((a, st) => a + (st.packs || 0), 0)
         };
+        // Il planner ha calcolato solo il "resto", partendo dallo stato dopo gli
+        // step tenuti. La roadmap completa deve invece partire dallo stato
+        // iniziale del piano vecchio, altrimenti i chip Δ non tornano con la card.
+        if (fullInitialState) {
+            const byRes = simulateDailyProductionByResource(fullInitialState);
+            res.initialByRes = byRes;
+            res.initialProd = simulateProductionScore(fullInitialState, optimizeResources.value);
+            res.initialValue = optimizeResources.value.length === 1 && optimizeResources.value[0] === 'metal'
+                ? res.initialProd
+                : toMSU([byRes.metal || 0, byRes.crystal || 0, byRes.deuterium || 0], fullInitialState.pack);
+        }
     }
     if (res.goal) res = { ...res, goal: { ...res.goal, res: goalRes.value ? [...goalRes.value] : null } };
     result.value = {
         ...res,
         lfChoiceSnapshot: [...lfChoice.value],
         targetSnapshot: parseInt(target.value) || 0,
+        resourcesSnapshot: [...optimizeResources.value],
         simKey: simAssumptionsKey.value
     };
     // Impronta del core usata per questo calcolo: se cambia, il piano va segnalato.
@@ -851,9 +962,9 @@ const finalizePlan = (planRes, initialState, kept = null) => {
     progress.value = null;
 };
 
-const runPlannerSync = (initialState, options, kept = null) => {
+const runPlannerSync = (initialState, options, kept = null, fullInitialState = null) => {
     try {
-        finalizePlan(runPlanner(initialState, options), initialState, kept);
+        finalizePlan(runPlanner(initialState, options), initialState, kept, fullInitialState);
     } catch {
         isComputing.value = false;
         progress.value = null;
@@ -873,7 +984,12 @@ const computePlan = (mode = 'new') => {
     const options = buildPlannerOptions();
 
     let kept = null;
+    let fullInitialState = null;
     if (isRest) {
+        // Stato di partenza del piano precedente, prima di qualunque step tenuto.
+        // Serve solo a ricalcolare la baseline della roadmap completa.
+        fullInitialState = applyOverrides(buildInitialState(activeProfile.value, lfChoice.value));
+        rewindPlanProgress(fullInitialState, result.value.steps);
         const auto = autoDoneSteps.value;
         const done = stepDone.value;
         kept = result.value.steps.flatMap((st, i) => {
@@ -896,16 +1012,16 @@ const computePlan = (mode = 'new') => {
         plannerWorker = new Worker(new URL('../workers/planner.worker.js', import.meta.url), { type: 'module' });
         plannerWorker.onmessage = ({ data }) => {
             if (data.type === 'progress')   progress.value = data.progress;
-            else if (data.type === 'done')  finalizePlan(data.result, initialState, kept);
-            else                            runPlannerSync(initialState, options, kept);
+            else if (data.type === 'done')  finalizePlan(data.result, initialState, kept, fullInitialState);
+            else                            runPlannerSync(initialState, options, kept, fullInitialState);
         };
         plannerWorker.onerror = (e) => {
             e.preventDefault();
-            runPlannerSync(initialState, options, kept);
+            runPlannerSync(initialState, options, kept, fullInitialState);
         };
         plannerWorker.postMessage({ initialState, options });
     } catch {
-        runPlannerSync(initialState, options, kept);
+        runPlannerSync(initialState, options, kept, fullInitialState);
     }
 };
 
@@ -1000,7 +1116,7 @@ const planProgressPct = computed(() => {
     if (!result.value) return 0;
     const start = result.value.initialProd, end = result.value.finalProd;
     if (end <= start) return 0;
-    return Math.max(0, Math.min(100, Math.round((currentProd.value - start) / (end - start) * 100)));
+    return Math.max(0, Math.min(100, Math.round((currentScore.value - start) / (end - start) * 100)));
 });
 // Tipi presenti nel piano, per i chip filtro
 const presentTypes = computed(() => {
@@ -1021,10 +1137,10 @@ const rowProgressPct = computed(() => {
     return (cumProd) => Math.min(100, Math.round((cumProd - start) / (end - start) * 100));
 });
 
-// ROI: tempo di recupero del costo in giorni = costMSU / deltaProd
-const formatROI = (costMSU, deltaProd) => {
-    if (!deltaProd || deltaProd <= 0) return '—';
-    const days = costMSU / deltaProd;
+// ROI: tempo di recupero del costo in giorni = costMSU / deltaValue (MSU/giorno)
+const formatROI = (costMSU, deltaValue) => {
+    if (!deltaValue || deltaValue <= 0) return '—';
+    const days = costMSU / deltaValue;
     if (days < 1)    return '< 1g';
     if (days < 30)   return `${Math.round(days)}g`;
     if (days < 365)  return `${(days / 30).toFixed(1)}m`;
@@ -1032,9 +1148,9 @@ const formatROI = (costMSU, deltaProd) => {
 };
 
 // Classe colore ROI: verde < 30g, giallo 30-90g, arancio 90-365g, rosso > 1a
-const roiColor = (costMSU, deltaProd) => {
-    if (!deltaProd || deltaProd <= 0) return 'text-slate-600';
-    const days = costMSU / deltaProd;
+const roiColor = (costMSU, deltaValue) => {
+    if (!deltaValue || deltaValue <= 0) return 'text-slate-600';
+    const days = costMSU / deltaValue;
     if (days < 30)  return 'text-emerald-400';
     if (days < 90)  return 'text-yellow-400';
     if (days < 365) return 'text-orange-400';
@@ -1127,8 +1243,8 @@ const typeSummary = computed(() => {
 
     steps.forEach(s => {
         const lvls = (s.to || 0) - (s.from || 0);
-        if (s.type === 'metal_mine')        { cats.mine.delta += s.deltaProd;        cats.mine.count++;        cats.mine.levels += lvls; }
-        else if (s.type === 'crystal_mine' || s.type === 'deuterium_synthesizer') { cats.crawler.delta += s.deltaProd; cats.crawler.count++; cats.crawler.levels += lvls; }
+        if (s.type === 'metal_mine' || s.type === 'crystal_mine' || s.type === 'deuterium_synthesizer') { cats.mine.delta += s.deltaProd; cats.mine.count++; cats.mine.levels += lvls; }
+        else if (s.type === 'crawler') { cats.crawler.delta += s.deltaProd; cats.crawler.count++; cats.crawler.levels += lvls; }
         else if (s.type === 'plasma_technology') { cats.plasma.delta += s.deltaProd; cats.plasma.count++;      cats.plasma.levels += lvls; }
         else if (s.type === 'lf_magma' || s.type === 'lf_human') { cats.lf_build.delta += s.deltaProd; cats.lf_build.count++; cats.lf_build.levels += lvls; }
         else if (s.type === 'lf_research')  { cats.lf_research.delta += s.deltaProd; cats.lf_research.count++; cats.lf_research.levels += lvls; }
@@ -1206,16 +1322,16 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 <!-- Produzione attuale -->
                 <div class="col-span-2 md:col-span-1 bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
                     <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">
-                        {{ currentProd !== profileDailyProd && profileDailyProd > 0 ? t('strategy_sim_start_prod') : t('strategy_current_prod') }}
+                        {{ currentScore !== profileScore && profileScore > 0 ? t('strategy_sim_start_prod') : t('strategy_current_prod') }}
                     </div>
-                    <div class="text-2xl font-black text-slate-200 font-mono">{{ formatNum(currentProd) }}</div>
-                    <div class="text-[10px] text-slate-600 mt-1">{{ t('lbl_dm') }} / {{ t('strategy_per_day') }}</div>
+                    <div class="text-2xl font-black text-slate-200 font-mono">{{ formatNum(currentScore) }}</div>
+                    <div class="text-[10px] text-slate-600 mt-1">{{ optimizeResourcesLabel }} / {{ t('strategy_per_day_generic') }}</div>
                     <!-- Con ipotesi attive la partenza differisce dal Production Core: si mostrano entrambi -->
-                    <div v-if="currentProd !== profileDailyProd && profileDailyProd > 0"
+                    <div v-if="currentScore !== profileScore && profileScore > 0"
                          class="text-[10px] text-slate-500 mt-1.5 font-mono">
-                        Production Core: {{ formatNum(profileDailyProd) }}
-                        <span :class="currentProd > profileDailyProd ? 'text-emerald-400' : 'text-red-400'">
-                            ({{ currentProd > profileDailyProd ? '+' : '' }}{{ ((currentProd / profileDailyProd - 1) * 100).toFixed(1) }}%)
+                        Production Core: {{ formatNum(profileScore) }}
+                        <span :class="currentScore > profileScore ? 'text-emerald-400' : 'text-red-400'">
+                            ({{ currentScore > profileScore ? '+' : '' }}{{ ((currentScore / profileScore - 1) * 100).toFixed(1) }}%)
                         </span>
                     </div>
                 </div>
@@ -1238,11 +1354,11 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <label for="strat-target" class="block text-[10px] text-emerald-400 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_target') }}</label>
                     <input id="strat-target" type="text" v-model="formTarget" @focus="$event.target.select()"
                            class="input-glass w-full px-3 py-2 text-right font-mono text-emerald-300 text-lg bg-black/40">
-                    <div v-if="profileDailyProd > 0" class="flex gap-1 mt-2">
+                    <div v-if="profileScore > 0" class="flex gap-1 mt-2">
                         <button v-for="m in [1.5, 2, 3, 5]" :key="m"
-                                @click="target = Math.floor(profileDailyProd * m)"
+                                @click="target = Math.floor(profileScore * m)"
                                 class="flex-1 py-1 text-[9px] font-bold rounded-lg transition-all duration-150 text-center"
-                                :class="target === Math.floor(profileDailyProd * m)
+                                :class="target === Math.floor(profileScore * m)
                                     ? 'bg-emerald-500/20 border border-emerald-400/30 text-emerald-300'
                                     : 'text-slate-600 hover:text-slate-400 bg-black/20'">
                             ×{{ m }}
@@ -1253,8 +1369,8 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         <label for="strat-goal-msu" class="block text-[10px] text-amber-400 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_goal_msu') }}</label>
                         <input id="strat-goal-msu" type="text" inputmode="numeric" v-model="formGoalMSU" @focus="$event.target.select()" placeholder="0"
                                class="input-glass w-full px-3 py-2 text-right font-mono text-amber-200 text-lg bg-black/40">
-                        <div v-if="goalMSU > 0 && currentProd > 0" class="text-[10px] font-mono text-amber-300/70 mt-1 text-right">
-                            ≈ {{ formatNum(Math.ceil(goalMSU / currentProd)) }} {{ t('strategy_goal_packs_today') }}
+                        <div v-if="goalMSU > 0 && currentValue > 0" class="text-[10px] font-mono text-amber-300/70 mt-1 text-right">
+                            ≈ {{ formatNum(Math.ceil(goalMSU / currentValue)) }} {{ t('strategy_goal_packs_today') }}
                         </div>
                         <button @click="useQueueAsGoal" :disabled="packQueue.length === 0"
                                 class="mt-2 w-full py-1.5 text-[10px] font-bold rounded-lg border transition-colors"
@@ -1279,8 +1395,13 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                          :class="hasLfResearchData ? 'text-purple-400/80' : 'text-slate-500'">
                         {{ t('lbl_lf_bonus') }}
                     </div>
-                    <div v-if="hasLfResearchData" class="text-2xl font-black text-purple-300 font-mono">
-                        +{{ lfResearchPct.metal.toFixed(2) }}%
+                    <div v-if="hasLfResearchData" class="text-lg font-black text-purple-300 font-mono">
+                        <template v-if="isMetalOnly">+{{ lfResearchPct.metal.toFixed(2) }}%</template>
+                        <template v-else>
+                            <span v-for="(r, i) in optimizeResources" :key="r">
+                                {{ i ? ' · ' : '' }}{{ t('res_' + r) }} +{{ (lfResearchPct[r] || 0).toFixed(2) }}%
+                            </span>
+                        </template>
                     </div>
                     <div v-else class="text-2xl font-black text-slate-400 font-mono">
                         +{{ (currentSimState?.settings?.lfBonus || 0).toFixed(1) }}%
@@ -1289,6 +1410,23 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         {{ hasLfResearchData ? t('lbl_auto') : t('strategy_per_day').replace('met / ', '') }}
                     </div>
                 </div>
+            </div>
+
+            <!-- Risorse ottimizzate: l'obiettivo è la somma delle produzioni selezionate -->
+            <div class="mb-5 pt-4 border-t border-slate-700/20">
+                <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">
+                    {{ t('strategy_optimize_title') }}
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                    <button v-for="r in RESOURCE_KEYS" :key="r"
+                            @click="toggleOptimizeResource(r)"
+                            :title="t('strategy_optimize_one_required')"
+                            class="px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors"
+                            :class="optimizeResources.includes(r) ? RESOURCE_CHIP_CLASS[r] : 'border-slate-700/30 text-slate-600 hover:text-slate-300'">
+                        {{ t('res_' + r) }}
+                    </button>
+                </div>
+                <p class="text-[9px] text-slate-600 mt-1.5 leading-tight">{{ t('strategy_optimize_hint') }}</p>
             </div>
 
             <!-- Riga 2: categorie / cap / pack mode / classe -->
@@ -1514,6 +1652,23 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 </div>
             </div>
 
+            <!-- Tmax per pianeta: solo il deuterio ne ha bisogno. Il placeholder è
+                 la stima dalla posizione; nessun dato viene letto dal gioco. -->
+            <div v-if="optimizeResources.includes('deuterium')" class="pt-4 border-t border-slate-700/20">
+                <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">
+                    {{ t('strategy_temp_title') }}
+                </div>
+                <p class="text-[9px] text-slate-600 mb-2 leading-tight">{{ t('strategy_temp_hint') }}</p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                    <label v-for="(p, idx) in planets" :key="planetTempKey(p, idx)" class="bg-ogame-surface rounded-xl border border-slate-700/15 p-2.5 block">
+                        <span class="block text-[10px] text-slate-400 truncate mb-1" :title="p.name">{{ p.name || `#${idx+1}` }}</span>
+                        <input type="number" v-model.number="planetTemps[planetTempKey(p, idx)]"
+                               :placeholder="estimateMaxTemperature(p.pos)"
+                               class="input-glass w-full px-2 py-1 text-center font-mono text-sm">
+                    </label>
+                </div>
+            </div>
+
             <!-- Risorse possedute: scalano i pacchetti come in Pack Exchange. Stanno nel form
              perché sono un dato di partenza; il piano non cambia, i pacchetti si
              ricalcolano al volo anche dopo il calcolo. -->
@@ -1616,7 +1771,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <div class="h-full bg-emerald-500/70 rounded-full transition-all duration-200" :style="{ width: computePct + '%' }"></div>
                 </div>
             </div>
-            <div v-if="goalMode === 'production' && target <= profileDailyProd && target > 0" class="mt-2 text-right text-[11px] text-amber-400/80">
+            <div v-if="goalMode === 'production' && target <= currentScore && target > 0" class="mt-2 text-right text-[11px] text-amber-400/80">
                 {{ t('strategy_target_too_low') }}
             </div>
             <div class="mt-2 flex items-start gap-1.5 text-[10px] text-slate-600">
@@ -1756,7 +1911,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         </div>
                         <div class="bg-ogame-surface rounded-xl p-3 border border-sky-500/20 text-center">
                             <div class="text-[9px] text-sky-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_current_prod') }}</div>
-                            <div class="text-base font-black text-sky-200 font-mono">{{ formatNum(currentProd) }}</div>
+                            <div class="text-base font-black text-sky-200 font-mono">{{ formatNum(currentScore) }}</div>
                             <div v-if="planProgressPct > 0" class="text-[10px] font-mono text-sky-300/70 mt-0.5">{{ t('strategy_progress_pct').replace('{n}', planProgressPct) }}</div>
                         </div>
                         <div class="bg-ogame-surface rounded-xl p-3 border border-emerald-500/25 text-center">
@@ -1777,7 +1932,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <!-- Produzione attuale (dati del core di adesso) e avanzamento verso la finale -->
                     <div class="bg-ogame-surface rounded-xl p-3 border border-sky-500/20 text-center">
                         <div class="text-[9px] text-sky-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_current_prod') }}</div>
-                        <div class="text-lg font-black text-sky-200 font-mono">{{ formatNum(currentProd) }}</div>
+                        <div class="text-lg font-black text-sky-200 font-mono">{{ formatNum(currentScore) }}</div>
                         <div v-if="planProgressPct > 0" class="text-[10px] font-mono text-sky-300/70 mt-0.5">
                             {{ t('strategy_progress_pct').replace('{n}', planProgressPct) }}
                         </div>
@@ -1798,6 +1953,14 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                         <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ planCost?.hasProgress ? t('strategy_remaining_euro') : t('strategy_total_euro') }}</div>
                         <div class="text-lg font-black text-green-300 font-mono">€{{ formatNum(planEuro.totalEuro) }}</div>
                     </div>
+                </div>
+
+                <!-- Delta per risorsa: la card grande mostra il punteggio (somma) -->
+                <div v-if="result.finalByRes && optimizeResources.length > 1" class="mt-3 flex flex-wrap gap-2">
+                    <span v-for="r in optimizeResources" :key="r"
+                          class="px-2 py-1 rounded-lg bg-black/25 border border-slate-700/25 text-[10px] font-mono text-slate-400">
+                        {{ t('res_' + r) }} +{{ formatNum((result.finalByRes[r] || 0) - (result.initialByRes[r] || 0)) }}
+                    </span>
                 </div>
 
                 <!-- Costo del piano: MSU totali e ripartizione per risorsa -->
@@ -2044,7 +2207,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                 <td class="px-3 py-2 text-right font-mono text-slate-300">{{ formatNum(s.costMSU) }}</td>
                                 <td class="px-3 py-2 text-right font-mono text-amber-300/90">{{ s.packs }}</td>
                                 <td class="px-3 py-2 text-right font-mono text-emerald-300">+{{ formatNum(s.deltaProd) }}</td>
-                                <td class="px-3 py-2 text-right font-mono font-semibold" :class="roiColor(s.costMSU, s.deltaProd)">{{ formatROI(s.costMSU, s.deltaProd) }}</td>
+                                <td class="px-3 py-2 text-right font-mono font-semibold" :class="roiColor(s.costMSU, s.deltaValue ?? s.deltaProd)">{{ formatROI(s.costMSU, s.deltaValue ?? s.deltaProd) }}</td>
                                 <td class="px-3 py-2 text-right font-mono text-slate-200 font-bold">
                                     {{ formatNum(s.cumulativeProd) }}
                                     <div class="mt-0.5 h-[3px] w-16 ml-auto bg-black/40 rounded-full overflow-hidden">
@@ -2106,7 +2269,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             <div class="flex justify-between"><span class="text-slate-600">MSU</span><span class="font-mono text-slate-300">{{ formatNum(s.costMSU) }}</span></div>
                             <div class="flex justify-between"><span class="text-slate-600">Pack</span><span class="font-mono text-amber-300">{{ s.packs }}</span></div>
                             <div class="flex justify-between"><span class="text-slate-600">Δ</span><span class="font-mono text-emerald-300">+{{ formatNum(s.deltaProd) }}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-600">ROI</span><span class="font-mono font-semibold" :class="roiColor(s.costMSU, s.deltaProd)">{{ formatROI(s.costMSU, s.deltaProd) }}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-600">ROI</span><span class="font-mono font-semibold" :class="roiColor(s.costMSU, s.deltaValue ?? s.deltaProd)">{{ formatROI(s.costMSU, s.deltaValue ?? s.deltaProd) }}</span></div>
                             <div class="flex justify-between col-span-2"><span class="text-slate-600">Tot</span><span class="font-mono text-slate-200 font-bold">{{ formatNum(s.cumulativeProd) }}</span></div>
                         </div>
                     </div>

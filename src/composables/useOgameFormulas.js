@@ -112,6 +112,106 @@ export function useOgameFormulas() {
         };
     };
 
+    // ─── Calcolo produzione oraria per risorsa ──────────────────────────────
+    // Compliance: calcolo locale su dati già presenti nel profilo; nessuna
+    // chiamata al gioco, timer o automazione (AGENTS.md §1/§4).
+    // Formule pubbliche OGame: cristallo 20·L·1.1^L, deuterio 10·L·1.1^L·
+    // (1.44 − 0.004·Tmax). Il bonus di posizione del cristallo vale solo per
+    // le posizioni 1-3; il fattore temperatura del deuterio richiede Tmax:
+    // se non è stata importata si usa il valore medio della posizione.
+    const getCrystalPosMult = (pos) => {
+        pos = parseInt(pos);
+        if (pos === 1) return 1.40;
+        if (pos === 2) return 1.30;
+        if (pos === 3) return 1.20;
+        return 1.0;
+    };
+
+    // Tmax media per posizione (valori pubblici OGame); usata solo se il profilo
+    // non contiene la temperatura reale del pianeta.
+    const AVG_MAX_TEMP_BY_POS = {
+        1: 240, 2: 190, 3: 140, 4: 90, 5: 80, 6: 70, 7: 60, 8: 50,
+        9: 40, 10: 30, 11: 20, 12: 10, 13: -30, 14: -70, 15: -110
+    };
+    const estimateMaxTemperature = (pos) => AVG_MAX_TEMP_BY_POS[parseInt(pos)] ?? 50;
+
+    const planetMaxTemperature = (planet) => {
+        const raw = planet?.temperature;
+        if (typeof raw === 'number' && isFinite(raw)) return raw;
+        if (raw && typeof raw === 'object') {
+            const v = Number(raw.max ?? raw.maximum ?? raw.avg ?? raw.average);
+            if (isFinite(v)) return v;
+        }
+        return estimateMaxTemperature(planet?.pos);
+    };
+
+    // Stessa struttura di calcPlanetMetalProduction, per cristallo e deuterio.
+    // Il metallo resta gestito dalla funzione verificata qui sopra.
+    const calcPlanetResourceProduction = (planet, settings, lfResearchPct, resource, options = {}) => {
+        if (resource === 'metal') return calcPlanetMetalProduction(planet, settings, lfResearchPct, options);
+
+        const ecoSpeed    = settings.ecoSpeed || 1;
+        const isCollector = settings.playerClass === 'collector';
+        const collFactor  = 1
+            + ((settings.rocktalEnhancement || 0) / 100)
+            + ((lfResearchPct?.collectorBonus || 0) / 100);
+
+        const cry   = parseInt(planet.crystal) || 0;
+        const deut  = parseInt(planet.deuterium) || 0;
+        const met   = parseInt(planet.metal) || 0;
+        const isCrystal = resource === 'crystal';
+
+        let natProd = 0, mineBase = 0;
+        if (isCrystal) {
+            const posMult = getCrystalPosMult(planet.pos);
+            natProd  = Math.floor(15 * ecoSpeed);
+            // calcMineProduction è specifica del metallo (base 30): qui la base è 20.
+            mineBase = Math.floor(20 * ecoSpeed * posMult * cry * Math.pow(1.1, cry));
+        } else {
+            const tempFactor = Math.max(0.01, 1.44 - 0.004 * planetMaxTemperature(planet));
+            mineBase = Math.floor(10 * ecoSpeed * deut * Math.pow(1.1, deut) * tempFactor);
+        }
+
+        let totPerc = (settings.plasma || 0) * (isCrystal ? 0.66 : 0.33);
+        if (settings.geologist)              totPerc += 10;
+        if (settings.staff)                  totPerc += 2;
+        if (isCollector)                     totPerc += 25 * collFactor;
+        if (settings.allyClass === 'trader') totPerc += 5;
+        // L'amplificatore metallo (item) non conta qui; quello di risorse sì.
+        totPerc += (parseInt(planet.itemCustom) || 0);
+
+        // Il campo LF manuale del Production Core contiene solo il bonus metallo.
+        // Per cristallo/deuterio conta solo il totale calcolato dalle ricerche:
+        // gli edifici LF non hanno bonus per-risorsa nei dati importati, quindi
+        // non vengono inventati (AGENTS.md §6: non indovinare meccaniche).
+        if (lfResearchPct?.fromResearch) totPerc += (lfResearchPct[resource] || 0);
+
+        const maxCraw  = calcCrawlerCap(met, cry, deut, isCollector, settings.geologist, settings.rocktalEnhancement);
+        const rawCraw  = parseInt(planet.crawlers) || 0;
+        const actCraw  = Math.min(rawCraw, maxCraw);
+        if (actCraw > 0) {
+            let mult = 0.02;
+            if (isCollector) {
+                mult *= (1 + (50 * collFactor) / 100);
+                if (planet.overload) mult *= 1.5;
+            }
+            totPerc += Math.min(actCraw * mult, 50);
+        }
+
+        const bonusProd = mineBase * (totPerc / 100);
+        return {
+            natProd,
+            mineBase,
+            totPerc,
+            bonusProd,
+            total: natProd + mineBase + bonusProd,
+            maxCraw,
+            actCraw,
+            collFactor,
+            isCrawCapReached: rawCraw > maxCraw
+        };
+    };
+
     // FORMULA LIFEFORMS (Corrected as per user feedback)
     const calcBuildCostLF = (itemData, techLevel, costRdc) => {
         if (techLevel < 1 || !itemData) return [0, 0, 0];
@@ -254,6 +354,9 @@ export function useOgameFormulas() {
         getPosMult,
         calcCrawlerCap,
         calcPlanetMetalProduction,
+        calcPlanetResourceProduction,
+        getCrystalPosMult,
+        estimateMaxTemperature,
         calcBuildCostLF,
         getBuildCostLF,
         calcLFResearchBonus,

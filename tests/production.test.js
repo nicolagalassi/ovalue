@@ -50,3 +50,23 @@ describe('bonus ricerche LF', () => {
         expect(f.calcPlanetMetalProduction(planet, settings, pct).totPerc).toBe(12);
     });
 });
+
+describe('produzione per risorsa', () => {
+    const settings = { ecoSpeed: 1, plasma: 0, playerClass: 'none' };
+    const noLf = { metal: 0, crystal: 0, deuterium: 0, collectorBonus: 0, fromResearch: false };
+
+    it('il cristallo usa la base 20 e il bonus posizione 1-3', () => {
+        const p8 = { pos: 8, crystal: 1, metal: 0, deuterium: 0 };
+        const p1 = { pos: 1, crystal: 1, metal: 0, deuterium: 0 };
+        expect(f.calcPlanetResourceProduction(p8, settings, noLf, 'crystal').total).toBe(37);
+        expect(f.calcPlanetResourceProduction(p1, settings, noLf, 'crystal').total).toBe(45);
+    });
+
+    it('il deuterio usa Tmax esplicita o la stima dalla posizione', () => {
+        const p = { pos: 1, crystal: 0, metal: 0, deuterium: 1 };
+        expect(f.calcPlanetResourceProduction(p, settings, noLf, 'deuterium').mineBase).toBe(5);
+        expect(f.calcPlanetResourceProduction({ ...p, temperature: 0 }, settings, noLf, 'deuterium').mineBase).toBe(15);
+        expect(f.estimateMaxTemperature(8)).toBe(50);
+        expect(f.estimateMaxTemperature(15)).toBe(-110);
+    });
+});

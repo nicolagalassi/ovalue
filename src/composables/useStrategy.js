@@ -1,7 +1,8 @@
 // useStrategy.js
 // Production Planner: simulatore + greedy goal-oriented per raggiungere un target
-// di produzione giornaliera di metallo. Riusa al millimetro le formule di
-// MetalCalc.vue e i costi di PackCalc.vue.
+// di produzione giornaliera. L'obiettivo può essere metallo, cristallo e/o
+// deuterio (somma NON pesata delle produzioni selezionate). Riusa le formule di
+// useOgameFormulas.js e i costi di PackCalc.vue.
 //
 // Modello di "stato simulato":
 //   {
@@ -19,7 +20,22 @@
 import { OGAME_DB } from '../data/ogame_db';
 import { useOgameFormulas } from './useOgameFormulas';
 
-const { calcPlanetMetalProduction, getBuildCostLF, calcLFResearchBonus, calcPlanetLFContribution, hasLFResearchData } = useOgameFormulas();
+const {
+    calcPlanetMetalProduction, calcPlanetResourceProduction, getBuildCostLF,
+    calcLFResearchBonus, calcPlanetLFContribution, hasLFResearchData
+} = useOgameFormulas();
+
+const RESOURCE_KEYS = ['metal', 'crystal', 'deuterium'];
+const mineDefTypes = ['metal_mine', 'crystal_mine', 'deuterium_synthesizer'];
+const normalizeResources = (raw) => {
+    const list = Array.isArray(raw)
+        ? raw
+        : (raw && typeof raw === 'object' ? RESOURCE_KEYS.filter(k => raw[k]) : ['metal']);
+    const clean = RESOURCE_KEYS.filter(k => list.includes(k));
+    return clean.length ? clean : ['metal'];
+};
+const productionScore = (byRes, resources) =>
+    resources.reduce((sum, r) => sum + (byRes[r] || 0), 0);
 
 // ───── Helpers di base ─────────────────────────────────────────────────────
 
@@ -75,6 +91,11 @@ const toMSU = (cost, pack) => {
     return cost[0] + cost[1] * (rM / rC) + cost[2] * (rM / rD);
 };
 
+// Valore MSU di una produzione giornaliera: stessa conversione dei costi, così
+// ROI e pacchi restano coerenti anche quando l'obiettivo è multi-risorsa.
+const productionValue = (byRes, pack) =>
+    toMSU([byRes.metal || 0, byRes.crystal || 0, byRes.deuterium || 0], pack);
+
 // ───── Simulatore produzione ───────────────────────────────────────────────
 // Wrapper su calcPlanetMetalProduction (unica fonte di verità in useOgameFormulas):
 // stesso calcolo del Production Core, crawler compresi (min tra posseduti e cap).
@@ -97,6 +118,28 @@ const simulateDailyProduction = (state, precomp = null) => {
     return Math.floor(hourly * 24);
 };
 
+// Stessa simulazione, ma separata per risorsa. Il metallo passa sempre dalla
+// funzione verificata qui sopra; cristallo e deuterio usano le formule pubbliche
+// in useOgameFormulas (temperatura planetaria opzionale per il deuterio).
+const simulateDailyProductionByResource = (state, precomp = null) => {
+    const { settings, planets, lfChoice } = state;
+    const lfResearchPct = precomp?.lfBonus ?? calcLFResearchBonus(planets);
+    const out = { metal: 0, crystal: 0, deuterium: 0 };
+    planets.forEach((p, idx) => {
+        const opts = { lifeform: effectiveLifeform(p, lfChoice[idx]) };
+        RESOURCE_KEYS.forEach(r => {
+            out[r] += calcPlanetResourceProduction(p, settings, lfResearchPct, r, opts).total;
+        });
+    });
+    RESOURCE_KEYS.forEach(r => { out[r] = Math.floor(out[r] * 24); });
+    return out;
+};
+
+// Obiettivo del planner: somma delle produzioni giornaliere delle risorse
+// selezionate. Con una sola risorsa coincide con la produzione di quella risorsa.
+const simulateProductionScore = (state, resources = ['metal'], precomp = null) =>
+    productionScore(simulateDailyProductionByResource(state, precomp), normalizeResources(resources));
+
 // ───── Generatori di candidati ─────────────────────────────────────────────
 // Ogni candidato espone:
 //   applyMut(state) → backup   — muta state in-place, ritorna i valori originali
@@ -114,52 +157,41 @@ const buildCandidates = (state, options) => {
     const candidates = [];
     const { settings, planets, pack, lfChoice } = state;
     const { caps } = options;
+    const resources = normalizeResources(options.resources);
+    const crawlerSupport = options.includeCrawlerMines === true;
 
-    // 1) Miniera di metallo +1 per ogni pianeta
-    if (options.includeMines) {
+    // 1) Miniere +1. Una miniera è candidata se produce una risorsa selezionata,
+    // oppure se ( categorie "miniere crawler" ) alza il cap crawler: la somma
+    // dei livelli miniere determina quanti crawler sono produttivi, con effetto
+    // su tutte e tre le risorse finché il bonus non è al tetto del 50%.
+    const mineDefs = [
+        { type: 'metal_mine',          field: 'metal',     resource: 'metal' },
+        { type: 'crystal_mine',        field: 'crystal',   resource: 'crystal' },
+        { type: 'deuterium_synthesizer', field: 'deuterium', resource: 'deuterium' }
+    ];
+    mineDefs.forEach(({ type, field, resource }) => {
+        const direct = resources.includes(resource);
+        const allowed = resource === 'metal'
+            ? (options.includeMines || (crawlerSupport && !direct))
+            : (direct || crawlerSupport);
+        if (!allowed) return;
         planets.forEach((p, idx) => {
-            const lvl = parseInt(p.metal) || 0;
+            const lvl = parseInt(p[field]) || 0;
             if (lvl >= (caps?.metalMine ?? Infinity)) return;
-            const cost = buildingCumulativeCost('metal_mine', lvl, lvl + 1, pack.minLevel);
+            const cost = buildingCumulativeCost(type, lvl, lvl + 1, pack.minLevel);
             candidates.push({
-                type: 'metal_mine',
+                type,
                 scope: 'planet',
                 planetIdx: idx,
                 from: lvl, to: lvl + 1,
                 cost,
-                applyMut:  (s) => { const v = s.planets[idx].metal; s.planets[idx].metal = lvl + 1; return v; },
-                revertMut: (s, v) => { s.planets[idx].metal = v; }
+                benefits: [resource],
+                directBenefit: direct,
+                applyMut:  (s) => { const v = s.planets[idx][field]; s.planets[idx][field] = lvl + 1; return v; },
+                revertMut: (s, v) => { s.planets[idx][field] = v; }
             });
         });
-    }
-
-    // 1b) Miniere Cristallo/Deuterio +1 — non producono metallo, ma alzano il
-    // cap crawler (somma livelli miniere × 8) e quindi il bonus % metallo dei
-    // crawler, finché questo è sotto il tetto del 50%. Il loro costo è pieno
-    // mentre il beneficio valutato è solo quello sul metallo: la produzione di
-    // cristallo/deuterio extra è un regalo non conteggiato (scelta conservativa).
-    if (options.includeCrawlerMines) {
-        const crawlerMineDefs = [
-            { type: 'crystal_mine',          field: 'crystal'   },
-            { type: 'deuterium_synthesizer', field: 'deuterium' }
-        ];
-        planets.forEach((p, idx) => {
-            crawlerMineDefs.forEach(({ type, field }) => {
-                const lvl = parseInt(p[field]) || 0;
-                if (lvl >= (caps?.metalMine ?? Infinity)) return;
-                const cost = buildingCumulativeCost(type, lvl, lvl + 1, pack.minLevel);
-                candidates.push({
-                    type,
-                    scope: 'planet',
-                    planetIdx: idx,
-                    from: lvl, to: lvl + 1,
-                    cost,
-                    applyMut:  (s) => { const v = s.planets[idx][field]; s.planets[idx][field] = lvl + 1; return v; },
-                    revertMut: (s, v) => { s.planets[idx][field] = v; }
-                });
-            });
-        });
-    }
+    });
 
     // 2) Tecnologia Plasma +1 (globale)
     if (options.includePlasma) {
@@ -177,8 +209,10 @@ const buildCandidates = (state, options) => {
         }
     }
 
-    // 3) Edifici LF per miniera (Rocktal/Humans)
-    if (options.includeLf) {
+    // 3) Edifici LF per miniera (Rocktal/Humans): effetto metallo noto. Per le
+    // altre risorse i dati importati non espongono bonus per-risorsa, quindi non
+    // vengono inventati (AGENTS.md §6).
+    if (options.includeLf && resources.includes('metal')) {
         planets.forEach((p, idx) => {
             const lf = effectiveLifeform(p, lfChoice[idx]);
             if (lf === 'rocktal') {
@@ -211,9 +245,9 @@ const buildCandidates = (state, options) => {
         });
     }
 
-    // 4) Ricerche LF con bonus metallo — un candidato per ogni (ricerca, pianeta).
-    // Trattare ogni pianeta separatamente evita il salto di livelli (es. da 0 a max+1)
-    // che gonfiava artificialmente il delta.
+    // 4) Ricerche LF con bonus su una risorsa selezionata — un candidato per
+    // ogni (ricerca, pianeta). Trattare ogni pianeta separatamente evita il salto
+    // di livelli (es. da 0 a max+1) che gonfiava artificialmente il delta.
     //
     // INVARIANTE: si genera un candidato solo se la ricerca è già attiva OPPURE
     // è completamente nuova (livello 0). Se ha livelli ma è inattiva viene saltata:
@@ -221,11 +255,10 @@ const buildCandidates = (state, options) => {
     // delta calcolato pari al beneficio di TUTTI i livelli accumulati — ROI falso.
     if (options.includeLfResearch) {
         const capRes = caps?.lfResearch ?? Infinity;
-        // Il Potenziamento Collezionista (bonus[6]) non dà metallo diretto: amplifica
+        // Il Potenziamento Collezionista (bonus[6]) non dà risorse dirette: amplifica
         // il collFactor, che agisce su bonus di classe (+25%), moltiplicatore crawler
-        // e cap crawler del Geologo. Rende solo da Collezionista, quindi è candidabile
-        // unicamente quando la classe simulata è quella; altrimenti sarebbero N
-        // candidati con delta 0 valutati ad ogni step.
+        // e cap crawler del Geologo per tutte e tre le risorse. Rende solo da
+        // Collezionista, quindi è candidabile unicamente con quella classe.
         const isCollector = settings.playerClass === 'collector';
         // Selezione per-ricerca: Set di ID abilitati. Se non fornito → tutte le
         // ricerche candidabili (retro-compatibilità).
@@ -238,9 +271,11 @@ const buildCandidates = (state, options) => {
             for (const [idStr, itemData] of Object.entries(catData.items || {})) {
                 const bonus = itemData.bonus;
                 if (!bonus) continue;
-                const givesMetal     = (bonus[0] || 0) > 0;
+                const benefits = RESOURCE_KEYS.filter((r, i) =>
+                    resources.includes(r) && (bonus[i] || 0) > 0
+                );
                 const givesCollector = (bonus[6] || 0) > 0 && isCollector;
-                if (!givesMetal && !givesCollector) continue;
+                if (benefits.length === 0 && !givesCollector) continue;
                 if (allowedIds && !allowedIds.has(idStr)) continue;
                 planets.forEach((p, planetIdx) => {
                     const currentLevel = parseInt((p.lfResearch || {})[idStr]) || 0;
@@ -257,8 +292,9 @@ const buildCandidates = (state, options) => {
                         species,
                         researchId: idStr,
                         researchName: itemData.name || idStr,
-                        // true = nessun bonus metallo diretto, rende solo via collFactor
-                        indirectBonus: !givesMetal,
+                        // true = nessun bonus diretto sulle risorse selezionate
+                        indirectBonus: benefits.length === 0,
+                        benefits,
                         planetIdx,
                         from: currentLevel,
                         to: currentLevel + 1,
@@ -310,17 +346,27 @@ export const runPlanner = (initialState, options = {}) => {
         includePlasma: true,
         includeLf: true,
         includeLfResearch: false,
+        // Compliance: ottimizzazione locale su dati importati; nessuna chiamata
+        // al gioco, nessun timer e nessuna azione automatica (AGENTS.md §1/§4).
+        resources: ['metal'],
         minScoreThreshold: 0,
         packMode: 'dynamic',
         onProgress: null,
         caps: { metalMine: Infinity, plasma: Infinity, lfBuilding: Infinity, lfResearch: Infinity },
         ...options
     };
+    const resources = normalizeResources(cfg.resources);
+    // Metallo-only conserva la contabilità storica (solo metallo). Negli altri
+    // casi il costo è MSU, quindi anche i pacchi/ROI devono usare il valore MSU.
+    const isMetalOnly = resources.length === 1 && resources[0] === 'metal';
 
     const state = JSON.parse(JSON.stringify(initialState));
+    const packUnits = (byRes) => isMetalOnly
+        ? productionScore(byRes, resources)
+        : productionValue(byRes, state.pack);
     const steps = [];
 
-    // ─ Cache incrementali ─
+    // ─ Cache incrementali: una produzione oraria per pianeta e risorsa ─
     const lfContribs = state.planets.map(p => calcPlanetLFContribution(p));
     // Sorgente del bonus LF fissata sullo stato iniziale: se l'account parte dal
     // totale manuale, le ricerche simulate non devono "spegnerlo" a metà piano.
@@ -339,45 +385,95 @@ export const runPlanner = (initialState, options = {}) => {
     };
     let lfPct = sumLfPct();
 
-    const planetCalc = (idx, pct = lfPct) =>
-        calcPlanetMetalProduction(state.planets[idx], state.settings, pct, {
-            lifeform: effectiveLifeform(state.planets[idx], state.lfChoice[idx])
+    const planetCalcs = (idx, pct = lfPct) => {
+        const opts = { lifeform: effectiveLifeform(state.planets[idx], state.lfChoice[idx]) };
+        const out = {};
+        RESOURCE_KEYS.forEach(r => {
+            out[r] = calcPlanetResourceProduction(state.planets[idx], state.settings, pct, r, opts);
         });
-    const planetHourly = (idx, pct = lfPct) => planetCalc(idx, pct).total;
-
-    let hourly = state.planets.map((_, i) => planetHourly(i));
-    let hourlySum = hourly.reduce((a, b) => a + b, 0);
-    // Somma delle produzioni base delle miniere (oraria). Il bonus metallo delle
-    // ricerche LF è un +% su questa base uguale per tutti i pianeti, quindi il suo
-    // effetto si stima in O(1) invece di ricalcolare ogni pianeta per ogni candidato.
-    const mineBaseOf = () => state.planets.reduce((a, _, i) => a + planetCalc(i).mineBase, 0);
-    let mineBaseSum = mineBaseOf();
-    const fullHourlySum = (pct = lfPct) => {
-        let s = 0;
-        for (let i = 0; i < state.planets.length; i++) s += planetHourly(i, pct);
-        return s;
+        return out;
+    };
+    const planetHourly = (idx, pct = lfPct) => {
+        const calc = planetCalcs(idx, pct);
+        const out = {};
+        RESOURCE_KEYS.forEach(r => { out[r] = calc[r].total; });
+        return out;
+    };
+    const sumHourly = (matrix) => {
+        const out = { metal: 0, crystal: 0, deuterium: 0 };
+        RESOURCE_KEYS.forEach(r => { out[r] = matrix[r].reduce((a, b) => a + b, 0); });
+        return out;
+    };
+    const fullHourlySums = (pct = lfPct) => {
+        const matrix = { metal: [], crystal: [], deuterium: [] };
+        state.planets.forEach((_, i) => {
+            const h = planetHourly(i, pct);
+            RESOURCE_KEYS.forEach(r => matrix[r].push(h[r]));
+        });
+        return sumHourly(matrix);
+    };
+    const dailyOf = (sums) => {
+        const out = {};
+        RESOURCE_KEYS.forEach(r => { out[r] = Math.floor(sums[r] * 24); });
+        return out;
     };
 
-    const initialProd = Math.floor(hourlySum * 24);
+    const hourly = { metal: [], crystal: [], deuterium: [] };
+    state.planets.forEach((_, i) => {
+        const h = planetHourly(i);
+        RESOURCE_KEYS.forEach(r => hourly[r].push(h[r]));
+    });
+    let hourlySums = sumHourly(hourly);
+
+    // Un cambio globale (plasma o ricerca LF) modifica TUTTI i pianeti: aggiornare
+    // solo hourlySums lascerebbe hourly[] vecchio e il prossimo step planet-scope
+    // sottrarrebbe un valore obsoleto, generando delta negativi fasulli.
+    const refreshHourlyCache = (pct = lfPct) => {
+        state.planets.forEach((_, i) => {
+            const h = planetHourly(i, pct);
+            RESOURCE_KEYS.forEach(r => { hourly[r][i] = h[r]; });
+        });
+        hourlySums = sumHourly(hourly);
+    };
+
+    // Il bonus LF è un +% sulla base miniera, uguale per tutti i pianeti: la sua
+    // variazione si stima in O(1) per risorsa invece di ricalcolare ogni pianeta.
+    const mineBaseSums = () => {
+        const out = { metal: 0, crystal: 0, deuterium: 0 };
+        state.planets.forEach((_, i) => {
+            const c = planetCalcs(i);
+            RESOURCE_KEYS.forEach(r => { out[r] += c[r].mineBase; });
+        });
+        return out;
+    };
+    let mineBaseSum = mineBaseSums();
+
+    const initialByRes = dailyOf(hourlySums);
+    const initialProd = productionScore(initialByRes, resources);
+    const initialValue = packUnits(initialByRes);
+    let currentByRes = { ...initialByRes };
     let currentProd = initialProd;
+    let currentValue = initialValue;
     let cumulativeMSU = 0;
     let cumulativePacks = 0;
     let creditMSU = 0;
 
     // Modalità "obiettivo di spesa": c'è un acquisto da fare (goalMSU, es. Astro 31)
     // e si alza la produzione prima solo finché conviene. Un pacco vale un giorno
-    // di produzione: un upgrade da k pacchi che alza la produzione da P a P+Δ fa
-    // risparmiare C/P − C/(P+Δ) pacchi sull'obiettivo C. Si sceglie come sempre
-    // l'upgrade con la resa migliore e ci si ferma quando costa più di quanto fa
-    // risparmiare. Nessun target di produzione in questa modalità.
+    // di produzione in MSU (valore di cambio delle risorse): un upgrade che alza
+    // il valore da P a P+Δ fa risparmiare C/P − C/(P+Δ) pacchi. Il ranking degli
+    // step resta sulla somma non pesata scelta dall'utente. Nessun target di produzione.
     const goalMSU = Math.max(0, Number(cfg.goalMSU) || 0);
     const goalMode = goalMSU > 0;
-    let investedPacks = 0;   // pacchi spesi in upgrade, ciascuno al valore del momento
+    let investedPacks = 0;
 
     const target = goalMode ? Infinity : (parseInt(cfg.target) || 0);
     if (!goalMode && target <= initialProd) {
         return {
             initialProd, finalProd: initialProd, steps,
+            initialByRes: { ...initialByRes }, finalByRes: { ...initialByRes },
+            initialValue, finalValue: initialValue,
+            resources,
             cumulativeMSU: 0, cumulativePacks: 0,
             reachedTarget: true, stoppedReason: 'already_at_target'
         };
@@ -387,19 +483,21 @@ export const runPlanner = (initialState, options = {}) => {
 
     // packValue dinamico: si aggiorna ogni packBatch pacchi accumulati.
     const packBatch = Math.max(1, parseInt(cfg.packBatch) || 1);
-    let packValueSnapshot = initialProd;
+    let packValueSnapshot = initialValue;
     let lastSnapshotAt = 0;
 
     for (let step = 0; step < cfg.maxSteps; step++) {
         if (currentProd >= target) { stoppedReason = 'target_reached'; break; }
 
         if (typeof cfg.onProgress === 'function' && step % 20 === 0) {
-            cfg.onProgress({ step, maxSteps: cfg.maxSteps, currentProd, initialProd, target });
+            cfg.onProgress({
+                step, maxSteps: cfg.maxSteps, currentProd, initialProd, target,
+                currentByRes: { ...currentByRes }
+            });
         }
 
-        // Aggiorna lo snapshot ogni packBatch pacchi (o ad ogni step se packBatch=1)
         if (cfg.packMode === 'dynamic' && cumulativePacks - lastSnapshotAt >= packBatch) {
-            packValueSnapshot = currentProd;
+            packValueSnapshot = currentValue;
             lastSnapshotAt = cumulativePacks;
         }
         const packValue = cfg.packMode === 'fixed'
@@ -413,10 +511,14 @@ export const runPlanner = (initialState, options = {}) => {
         for (const cand of candidates) {
             const backup = cand.applyMut(state);
 
-            let newProd, newPlanetTotal = null, newContrib = null;
+            let newByRes, newPlanetTotals = null, newContrib = null;
             if (cand.scope === 'planet') {
-                newPlanetTotal = planetHourly(cand.planetIdx);
-                newProd = Math.floor((hourlySum - hourly[cand.planetIdx] + newPlanetTotal) * 24);
+                newPlanetTotals = planetHourly(cand.planetIdx);
+                const sums = { ...hourlySums };
+                RESOURCE_KEYS.forEach(r => {
+                    sums[r] = hourlySums[r] - hourly[r][cand.planetIdx] + newPlanetTotals[r];
+                });
+                newByRes = dailyOf(sums);
             } else if (cand.scope === 'lf_research') {
                 newContrib = calcPlanetLFContribution(state.planets[cand.planetIdx]);
                 const old = lfContribs[cand.planetIdx];
@@ -428,40 +530,42 @@ export const runPlanner = (initialState, options = {}) => {
                     collectorBonus: lfPct.collectorBonus + (newContrib.collectorBonus - old.collectorBonus) * 100
                 };
                 if (newContrib.collectorBonus === old.collectorBonus) {
-                    // Solo bonus metallo: effetto lineare sulla base miniere (scarto dovuto
-                    // agli arrotondamenti per pianeta trascurabile). Il valore esatto si
-                    // ricalcola per lo step scelto. Senza dati di ricerca (bonus LF manuale)
-                    // il +% delle ricerche non viene applicato: effetto nullo.
-                    const dPct = lfPct.fromResearch ? (newContrib.metal - old.metal) * 100 : 0;
-                    newProd = currentProd + Math.floor(mineBaseSum * dPct / 100 * 24);
+                    // Bonus diretto per risorsa: effetto lineare sulla base miniere
+                    // (scarto dovuto agli arrotondamenti per pianeta trascurabile).
+                    // Senza dati di ricerca (bonus LF manuale) il +% non si applica.
+                    newByRes = { ...currentByRes };
+                    RESOURCE_KEYS.forEach(r => {
+                        const dPct = lfPct.fromResearch ? (newContrib[r] - old[r]) * 100 : 0;
+                        newByRes[r] = currentByRes[r] + Math.floor(mineBaseSum[r] * dPct / 100 * 24);
+                    });
                 } else {
                     // Potenziamento Collezionista: agisce su collFactor (non lineare) → esatto
-                    newProd = Math.floor(fullHourlySum(pct) * 24);
+                    newByRes = dailyOf(fullHourlySums(pct));
                 }
             } else {
                 // 'global' (plasma): cambia il totPerc di tutti i pianeti
-                newProd = Math.floor(fullHourlySum() * 24);
+                newByRes = dailyOf(fullHourlySums());
             }
 
             cand.revertMut(state, backup);
 
-            const deltaProd = newProd - currentProd;
-            if (deltaProd <= 0) continue;
+            const deltaByRes = {};
+            RESOURCE_KEYS.forEach(r => { deltaByRes[r] = newByRes[r] - currentByRes[r]; });
+            const deltaProd = productionScore(deltaByRes, resources);
+            const deltaValue = packUnits(deltaByRes);
+            if (deltaProd <= 0 || deltaValue <= 0) continue;
             const costMSU = toMSU(cand.cost, state.pack);
             if (costMSU <= 0) continue;
             const score = deltaProd / (costMSU / packValue);
 
-            // A parità di score preferisci il costo minore: meno spreco di
-            // arrotondamento pacchetti, stessa resa.
             if (!best || score > best.score || (score === best.score && costMSU < best.costMSU)) {
-                best = { cand, deltaProd, costMSU, score, newProd, newPlanetTotal, newContrib };
+                best = { cand, deltaProd, deltaValue, costMSU, score, newByRes, newPlanetTotals, newContrib };
             }
         }
 
         if (!best) { stoppedReason = 'no_positive_delta'; break; }
         if (goalMode) {
-            const P = currentProd, d = best.deltaProd;
-            // costo in MSU < MSU risparmiati sull'obiettivo: C·Δ/(P+Δ)
+            const P = currentValue, d = best.deltaValue;
             if (best.costMSU >= goalMSU * d / (P + d)) { stoppedReason = 'goal_optimal'; break; }
             investedPacks += best.costMSU / P;
         }
@@ -469,21 +573,20 @@ export const runPlanner = (initialState, options = {}) => {
             stoppedReason = 'score_below_threshold'; break;
         }
 
-        // Applica definitivamente (senza revert) e aggiorna le cache.
-        const prevProd = currentProd;
+        const prevByRes = { ...currentByRes };
         best.cand.applyMut(state);
         if (best.cand.scope === 'planet') {
-            hourlySum += best.newPlanetTotal - hourly[best.cand.planetIdx];
-            hourly[best.cand.planetIdx] = best.newPlanetTotal;
-            if (best.cand.type === 'metal_mine') mineBaseSum = mineBaseOf();
+            RESOURCE_KEYS.forEach(r => {
+                hourlySums[r] += best.newPlanetTotals[r] - hourly[r][best.cand.planetIdx];
+                hourly[r][best.cand.planetIdx] = best.newPlanetTotals[r];
+            });
+            if (mineDefTypes.includes(best.cand.type)) mineBaseSum = mineBaseSums();
         } else if (best.cand.scope === 'lf_research') {
             lfContribs[best.cand.planetIdx] = best.newContrib;
             lfPct = sumLfPct();
-            hourly = state.planets.map((_, i) => planetHourly(i));
-            hourlySum = hourly.reduce((a, b) => a + b, 0);
+            refreshHourlyCache();
         } else {
-            hourly = state.planets.map((_, i) => planetHourly(i));
-            hourlySum = hourly.reduce((a, b) => a + b, 0);
+            refreshHourlyCache();
         }
         cumulativeMSU += best.costMSU;
 
@@ -491,9 +594,12 @@ export const runPlanner = (initialState, options = {}) => {
         const packsNeeded = Math.ceil(netMSU / packValue);
         creditMSU = packsNeeded > 0 ? (packsNeeded * packValue - netMSU) : (creditMSU - best.costMSU);
         cumulativePacks += packsNeeded;
-        // Valore esatto dalle cache appena aggiornate (la stima serviva solo a scegliere)
-        currentProd = Math.floor(hourlySum * 24);
-        const deltaExact = currentProd - prevProd;
+
+        currentByRes = dailyOf(hourlySums);
+        currentProd = productionScore(currentByRes, resources);
+        currentValue = packUnits(currentByRes);
+        const deltaByResExact = {};
+        RESOURCE_KEYS.forEach(r => { deltaByResExact[r] = currentByRes[r] - prevByRes[r]; });
 
         steps.push({
             n: step + 1,
@@ -512,7 +618,9 @@ export const runPlanner = (initialState, options = {}) => {
             costMSU: best.costMSU,
             packs: packsNeeded,
             packValue,
-            deltaProd: deltaExact,
+            deltaProd: productionScore(deltaByResExact, resources),
+            deltaValue: packUnits(deltaByResExact),
+            deltaByRes: deltaByResExact,
             cumulativeProd: currentProd,
             cumulativeMSU,
             cumulativePacks,
@@ -520,16 +628,18 @@ export const runPlanner = (initialState, options = {}) => {
         });
     }
 
-    // Riepilogo obiettivo di spesa, in pacchi frazionari (il confronto vero).
     const goal = goalMode ? {
         msu: goalMSU,
-        directPacks: goalMSU / Math.max(1, initialProd),
+        directPacks: goalMSU / Math.max(1, initialValue),
         investedPacks,
-        goalPacks: goalMSU / Math.max(1, currentProd)
+        goalPacks: goalMSU / Math.max(1, currentValue)
     } : null;
 
     return {
         initialProd, finalProd: currentProd, steps,
+        initialByRes: { ...initialByRes }, finalByRes: { ...currentByRes },
+        initialValue, finalValue: currentValue,
+        resources,
         cumulativeMSU, cumulativePacks,
         // In modalità spesa il piano è "completo" se si è fermato perché non conviene più
         reachedTarget: goalMode ? stoppedReason !== 'max_steps' : currentProd >= target,
@@ -725,6 +835,8 @@ const applyStepToState = (state, step) => {
 
 export {
     simulateDailyProduction,
+    simulateDailyProductionByResource,
+    simulateProductionScore,
     findPlanPlanet,
     currentStepLevel,
     isStepDoneInProfile,
@@ -742,6 +854,8 @@ export function useStrategy() {
         runPlanner,
         computeEuroCost,
         buildInitialState,
-        simulateDailyProduction
+        simulateDailyProduction,
+        simulateDailyProductionByResource,
+        simulateProductionScore
     };
 }

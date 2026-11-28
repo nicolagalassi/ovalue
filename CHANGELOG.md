@@ -3,6 +3,20 @@
 Tutte le modifiche degne di nota a questo progetto sono documentate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## OValue Exporter — [4.7.2]
+
+### Modificato
+- **accountInfo parte subito al caricamento della Panoramica**, senza il ritardo di 2 s:
+  nessuna chiamata al server passa più da un timer (AGENTS.md §1.3/§4).
+- **Un solo throttle di 3 minuti per tutte le chiamate accountInfo/empire.** Anche la
+  pagina Impero lo rispetta: entro 3 minuti dall'ultima chiamata legge solo il DOM, che
+  contiene già tutti i livelli. Il pulsante "↻ Aggiorna Dati" continua a forzarla.
+  Il momento dell'ultima chiamata viene salvato anche se la risposta fallisce o è vuota.
+
+### Corretto
+- **Attesa della tabella Impero limitata a 10 secondi** invece di ricontrollare il DOM
+  all'infinito.
+
 ## OValue Exporter — [4.7.1]
 
 ### Corretto

@@ -1,10 +1,13 @@
 <script setup>
+import { TOOLS } from '../data/tools';
+import ToolIcon from './ToolIcon.vue';
 import { ref, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useExporterStatus } from '../composables/useExporterStatus';
 import { EXPORTER_INSTALL_URL } from '../data/links';
+import { useOverlay } from '../composables/useOverlay';
 
 const { currentLang, setLanguage, t } = useLanguage();
 const { profiles, activeProfileId, activeProfile, switchProfile } = useProfiles();
@@ -23,15 +26,20 @@ const scriptTitle = computed(() => {
 const scriptLabel = computed(() => ({
     install: t('nav_install_script'), update: t('nav_update_script'), ok: t('nav_script')
 })[scriptState.value]);
+// Avviso statico: nessun glow e nessun punto pulsante (il colore basta a segnalarlo)
 const scriptBtnClass = {
-    install: 'bg-sky-500/[0.12] border-sky-400/40 text-sky-300 hover:bg-sky-500/[0.2] hover:border-sky-300/60 shadow-[0_0_14px_rgba(56,189,248,0.18)]',
-    update:  'bg-amber-500/[0.10] border-amber-400/40 text-amber-300 hover:bg-amber-500/[0.18] hover:border-amber-300/60 shadow-[0_0_14px_rgba(251,191,36,0.15)]',
-    ok:      'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:bg-white/[0.06] hover:border-white/10 hover:text-slate-300'
+    install: 'bg-sky-500/[0.08] border-sky-400/30 text-sky-300 hover:bg-sky-500/[0.14] hover:border-sky-300/50',
+    update:  'bg-amber-500/[0.07] border-amber-400/30 text-amber-300 hover:bg-amber-500/[0.14] hover:border-amber-300/50',
+    ok:      'bg-transparent border-ogame-line text-slate-400 hover:border-slate-600 hover:text-slate-200'
 };
 
 const isProfileMenuOpen = ref(false);
 const isLangMenuOpen = ref(false);
 const isMobileMenuOpen = ref(false);
+// Esc chiude i menu ovunque sia il focus, che poi torna al pulsante
+useOverlay(isProfileMenuOpen, { lock: false, trap: false });
+useOverlay(isLangMenuOpen, { lock: false, trap: false });
+useOverlay(isMobileMenuOpen, { lock: true, trap: false });
 
 watch(() => route.path, () => { isMobileMenuOpen.value = false; });
 
@@ -46,56 +54,41 @@ const changeLang = (lang) => {
     isLangMenuOpen.value = false;
 };
 
-const navLinks = [
-    { to: '/metal',       labelKey: 'card_metal_title',       activeColor: 'text-sky-400',     dotColor: 'bg-sky-400'     },
-    { to: '/pack',        labelKey: 'card_pack_title',        activeColor: 'text-amber-400',   dotColor: 'bg-amber-400'   },
-    { to: '/shopping',    labelKey: 'shopping_title',         activeColor: 'text-violet-400',  dotColor: 'bg-violet-400'  },
-    { to: '/strategy',    labelKey: 'card_strategy_title',    activeColor: 'text-emerald-400', dotColor: 'bg-emerald-400' },
-];
+// Voci di navigazione: i quattro strumenti, ognuno col suo colore e la sua icona
+const navLinks = TOOLS;
 </script>
 
 <template>
-  <header class="sticky top-0 z-50 w-full bg-ogame-bg/95 backdrop-blur-md border-b border-slate-700/20">
-    <div class="max-w-7xl mx-auto px-5 md:px-8 h-14 flex items-center gap-4">
+  <header class="sticky top-0 z-50 w-full bg-ogame-bg border-b border-ogame-line">
+    <div class="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center gap-3 md:gap-4">
 
       <!-- Logo -->
       <router-link to="/" class="flex items-center gap-2.5 flex-shrink-0 group">
         <img src="/ovalue.png" alt="OValue" class="h-7 w-auto object-contain opacity-90 group-hover:opacity-100 transition-opacity" />
       </router-link>
 
-      <!-- Divider -->
-      <div class="hidden md:block w-px h-5 bg-slate-700/40 flex-shrink-0"></div>
-
-      <!-- Desktop nav -->
-      <nav class="hidden md:flex items-center gap-0.5 flex-grow" :aria-label="t('nav_main')">
+      <!-- Desktop nav: voce attiva sottolineata in ciano -->
+      <nav class="hidden lg:flex items-stretch self-stretch gap-0.5 flex-grow min-w-0 ml-2" :aria-label="t('nav_main')">
         <router-link
           v-for="link in navLinks" :key="link.to"
           :to="link.to"
           :aria-current="$route.path === link.to ? 'page' : undefined"
-          class="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-md transition-all duration-150"
+          class="nav-link group flex items-center gap-2 px-2 xl:px-3 text-[13px] whitespace-nowrap border-b-2 transition-colors duration-150"
           :class="$route.path === link.to
-            ? link.activeColor + ' bg-white/5'
-            : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'"
+            ? 'text-slate-100 font-semibold'
+            : 'text-slate-400 font-medium border-transparent hover:text-slate-200'"
+          :style="{ '--lc': link.color, borderColor: $route.path === link.to ? link.color : undefined }"
         >
-          <span v-if="$route.path === link.to" class="w-1 h-1 rounded-full flex-shrink-0" :class="link.dotColor"></span>
-          {{ t(link.labelKey) }}
+          <ToolIcon :tool="link" class="nav-ico w-4 h-4 flex-none" />
+          {{ t(link.titleKey) }}
         </router-link>
       </nav>
 
-      <!-- Mobile: home button (icona, stesso vocabolario degli altri hdr-btn) -->
-      <div class="md:hidden flex-grow">
-        <router-link
-          v-if="$route.path !== '/'"
-          to="/"
-          aria-label="Home"
-          class="hdr-btn w-10 h-10 inline-flex items-center justify-center rounded-md transition-all duration-200 bg-white/[0.03] border-white/[0.07] text-slate-500 hover:bg-white/[0.06] hover:border-white/10 hover:text-slate-300"
-        >
-          <svg class="w-4 h-4" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-        </router-link>
-      </div>
+      <!-- Mobile: spazio tra logo e controlli (il logo porta già alla Home) -->
+      <div class="lg:hidden flex-grow"></div>
 
       <!-- Right controls -->
-      <div class="flex items-center gap-1.5 flex-shrink-0">
+      <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
 
         <div id="header-actions" class="flex items-center gap-1.5 empty:hidden"></div>
 
@@ -103,18 +96,14 @@ const navLinks = [
              ambra se la versione installata è vecchia, poi discreto (reinstalla/aggiorna). -->
         <a :href="EXPORTER_INSTALL_URL" target="_blank" rel="noopener noreferrer"
            :title="scriptTitle" :aria-label="scriptTitle"
-           class="hdr-btn relative h-10 md:h-8 min-w-10 md:min-w-8 flex items-center justify-center gap-1.5 px-2.5 rounded-md transition-all duration-200"
+           class="hdr-btn relative h-10 lg:h-8 min-w-10 lg:min-w-8 flex items-center justify-center gap-1.5 px-2.5 rounded-md transition-colors duration-150"
            :class="scriptBtnClass[scriptState]">
-          <span v-if="scriptState !== 'ok'" class="absolute -top-0.5 -right-0.5 flex w-2 h-2" aria-hidden="true">
-            <span class="motion-safe:animate-ping absolute inline-flex w-full h-full rounded-full opacity-60"
-                  :class="scriptState === 'update' ? 'bg-amber-400' : 'bg-sky-400'"></span>
-            <span class="relative inline-flex w-2 h-2 rounded-full"
-                  :class="scriptState === 'update' ? 'bg-amber-400' : 'bg-sky-400'"></span>
-          </span>
-          <svg class="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          <span class="text-[11px] font-semibold tracking-wide whitespace-nowrap"
-                :class="scriptState === 'ok' ? 'hidden lg:inline' : 'hidden sm:inline'">
-            {{ scriptLabel }}
+          <span v-if="scriptState !== 'ok'" class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                :class="scriptState === 'update' ? 'bg-amber-400' : 'bg-sky-400'" aria-hidden="true"></span>
+          <svg class="w-3.5 h-3.5 flex-shrink-0" :class="scriptState !== 'ok' ? 'xl:hidden' : ''" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <span class="text-xs font-medium whitespace-nowrap"
+                :class="scriptState === 'ok' ? 'hidden 2xl:inline' : 'hidden xl:inline'">
+            {{ scriptLabel }}<span v-if="scriptState === 'update' && exporterLatest" class="tabular-nums">&nbsp;{{ exporterLatest }}</span>
           </span>
         </a>
 
@@ -125,10 +114,10 @@ const navLinks = [
           :aria-expanded="isMobileMenuOpen"
           :aria-label="t('nav_main')"
           aria-haspopup="true"
-          class="md:hidden hdr-btn w-10 h-10 flex items-center justify-center rounded-md transition-all duration-200"
+          class="lg:hidden hdr-btn w-10 h-10 flex items-center justify-center rounded-md transition-colors duration-150"
           :class="isMobileMenuOpen
             ? 'bg-white/[0.07] border-white/15 text-slate-200'
-            : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:bg-white/[0.06] hover:border-white/10 hover:text-slate-300'"
+            : 'bg-transparent border-ogame-line text-slate-400 hover:border-slate-600 hover:text-slate-200'"
         >
           <Transition name="icon-fade" mode="out-in">
             <svg v-if="!isMobileMenuOpen" key="menu" class="w-4 h-4" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -148,22 +137,22 @@ const navLinks = [
             :aria-label="t('profile_manage')"
             :aria-expanded="isProfileMenuOpen"
             aria-haspopup="true"
-            class="hdr-btn group h-10 md:h-8 flex items-center gap-2 px-3 rounded-md transition-all duration-200"
-            :class="isProfileMenuOpen ? 'bg-sky-500/[0.08] border-sky-500/30 text-sky-300' : 'bg-white/[0.03] border-white/[0.07] text-slate-300 hover:bg-sky-500/[0.05] hover:border-sky-500/20 hover:text-sky-300'"
+            class="hdr-btn group h-10 lg:h-8 flex items-center gap-2 px-3 rounded-md transition-colors duration-150"
+            :class="isProfileMenuOpen ? 'bg-ogame-raised border-slate-600 text-slate-100' : 'bg-transparent border-ogame-line text-slate-200 hover:border-slate-600'"
           >
-            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all"
-                  :class="activeProfile.autoSync ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.6)]' : 'bg-slate-600'"></span>
-            <span class="hidden lg:block text-[11px] font-semibold tracking-wide max-w-[80px] truncate font-mono">{{ activeProfile.name }}</span>
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  :class="activeProfile.autoSync ? 'bg-emerald-400' : 'bg-slate-600'"></span>
+            <span class="hidden xl:block text-[13px] font-semibold max-w-[110px] truncate">{{ activeProfile.name }}</span>
             <span v-if="activeProfile.autoSync && lastSyncFormatted"
-                  class="hidden xl:block text-[9px] font-mono text-slate-600 group-hover:text-sky-500/50 transition-colors">{{ lastSyncFormatted }}</span>
-            <svg class="w-2.5 h-2.5 text-slate-600 group-hover:text-sky-500/60 transition-all duration-200" :class="{'rotate-180': isProfileMenuOpen}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                  class="hidden xl:block text-xs text-slate-400 tabular-nums">{{ lastSyncFormatted }}</span>
+            <svg class="hidden sm:block w-2.5 h-2.5 text-slate-400 transition-transform duration-150" :class="{'rotate-180': isProfileMenuOpen}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
           </button>
 
           <Transition name="menu">
             <div v-if="isProfileMenuOpen" role="menu" class="absolute right-0 top-full mt-2 w-56 bg-ogame-bg border border-slate-700/40 rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.8)] z-50 overflow-hidden">
               <div class="px-3.5 py-2.5 border-b border-slate-700/30 flex items-center gap-2">
                 <svg class="w-3 h-3 text-sky-500/60" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                <span class="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">{{ t('profile_manage') }}</span>
+                <span class="ov-sh ov-sh-noline" style="--tc:#38bdf8">{{ t('profile_manage') }}</span>
               </div>
               <div class="p-1.5 space-y-0.5 max-h-52 overflow-y-auto custom-scrollbar">
                 <button
@@ -183,7 +172,7 @@ const navLinks = [
                   to="/settings"
                   @click="isProfileMenuOpen = false"
                   role="menuitem"
-                  class="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] rounded-lg transition-colors"
+                  class="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-slate-400 hover:text-slate-200 hover:bg-white/[0.05] rounded-lg transition-colors"
                 >
                   <svg class="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
                   {{ t('settings_manage_profiles') }}
@@ -202,16 +191,16 @@ const navLinks = [
             :aria-label="t('settings_section_lang')"
             :aria-expanded="isLangMenuOpen"
             aria-haspopup="true"
-            class="hdr-btn h-10 md:h-8 flex items-center gap-1.5 px-2.5 rounded-md transition-all duration-200"
-            :class="isLangMenuOpen ? 'bg-white/[0.07] border-white/15' : 'bg-white/[0.03] border-white/[0.07] hover:bg-white/[0.06] hover:border-white/10'"
+            class="hdr-btn h-10 lg:h-8 flex items-center gap-1.5 px-2.5 rounded-md transition-colors duration-150"
+            :class="isLangMenuOpen ? 'bg-ogame-raised border-slate-600' : 'bg-transparent border-ogame-line hover:border-slate-600'"
           >
-            <span class="text-sm leading-none">{{ { it: '🇮🇹', en: '🇬🇧', de: '🇩🇪', fr: '🇫🇷' }[currentLang] ?? '🌐' }}</span>
-            <svg class="w-2 h-2 text-slate-600 transition-transform duration-200" :class="{'rotate-180': isLangMenuOpen}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            <span class="text-xs font-semibold text-slate-200 uppercase">{{ currentLang }}</span>
+            <svg class="hidden sm:block w-2 h-2 text-slate-400 transition-transform duration-200" :class="{'rotate-180': isLangMenuOpen}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
           </button>
           <Transition name="menu">
             <div v-if="isLangMenuOpen" role="menu" class="absolute right-0 top-full mt-2 w-40 bg-ogame-bg border border-slate-700/40 rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.8)] z-50 overflow-hidden">
               <div class="px-3.5 py-2.5 border-b border-slate-700/30">
-                <span class="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">{{ t('settings_section_lang') }}</span>
+                <span class="ov-sh ov-sh-noline" style="--tc:#94a3b8">{{ t('settings_section_lang') }}</span>
               </div>
               <div class="p-1.5 space-y-0.5">
                 <button v-for="[code, flag, label] in [['it','🇮🇹','Italiano'],['en','🇬🇧','English'],['de','🇩🇪','Deutsch'],['fr','🇫🇷','Français']]"
@@ -232,7 +221,7 @@ const navLinks = [
 
         <!-- Ko-fi (desktop only — mobile has limited toolbar space) -->
         <a href="https://ko-fi.com/galax95" target="_blank" rel="noopener noreferrer"
-           class="hidden md:flex hdr-btn md:w-8 md:h-8 items-center justify-center rounded-md bg-white/[0.03] border border-white/[0.07] hover:bg-amber-500/[0.08] hover:border-amber-500/30 text-slate-600 hover:text-amber-400 transition-all duration-200"
+           class="hidden lg:flex hdr-btn lg:w-8 lg:h-8 items-center justify-center rounded-md bg-transparent border border-ogame-line hover:border-amber-500/40 text-slate-400 hover:text-amber-300 transition-colors duration-150"
            :aria-label="t('support_banner_link')">
           <svg class="w-3.5 h-3.5" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
             <path stroke-linecap="round" stroke-linejoin="round" d="M18 8h1a4 4 0 010 8h-1"/>
@@ -246,10 +235,10 @@ const navLinks = [
         <!-- Settings (desktop only: su mobile la barra è piena, è nel menu a tendina) -->
         <router-link
           to="/settings"
-          class="hidden md:flex hdr-btn md:w-8 md:h-8 items-center justify-center rounded-md transition-all duration-200"
+          class="hidden lg:flex hdr-btn lg:w-8 lg:h-8 items-center justify-center rounded-md transition-colors duration-150"
           :class="$route.path === '/settings'
-            ? 'bg-white/[0.07] border-white/15 text-slate-200'
-            : 'bg-white/[0.03] border-white/[0.07] text-slate-600 hover:bg-white/[0.06] hover:border-white/10 hover:text-slate-300'"
+            ? 'bg-ogame-raised border-slate-600 text-slate-100'
+            : 'bg-transparent border-ogame-line text-slate-400 hover:border-slate-600 hover:text-slate-200'"
           :aria-label="t('settings_title')"
         >
           <svg class="w-3.5 h-3.5" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -262,13 +251,13 @@ const navLinks = [
   <!-- Mobile navigation drawer -->
   <Teleport to="body">
     <Transition name="mobile-menu">
-      <div v-if="isMobileMenuOpen" class="md:hidden fixed inset-x-0 top-14 bottom-0 z-40">
+      <div v-if="isMobileMenuOpen" class="lg:hidden fixed inset-x-0 top-14 bottom-0 z-40">
         <div
           class="absolute inset-0 bg-black/50"
           @click="isMobileMenuOpen = false"
           aria-hidden="true"
         ></div>
-        <div class="relative border-b border-slate-700/20 bg-ogame-bg/98 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.7)]">
+        <div class="relative border-b border-ogame-line bg-ogame-bg shadow-[0_12px_40px_rgba(0,0,0,0.8)]">
           <nav :aria-label="t('nav_main')" class="px-3 py-2">
             <router-link
               v-for="link in navLinks" :key="link.to"
@@ -277,11 +266,11 @@ const navLinks = [
               @click="isMobileMenuOpen = false"
               class="flex items-center gap-3 px-4 py-3.5 rounded-lg transition-colors text-sm font-semibold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
               :class="$route.path === link.to
-                ? link.activeColor + ' bg-white/[0.06]'
-                : 'text-slate-400 active:bg-white/[0.05] focus-visible:bg-white/[0.05]'"
+                ? 'text-slate-100 bg-white/[0.06]'
+                : 'text-slate-300 active:bg-white/[0.05] focus-visible:bg-white/[0.05]'"
             >
-              <span class="w-2 h-2 rounded-full flex-shrink-0" :class="link.dotColor"></span>
-              {{ t(link.labelKey) }}
+              <ToolIcon :tool="link" class="w-5 h-5 flex-shrink-0" :style="{ color: link.color }" />
+              {{ t(link.titleKey) }}
             </router-link>
             <div class="border-t border-slate-700/20 mt-1.5 pt-1.5">
               <router-link to="/settings"
@@ -325,11 +314,12 @@ const navLinks = [
 }
 
 .menu-enter-active {
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+  transform-origin: top right;
 }
 .menu-enter-from {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-4px) scale(0.97);
 }
 .menu-enter-to {
   opacity: 1;
@@ -348,7 +338,8 @@ const navLinks = [
 @media (prefers-reduced-motion: reduce) {
   .menu-enter-active,
   .menu-leave-active {
-    transition: none !important;
+    transition: opacity 150ms !important;
+    transform: none !important;
   }
 }
 
@@ -376,7 +367,8 @@ const navLinks = [
 @media (prefers-reduced-motion: reduce) {
   .mobile-menu-enter-active,
   .mobile-menu-leave-active {
-    transition: none !important;
+    transition: opacity 150ms !important;
+    transform: none !important;
   }
 }
 
@@ -395,4 +387,7 @@ const navLinks = [
     transition: none !important;
   }
 }
+.nav-ico { color: rgb(148 163 184 / 0.7); transition: color 150ms; }
+.nav-link[aria-current="page"] .nav-ico { color: var(--lc); }
+@media (hover: hover) and (pointer: fine) { .nav-link:hover .nav-ico { color: var(--lc); } }
 </style>

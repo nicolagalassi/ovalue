@@ -2,57 +2,142 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Sfondo piatto: il tema scuro è funzionale (sessioni lunghe accanto al gioco), non decorativo */
 body {
     background-color: theme('colors.ogame.bg');
-    background-image:
-        radial-gradient(ellipse at 25% 0%,   rgba(15, 40, 90, 0.70)  0px, transparent 55%),
-        radial-gradient(ellipse at 90% 8%,   rgba(35, 18, 80, 0.45)  0px, transparent 45%),
-        radial-gradient(ellipse at 5%  88%,  rgba(8,  22, 58, 0.45)  0px, transparent 48%),
-        radial-gradient(ellipse at 98% 82%,  rgba(22,  8, 60, 0.35)  0px, transparent 42%);
-    background-attachment: fixed;
     color: theme('colors.ogame.text');
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
-/* Star field — two offset sparse dot layers */
-body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background-image:
-        radial-gradient(circle, rgba(255,255,255,0.018) 1px, transparent 1px),
-        radial-gradient(circle, rgba(255,255,255,0.010) 1px, transparent 1px);
-    background-size: 88px 88px, 53px 53px;
-    background-position: 0 0, 28px 42px;
-    pointer-events: none;
-    z-index: 0;
-}
+/* Touch: niente lampo al tocco, niente attesa del doppio tap */
+html { -webkit-tap-highlight-color: transparent; }
+button, a, [role="button"], summary, label { touch-action: manipulation; }
 
 #app {
     position: relative;
-    z-index: 1;
 }
+
+::selection { background: rgb(0 240 255 / 0.22); color: #fff; }
+* { scrollbar-color: #334155 transparent; }
+:focus-visible { outline: 2px solid rgb(0 240 255 / 0.7); outline-offset: 2px; }
 
 /* Input Styles */
 .input-glass {
-    @apply border border-slate-700/40 rounded-lg text-slate-100 placeholder-slate-600 focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 transition-all duration-200 shadow-inner;
-    background-color: rgb(10 16 30 / 0.7); /* ogame-surface @70% */
+    @apply border border-slate-700 rounded-md text-slate-100 placeholder-slate-400 focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/25;
+    background-color: theme('colors.ogame.surface');
+    transition: border-color 150ms, background-color 150ms, box-shadow 150ms;
 }
 .input-glass:focus {
-    background-color: rgb(13 21 37 / 0.8); /* ogame-panel @80% */
+    background-color: theme('colors.ogame.panel');
 }
 
-/* Card Styles */
-.card-glass {
-    @apply bg-ogame-panel/90 border border-slate-700/25 shadow-[0_4px_24px_rgba(0,0,0,0.4)] rounded-xl;
-    position: relative;
+@layer components {
+    /* Pannello standard: piatto, bordo sottile */
+    .ov-panel { @apply bg-ogame-panel border border-ogame-line rounded-xl; }
+
+    /* Intestazione di sezione unica: punto colore tool + etichetta mono 11px + filetto.
+       Il colore del punto arriva da --tc (es. style="--tc: theme(colors.sky.400)") */
+    .ov-sh {
+        @apply flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400;
+    }
+    .ov-sh::before { content: ''; @apply w-1.5 h-1.5 rounded-full flex-none; background: var(--tc, #38bdf8); }
+    .ov-sh::after { content: ''; @apply flex-1 min-w-[1.5rem] h-px bg-ogame-line; order: 2; }
+    .ov-sh > .ov-sh-r { order: 3; @apply font-sans normal-case tracking-normal font-medium; }
+    .ov-sh.ov-sh-noline::after { display: none; }
+
+    /* Etichetta campo */
+    .ov-label { @apply block text-[11px] font-medium text-slate-400; }
+
+    /* Pulsanti: un solo primario pieno (ciano), secondari tinti col colore del tool */
+    .ov-btn { @apply inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md text-[13px] font-semibold whitespace-nowrap border border-transparent select-none; transition: background-color 150ms, border-color 150ms, color 150ms, transform 150ms cubic-bezier(0.23, 1, 0.32, 1); }
+    .ov-btn:active:not(:disabled) { transform: scale(0.97); }
+    .ov-btn:disabled { @apply opacity-40 cursor-not-allowed; }
+    .ov-btn-sm { @apply h-[30px] px-3 text-xs; }
+    .ov-btn-primary { @apply bg-ogame-accent text-[#04121a] hover:bg-[#5cf6ff]; }
+    .ov-btn-tint {
+        color: var(--tc, #38bdf8);
+        background: color-mix(in srgb, var(--tc, #38bdf8) 8%, transparent);
+        border-color: color-mix(in srgb, var(--tc, #38bdf8) 25%, transparent);
+    }
+    .ov-btn-tint:focus-visible:not(:disabled), .ov-btn-tint:hover:not(:disabled) { background: color-mix(in srgb, var(--tc, #38bdf8) 14%, transparent); border-color: color-mix(in srgb, var(--tc, #38bdf8) 40%, transparent); }
+    .ov-btn-danger { @apply bg-rose-600 text-white hover:bg-rose-500; }
+    .ov-btn-ghost { @apply text-slate-400 border-ogame-line hover:text-slate-200 hover:border-slate-600; }
+
+    /* Selettore a segmenti */
+    .ov-seg { @apply inline-flex flex-wrap gap-0.5 p-0.5 rounded-[7px] border border-ogame-line bg-ogame-surface; }
+    .ov-seg > button, .ov-seg > span { @apply px-2.5 py-1 rounded-[5px] text-xs font-medium text-slate-400 whitespace-nowrap hover:text-slate-200; transition: color 150ms, background-color 150ms; }
+    .ov-seg > .on, .ov-seg > [aria-pressed="true"], .ov-seg > [aria-selected="true"] { @apply bg-ogame-raised text-slate-100 font-semibold shadow-[inset_0_0_0_1px_#334155]; }
+    .ov-seg-full { @apply flex; }
+    .ov-seg-full > * { @apply flex-1 text-center; }
+
+    /* Etichette di stato */
+    .ov-tag { @apply inline-flex items-center gap-1 font-mono text-[10px] font-bold uppercase tracking-[0.06em] px-1.5 py-0.5 rounded; }
+    .ov-tag-ok { @apply text-emerald-400 bg-emerald-400/10; }
+    .ov-tag-bad { @apply text-rose-400 bg-rose-400/10; }
+    .ov-tag-warn { @apply text-amber-400 bg-amber-400/10; }
+    .ov-tag-mute { @apply text-slate-400 bg-ogame-raised; }
+
+    /* Coppia etichetta + numero */
+    .ov-stat { @apply grid gap-px min-w-0; }
+    .ov-stat-v { overflow-wrap: anywhere; }
+    .ov-stat-k { @apply text-[11px] font-medium text-slate-400; }
+    .ov-stat-v { @apply text-xl font-bold text-slate-100 tabular-nums; }
+
+    /* Barra fissa dei risultati, in fondo allo schermo */
+    .ov-resultbar {
+        @apply sticky bottom-0 z-30 bg-ogame-raised border-t border-slate-700;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .ov-resultbar-in { @apply max-w-7xl mx-auto px-4 md:px-6 py-3 flex flex-wrap items-center gap-x-8 gap-y-2; }
+
+    /* Gruppo apribile con riassunto delle scelte visibile anche da chiuso */
+    .ov-acc { @apply bg-ogame-panel border border-ogame-line rounded-xl min-w-0; }
+    .ov-acc > summary { @apply flex items-center gap-3 px-4 py-3 cursor-pointer list-none select-none min-w-0; }
+    .ov-acc > summary::-webkit-details-marker { display: none; }
+    .ov-acc > summary > b { @apply text-[13px] font-semibold text-slate-100 whitespace-nowrap; }
+    .ov-acc > summary::after { content: ''; @apply w-2 h-2 border-r-[1.5px] border-b-[1.5px] border-slate-400 rotate-45 flex-none -translate-y-0.5; transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1); }
+    .ov-acc[open] > summary::after { @apply -rotate-[135deg] translate-y-0.5; }
+    .ov-acc-sum { @apply flex-1 min-w-0 text-xs text-slate-400 truncate; }
+    .ov-acc[open] > summary { @apply border-b border-ogame-line; }
+    .ov-acc > summary ~ * { @apply p-4; }
+    .ov-acc > summary ~ * + * { @apply pt-0; }
+
+    /* Titolo pagina compatto */
+    /* Identità dello strumento: --tool arriva da App.vue in base alla pagina */
+    .ov-pagehead { @apply flex flex-wrap items-end justify-between gap-4 mb-5; }
+    .ov-tile {
+        @apply w-10 h-10 rounded-lg inline-flex items-center justify-center flex-none;
+        color: var(--tool, #00f0ff);
+        background: color-mix(in srgb, var(--tool, #00f0ff) 13%, transparent);
+        border: 1px solid color-mix(in srgb, var(--tool, #00f0ff) 35%, transparent);
+    }
+    .ov-app[data-tool] main {
+        background: radial-gradient(ellipse 60% 240px at 50% 0, color-mix(in srgb, var(--tool) 8%, transparent), transparent) no-repeat;
+    }
+    .ov-app[data-tool] .ov-panel { border-top-color: color-mix(in srgb, var(--tool) 28%, theme('colors.ogame.line')); }
+    .ov-app[data-tool] .ov-resultbar { border-top-color: color-mix(in srgb, var(--tool) 45%, transparent); }
+    .ov-title { @apply text-xl font-bold text-slate-100 flex items-center gap-2; text-wrap: balance; }
+    .ov-sub { @apply text-[13px] text-slate-400 mt-0.5; }
+}
+
+/* Dialog e overlay condivisi: apertura 200ms, chiusura più rapida */
+.fade-enter-active { transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fade-leave-active { transition: opacity 150ms ease-out; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.fade-enter-active .ov-dialog { transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fade-enter-from .ov-dialog { transform: scale(0.96); }
+
+@media (prefers-reduced-motion: reduce) {
+    .fade-enter-from .ov-dialog { transform: none; }
+    .ov-btn:active:not(:disabled) { transform: none; }
 }
 
 /* Rimuovi frecce input number */
-input[type=number]::-webkit-inner-spin-button, 
-input[type=number]::-webkit-outer-spin-button { 
-  -webkit-appearance: none; 
-  margin: 0; 
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 input[type=number] {
   -moz-appearance: textfield;
@@ -68,56 +153,9 @@ select option {
     color: theme('colors.ogame.text');
 }
 
-/* ── HUD Section Label ─────────────────────────────────────────────────────
-   Intestazione di sezione coerente con lo stile HUD su tutte le pagine.
-   Uso: <div class="hud-section-label">Titolo</div>
-*/
-.hud-section-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 1rem;
-}
-
-.hud-section-label::before {
-    content: '';
-    width: 2px;
-    height: 1em;
-    background: currentColor;
-    opacity: 0.6;
-    border-radius: 1px;
-}
-
-/* card-glass already defined above */
-
-/* ── Page section divider ─────────────────────────────────────────────────
-   Separatore orizzontale con label centrale stile HUD.
-*/
-.hud-divider {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 1.5rem 0;
-}
-
-.hud-divider::before,
-.hud-divider::after {
-    content: '';
-    flex-grow: 1;
-    height: 1px;
-    background: linear-gradient(to right, transparent, rgba(255,255,255,0.05));
-}
-
-.hud-divider::after {
-    background: linear-gradient(to left, transparent, rgba(255,255,255,0.05));
-}
-
-.hud-divider span {
-    font-size: 8px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.25em;
-    font-family: monospace;
-    color: rgba(255,255,255,0.15);
-    white-space: nowrap;
+/* Schermi touch: campi a 16px (iOS non ingrandisce la pagina) e aree di tocco più comode */
+@media (pointer: coarse) {
+    input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea { font-size: 16px !important; }
+    .ov-btn-sm { height: 40px; }
+    .ov-seg > button, .ov-seg > span { min-height: 36px; }
 }

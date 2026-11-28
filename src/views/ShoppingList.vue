@@ -1,7 +1,11 @@
 <script setup>
+import { usePurchaseSettings } from '../composables/usePurchaseSettings';
+import PageHead from '../components/PageHead.vue';
+import { formatInt } from '../composables/useOgameFormulas';
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
+import { useOverlay } from '../composables/useOverlay';
 import { SHOP_ITEMS, DM_PACKAGES, DM_EVENT_BONUSES, dmPackageAmount } from '../data/ogame_db';
 import { DISCOUNTABLE_NEW_ITEM, getPlatinumEventFactor, getEventDiscountFactor } from '../data/shopDiscounts';
 
@@ -88,6 +92,8 @@ const DEFAULT_GLYPH = {
 const shopCart = ref([]);
 const cartDrawerOpen = ref(false);
 const clearCartConfirmOpen = ref(false);
+useOverlay(cartDrawerOpen);
+useOverlay(clearCartConfirmOpen);
 const activeCategory = ref(SHOP_ITEMS.categories[0].id);
 const activeDiscountEvent = ref('none');
 const isMounted = ref(false);
@@ -98,8 +104,8 @@ const lastAddedId = ref(null);
 // con gli stessi bonus del Pack Exchange (bonus evento + bonus pagamento PayPal).
 // Il taglio selezionato alimenta la stima in € del carrello.
 const dmPanelOpen = ref(false);
-const dmEventBonus = ref(0);
-const dmPaymentBonus = ref(true);
+// Bonus evento MO e bonus pagamento: condivisi con Pack Exchange e Planner
+const { moBonus: dmEventBonus, paymentBonus: dmPaymentBonus } = usePurchaseSettings();
 const dmSelectedCost = ref(null);
 const dmPackages = computed(() =>
     DM_PACKAGES.map(pkg => {
@@ -269,7 +275,7 @@ const stepQty = (key, delta) => {
     itemQuantities[key] = Math.max(1, (parseInt(itemQuantities[key]) || 1) + delta);
 };
 
-const formatNum = (n) => new Intl.NumberFormat('it-IT').format(Math.floor(n));
+const formatNum = formatInt;
 const formatEuro = (n) => new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
 // Catalog Filtering & Sorting
@@ -422,6 +428,22 @@ const cartEuroEstimate = computed(() => {
 // Tiers & Labels
 const TIER_DISPLAY_ORDER = ['platinum', 'gold', 'silver', 'bronze', 'none'];
 
+// ───── Card: una durata per tutta la card (A) o tabella fasce × durate (B) ─────
+const cardTiers = (entry) => TIER_DISPLAY_ORDER.filter(tk => entry.val.costs?.[tk]).map(tk => [tk, entry.val.costs[tk]]);
+// Durate presenti nelle fasce della card, nell'ordine in cui compaiono
+const cardDurations = (entry) => {
+    const list = [];
+    for (const [, d] of cardTiers(entry)) for (const k of Object.keys(d)) if (!list.includes(k)) list.push(k);
+    return list;
+};
+// Tabella solo quando c'è davvero qualcosa da confrontare: più fasce e più durate
+const useMatrix = (entry) => cardTiers(entry).length > 1 && cardDurations(entry).length > 1;
+const cardDuration = (entry) => selectedDurations[`${entry.key}_${cardTiers(entry)[0]?.[0]}`];
+const setCardDuration = (entry, dur) => {
+    for (const [tk, d] of cardTiers(entry)) if (dur in d) selectedDurations[`${entry.key}_${tk}`] = dur;
+};
+const durLabel = (d) => d === 'base' ? 'STD' : d;
+
 const getTierDisplayName = (itemKey, tier) => {
     return t(`tier_${tier}`) || tier;
 };
@@ -436,13 +458,7 @@ const getTierSuffix = (itemKey, tier) => {
     return '';
 };
 
-const getTierColorClass = (tier) => {
-    if (tier === 'platinum') return 'border-violet-500/30 bg-violet-500/[0.07] text-violet-200 hover:bg-violet-500/[0.14] hover:border-violet-400/50';
-    if (tier === 'gold')     return 'border-amber-500/30 bg-amber-500/[0.07] text-amber-200 hover:bg-amber-500/[0.14] hover:border-amber-400/50';
-    if (tier === 'silver')   return 'border-slate-500/30 bg-slate-500/[0.07] text-slate-200 hover:bg-slate-500/[0.14] hover:border-slate-400/50';
-    if (tier === 'bronze')   return 'border-orange-500/30 bg-orange-500/[0.07] text-orange-200 hover:bg-orange-500/[0.14] hover:border-orange-400/50';
-    return 'border-slate-700/30 bg-black/30 text-slate-200 hover:bg-white/[0.06] hover:border-slate-600/50';
-};
+const getTierColorClass = () => 'border-ogame-line text-slate-200 hover:border-slate-600';
 const getTierBadgeClass = (tier) => {
     if (tier === 'platinum') return 'bg-violet-400/15 text-violet-300 border-violet-400/25';
     if (tier === 'gold')     return 'bg-amber-400/15 text-amber-300 border-amber-400/25';
@@ -490,7 +506,6 @@ const getSwipeStyle = (idx) => {
         <!-- Events Section -->
         <div class="sidebar-section">
           <label class="section-label">
-            <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             {{ t('lbl_active_events') }}
           </label>
           <div class="event-nav space-y-1 mt-3">
@@ -514,20 +529,19 @@ const getSwipeStyle = (idx) => {
         <!-- Search Section -->
         <div class="sidebar-section">
           <label class="section-label">
-            <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             {{ t('shop_search_placeholder').replace('...', '') }}
           </label>
           <div class="relative mt-3">
-            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input
               v-model="searchQuery"
               type="search"
               :placeholder="t('shop_search_placeholder')"
               :aria-label="t('shop_search_placeholder')"
-              class="shop-search-input w-full pl-8 pr-7 py-2 text-[11px] text-slate-300 bg-black/40 border border-slate-700/40 rounded-lg focus:outline-none focus:border-ogame-accent/50 focus:bg-black/60 placeholder-slate-500 transition-colors"
+              class="shop-search-input input-glass w-full pl-8 pr-7 h-9 text-[13px]"
             />
             <button v-if="searchQuery" @click="searchQuery = ''"
-                    class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
                     :aria-label="t('shop_search_clear')">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
@@ -561,13 +575,13 @@ const getSwipeStyle = (idx) => {
     <main class="shop-main-content">
 
       <!-- Mobile Event & Category Bar (Horizontal Scroll) -->
-      <div class="lg:hidden px-4 pt-6 pb-2">
+      <div class="lg:hidden pt-6 pb-2">
         <div class="flex flex-col gap-4">
             <!-- Eventi -->
             <div>
               <div class="flex items-center gap-2 mb-3">
                 <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                <span class="text-[10px] font-black uppercase tracking-widest text-cyan-500/60">{{ t('lbl_active_events') }}</span>
+                <span class="ov-sh ov-sh-noline" style="--tc:#a78bfa">{{ t('lbl_active_events') }}</span>
               </div>
               <div class="mobile-event-bar flex gap-2 overflow-x-auto pb-6 pt-2 px-1 custom-scrollbar no-scrollbar -ml-1">
                 <button
@@ -576,10 +590,10 @@ const getSwipeStyle = (idx) => {
                   class="mobile-evt-btn shrink-0"
                   :class="{ 'mobile-evt-active': activeDiscountEvent === evt.id }"
                 >
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                     <path v-for="(p, i) in evt.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
                   </svg>
-                  <span class="text-[10px] font-bold whitespace-nowrap">{{ t(evt.label) }}</span>
+                  <span class="font-medium whitespace-nowrap">{{ t(evt.label) }}</span>
                 </button>
               </div>
             </div>
@@ -588,14 +602,14 @@ const getSwipeStyle = (idx) => {
             <div>
               <div class="flex items-center gap-2 mb-3 mt-1">
                 <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
-                <span class="text-[10px] font-black uppercase tracking-widest text-cyan-500/60">{{ t('lbl_categories') }}</span>
+                <span class="ov-sh ov-sh-noline" style="--tc:#a78bfa">{{ t('lbl_categories') }}</span>
               </div>
               <div class="mobile-event-bar flex gap-2 overflow-x-auto pb-6 pt-2 px-1 custom-scrollbar no-scrollbar -ml-1">
                 <button
                   v-for="cat in visibleCategories" :key="cat.id"
                   @click="scrollToCategory(cat.id)"
-                  class="shrink-0 py-2.5 px-4 flex items-center justify-center gap-1.5 rounded-xl border transition-all text-[11px] font-bold whitespace-nowrap"
-                  :class="activeCategory === cat.id ? 'bg-ogame-accent/15 border-ogame-accent/40 text-ogame-accent shadow-[0_10px_20px_-5px_rgba(0,240,255,0.15)]' : 'bg-white/5 border-white/5 text-slate-400 hover:text-slate-200'"
+                  class="mobile-evt-btn shrink-0 font-medium whitespace-nowrap"
+                  :class="activeCategory === cat.id ? 'mobile-evt-active' : ''"
                 >
                   {{ t(cat.name) }}
                   <span v-if="categoryHasEventItems[cat.id]" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -606,12 +620,11 @@ const getSwipeStyle = (idx) => {
       </div>
 
       <!-- Page Title Area -->
-      <div class="catalog-header px-4 md:px-10 pt-8 pb-4">
-        <h1 class="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white">{{ t('shopping_title') }}</h1>
-        <div class="mt-2 h-[2px] w-16 bg-gradient-to-r from-purple-500 to-transparent rounded-full"></div>
+      <div class="catalog-header pt-6 pb-4">
+        <PageHead tool="shopping" :title="t('shopping_title')" :sub="t('card_shopping_desc')" class="!mb-0" />
         <!-- Ricerca visibile solo su mobile; desktop usa il sidebar -->
         <div class="relative mt-4 max-w-xs lg:hidden">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <input
             v-model="searchQuery"
             type="search"
@@ -620,7 +633,7 @@ const getSwipeStyle = (idx) => {
             class="shop-search-input w-full pl-9 pr-8 py-2 text-sm text-slate-300 bg-black/40 border border-slate-700/40 rounded-lg focus:outline-none focus:border-ogame-accent/50 focus:bg-black/60 placeholder-slate-500 transition-colors"
           />
           <button v-if="searchQuery" @click="searchQuery = ''"
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
                   :aria-label="t('shop_search_no_results')">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
@@ -628,30 +641,27 @@ const getSwipeStyle = (idx) => {
       </div>
 
       <!-- Selettore Tagli di MO (pacchetti Materia Oscura) -->
-      <div class="px-4 md:px-10 pb-2">
-        <div class="rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] overflow-hidden">
+      <div class="pb-2">
+        <div class="ov-acc overflow-hidden">
           <button type="button" @click="dmPanelOpen = !dmPanelOpen"
                   class="w-full flex items-center gap-3 px-4 py-3 text-left"
                   :aria-expanded="dmPanelOpen">
-            <div class="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-400/25 flex items-center justify-center text-violet-300 flex-shrink-0">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 1v-1m0 0c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </div>
             <div class="flex-1 min-w-0">
-              <div class="text-[11px] font-black uppercase tracking-widest text-violet-200">{{ t('shop_mo_packages_title') }}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">{{ t('shop_mo_packages_sub') }}</div>
+              <div class="text-[13px] font-semibold text-slate-100">{{ t('shop_mo_packages_title') }}</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">{{ t('shop_mo_packages_sub') }}</div>
             </div>
-            <svg class="w-4 h-4 text-slate-500 transition-transform flex-shrink-0" :class="dmPanelOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            <svg class="w-4 h-4 text-slate-400 transition-transform flex-shrink-0" :class="dmPanelOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
           </button>
 
           <div v-if="dmPanelOpen" class="px-4 pb-4 border-t border-violet-500/10 pt-3">
             <!-- Controlli bonus -->
             <div class="flex flex-col sm:flex-row sm:items-end gap-3 mb-3">
               <div class="flex-1 min-w-0">
-                <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-1.5">{{ t('lbl_event_bonus') }}</div>
-                <div class="flex flex-wrap gap-1">
+                <div class="ov-label mb-1.5">{{ t('lbl_event_bonus') }}</div>
+                <div class="grid grid-cols-4 gap-1">
                   <button v-for="b in DM_EVENT_BONUSES" :key="b" @click="dmEventBonus = b"
-                          class="px-2.5 py-1.5 text-[11px] font-bold rounded-lg transition-all border"
-                          :class="dmEventBonus === b ? 'bg-amber-500/15 border-amber-400/35 text-amber-200' : 'text-slate-500 hover:text-slate-300 border-transparent'">
+                          class="px-1 py-1.5 text-[11px] font-bold rounded-lg transition-colors duration-150 border tabular-nums"
+                          :class="dmEventBonus === b ? 'bg-amber-500/15 border-amber-400/35 text-amber-200' : 'text-slate-400 hover:text-slate-300 border-transparent'">
                     <template v-if="b === 0">–</template><template v-else>+{{ b }}%</template>
                   </button>
                 </div>
@@ -659,8 +669,9 @@ const getSwipeStyle = (idx) => {
               <label class="flex items-center gap-2 cursor-pointer select-none flex-shrink-0">
                 <input type="checkbox" v-model="dmPaymentBonus" class="w-4 h-4 accent-violet-500 rounded" />
                 <span class="text-[11px] font-medium text-slate-300">{{ t('lbl_payment_bonus') }}</span>
-                <span class="hidden sm:inline text-[9px] text-violet-400/50 font-mono">PayPal · Carta · Amazon</span>
+                <span class="hidden sm:inline text-[11px] text-violet-400/50 font-mono">PayPal · Carta · Amazon</span>
               </label>
+              <p class="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5"><svg class="w-3 h-3 flex-none" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.8 10.2a4 4 0 00-5.6 0l-3 3a4 4 0 005.6 5.6l1.1-1.1m-.7-4.5a4 4 0 005.6 0l3-3a4 4 0 00-5.6-5.6l-1.1 1.1"/></svg>{{ t('shared_purchase_hint') }}</p>
             </div>
 
             <!-- Griglia tagli: il taglio selezionato guida la stima in € del carrello -->
@@ -668,14 +679,14 @@ const getSwipeStyle = (idx) => {
               <button v-for="pkg in dmPackages" :key="pkg.cost" type="button"
                       @click="dmSelectedCost = pkg.cost"
                       :aria-pressed="dmSelectedPackage?.cost === pkg.cost"
-                      class="rounded-xl border px-3 py-2.5 flex flex-col text-left transition-all"
+                      class="rounded-xl border px-3 py-2.5 flex flex-col text-left transition-colors duration-150"
                       :class="dmSelectedPackage?.cost === pkg.cost
-                        ? 'border-violet-400/50 bg-violet-500/[0.12] shadow-[0_0_0_1px_rgba(167,139,250,0.25)]'
+                        ? 'border-violet-400/50 bg-violet-500/[0.12]'
                         : 'border-slate-700/25 bg-black/30 hover:border-slate-600/50'">
-                <div class="text-[13px] font-black text-slate-200">{{ pkg.cost }} €</div>
-                <div class="text-sm font-black font-mono text-violet-200 mt-1 leading-none">{{ formatNum(pkg.amount) }}<span class="text-[9px] opacity-50 ml-0.5">MO</span></div>
-                <div class="text-[9px] text-slate-500 font-mono mt-1">{{ formatNum(pkg.perEuro) }} MO/€</div>
-                <div v-if="pkg.gain > 0" class="text-[9px] text-emerald-400/70 font-mono mt-0.5">+{{ formatNum(pkg.gain) }}</div>
+                <div class="text-[13px] font-bold text-slate-200">{{ pkg.cost }} €</div>
+                <div class="text-sm font-bold font-mono text-violet-200 mt-1 leading-none">{{ formatNum(pkg.amount) }}<span class="text-[11px] opacity-50 ml-0.5">MO</span></div>
+                <div class="text-[11px] text-slate-400 font-mono mt-1">{{ formatNum(pkg.perEuro) }} MO/€</div>
+                <div v-if="pkg.gain > 0" class="text-[11px] text-emerald-400/70 font-mono mt-0.5">+{{ formatNum(pkg.gain) }}</div>
               </button>
             </div>
           </div>
@@ -683,7 +694,7 @@ const getSwipeStyle = (idx) => {
       </div>
 
       <!-- Banner evento attivo -->
-      <div v-if="activeDiscountEvent !== 'none'" class="px-4 md:px-10 mt-2">
+      <div v-if="activeDiscountEvent !== 'none'" class="mt-2">
         <div class="event-banner flex items-center gap-3 md:gap-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] px-4 py-3">
           <div class="w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-300 flex-shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
@@ -698,82 +709,113 @@ const getSwipeStyle = (idx) => {
             </div>
           </div>
           <button @click="activeDiscountEvent = 'none'"
-                  class="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-emerald-300/70 hover:text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors flex-shrink-0">
+                  class="px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider text-emerald-300/70 hover:text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors flex-shrink-0">
             {{ t('shop_event_clear') }}
           </button>
         </div>
       </div>
 
       <!-- Catalog Grid -->
-      <div class="catalog-sections px-4 md:px-10 pb-20 space-y-12 mt-6">
+      <div class="catalog-sections pb-20 space-y-8 mt-5">
 
         <!-- ── Risultati ricerca ── -->
         <template v-if="searchResults !== null">
           <div v-if="searchResults.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
-            <svg class="w-12 h-12 mb-3 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            <span class="text-[10px] uppercase font-black tracking-widest text-slate-600">{{ t('shop_search_no_results') }}</span>
+            <svg class="w-12 h-12 mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <span class="text-[11px] uppercase font-bold tracking-widest text-slate-400">{{ t('shop_search_no_results') }}</span>
           </div>
           <div v-else>
-            <div class="section-divider flex items-center gap-3 mb-6">
-              <span class="w-[2px] h-4 bg-ogame-accent/40 rounded-full flex-shrink-0"></span>
-              <span class="text-[9px] font-black uppercase tracking-[0.25em] text-ogame-accent/60 font-mono">{{ searchResults.length }} {{ t('shop_search_results') }}</span>
-              <div class="h-px flex-1 bg-gradient-to-r from-ogame-accent/10 to-transparent"></div>
-            </div>
-            <div class="product-grid grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-2 md:gap-4">
+            <h2 class="ov-sh mb-4" style="--tc:#a78bfa">{{ searchResults.length }} {{ t('shop_search_results') }}</h2>
+            <div class="product-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
               <article
                 v-for="entry in searchResults" :key="entry.key"
-                class="product-card relative flex flex-col overflow-hidden rounded-xl bg-ogame-panel border border-slate-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
+                class="product-card relative flex flex-col gap-2.5 p-3 rounded-xl bg-ogame-panel border border-ogame-line transition-colors duration-150 hover:border-slate-600"
                 :class="{
                   'card-highlight': isItemEventRelated(entry.key, entry.val.costs),
                   'card-muted': shouldDimUnrelated && !isItemEventRelated(entry.key, entry.val.costs),
                   'just-added': lastAddedId === entry.key
                 }"
               >
-                <div class="relative flex items-center justify-center h-[80px] md:h-[108px] bg-black/30 border-b border-slate-700/15 overflow-hidden group">
-                  <img v-if="shopItemImageSrc(entry.key)" :src="shopItemImageSrc(entry.key)" :alt="t(entry.key)" class="h-[80%] w-[80%] object-contain drop-shadow-lg transition-transform duration-500 group-hover:scale-110" loading="lazy" />
-                  <div v-else class="glyph-tile w-14 h-14 md:w-16 md:h-16 rounded-2xl border flex items-center justify-center transition-transform duration-500 group-hover:scale-110" :class="DEFAULT_GLYPH.tint">
-                    <svg class="w-7 h-7 md:w-8 md:h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <!-- Immagine piccola + nome -->
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-12 h-12 rounded-lg bg-ogame-surface border border-ogame-line flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <img v-if="shopItemImageSrc(entry.key)" :src="shopItemImageSrc(entry.key)" :alt="t(entry.key)" class="w-[88%] h-[88%] object-contain" loading="lazy" />
+                    <svg v-else class="w-6 h-6" :class="DEFAULT_GLYPH.tint.split(' ')[0]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                       <path v-for="(p, i) in DEFAULT_GLYPH.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
                     </svg>
                   </div>
-                  <div v-if="isItemEventRelated(entry.key, entry.val.costs)" class="absolute top-1.5 right-1.5 flex items-center gap-1 bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded-md leading-none shadow-sm">
+                  <h3 class="flex-1 min-w-0 text-[13px] font-semibold text-slate-100 leading-snug line-clamp-2">{{ t(entry.key) }}</h3>
+                  <span v-if="isItemEventRelated(entry.key, entry.val.costs)" class="ov-tag ov-tag-ok flex-shrink-0">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path v-for="(p, i) in getEventInfo(activeDiscountEvent).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/></svg>
                     <template v-if="getBestDiscountPctForCard(entry.key, entry.val.costs) > 0">–{{ getBestDiscountPctForCard(entry.key, entry.val.costs) }}%</template>
-                  </div>
+                  </span>
                 </div>
-                <div class="px-3 pt-3 pb-1.5">
-                  <h4 class="text-xs font-black uppercase tracking-wider text-slate-300 leading-snug line-clamp-2 min-h-[2.5em]">{{ t(entry.key) }}</h4>
-                </div>
-                <div class="px-3 pb-2">
-                  <div class="inline-flex items-center gap-0.5 bg-black/40 rounded-lg border border-slate-700/20 p-0.5">
+
+                                <!-- Quantità + durata unica per tutta la card (variante A) -->
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <div class="inline-flex items-center border border-slate-700 rounded-md">
                     <button @click="stepQty(entry.key, -1)" :aria-label="t('shop_label_qty') + ' −1'" class="qty-step" :disabled="(itemQuantities[entry.key] || 1) <= 1">−</button>
                     <input type="number" v-model.number="itemQuantities[entry.key]" min="1" :id="'qty-s-' + entry.key" :name="'qty-s-' + entry.key" :aria-label="t('shop_label_qty') + ' ' + t(entry.key)" class="qty-input" />
                     <button @click="stepQty(entry.key, 1)" :aria-label="t('shop_label_qty') + ' +1'" class="qty-step">+</button>
                   </div>
-                </div>
-                <div class="px-3 pb-3 space-y-1.5 mt-auto">
-                  <div v-for="[tierName, durations] in TIER_DISPLAY_ORDER.filter(tk => entry.val.costs && entry.val.costs[tk]).map(tk => [tk, entry.val.costs[tk]])" :key="tierName">
-                    <div v-if="Object.keys(durations).length > 1" class="flex p-0.5 mb-1.5 bg-black/50 rounded-lg border border-slate-700/15">
-                      <button v-for="(_, dur) in durations" :key="dur" @click="selectedDurations[`${entry.key}_${tierName}`] = dur" class="flex-1 text-[11px] font-black uppercase py-1.5 rounded-md transition-all" :class="selectedDurations[`${entry.key}_${tierName}`] === dur ? 'bg-white/[0.08] text-slate-200' : 'text-slate-600'">{{ dur === 'base' ? 'STD' : dur }}</button>
-                    </div>
-                    <button @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])" class="tier-row group/tier w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all duration-150" :class="[getTierColorClass(tierName), isItemDiscounted(entry.key, tierName, activeDiscountEvent) ? 'btn-discounted' : '']" :aria-label="t('shop_btn_add_cart') + ': ' + t(entry.key)">
-                      <div class="flex items-center gap-1.5 min-w-0 flex-1 pr-1">
-                        <template v-if="tierName !== 'none'">
-                          <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="getTierDotClass(tierName)"></span>
-                          <span class="text-[11px] font-black uppercase tracking-wide truncate">{{ getTierDisplayName(entry.key, tierName) }}</span>
-                          <span v-if="getTierSuffix(entry.key, tierName)" class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-black border flex-shrink-0" :class="getTierBadgeClass(tierName)">{{ getTierSuffix(entry.key, tierName) }}</span>
-                        </template>
-                        <svg v-else class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 5v14m7-7H5"/></svg>
-                      </div>
-                      <div class="flex items-center gap-2 flex-shrink-0">
-                        <div class="flex flex-col items-end leading-none">
-                          <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]" class="text-[10px] line-through opacity-35 font-mono mb-0.5">{{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}</span>
-                          <span class="text-sm font-black font-mono leading-none">{{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}<span class="text-[9px] opacity-50 font-bold ml-0.5">MO</span></span>
-                        </div>
-                        <svg class="tier-add-icon w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"/></svg>
-                      </div>
-                    </button>
+                  <div v-if="!useMatrix(entry) && cardDurations(entry).length > 1" class="ov-seg">
+                    <button v-for="dur in cardDurations(entry)" :key="dur" type="button" @click="setCardDuration(entry, dur)"
+                            :aria-pressed="cardDuration(entry) === dur" class="!py-0.5">{{ durLabel(dur) }}</button>
                   </div>
+                </div>
+
+                <!-- Variante B: tabella fasce × durate, un clic sul prezzo lo aggiunge -->
+                <table v-if="useMatrix(entry)" class="w-full text-xs tabular-nums mt-auto">
+                  <thead>
+                    <tr class="font-mono text-[11px] uppercase tracking-[0.08em] text-slate-400">
+                      <th class="text-left font-bold pb-1"></th>
+                      <th v-for="dur in cardDurations(entry)" :key="dur" class="text-right font-bold pb-1 pl-1">{{ durLabel(dur) }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="[tierName, durations] in cardTiers(entry)" :key="tierName" class="border-t border-ogame-line">
+                      <td class="py-1.5 pr-1 whitespace-nowrap">
+                        <span class="inline-block w-2 h-2 rounded-full mr-1.5" :class="getTierDotClass(tierName)"></span>
+                        <span class="text-slate-200">{{ getTierDisplayName(entry.key, tierName) }}</span>
+                        <span v-if="getTierSuffix(entry.key, tierName)" class="text-slate-400 ml-1">{{ getTierSuffix(entry.key, tierName) }}</span>
+                      </td>
+                      <td v-for="dur in cardDurations(entry)" :key="dur" class="py-1 pl-1 text-right">
+                        <button v-if="durations[dur] != null" type="button"
+                                @click="addToShopCart(entry.key, tierName, dur, durations[dur])"
+                                class="price-cell" :class="isItemDiscounted(entry.key, tierName, activeDiscountEvent) ? 'btn-discounted' : ''"
+                                :aria-label="t('shop_btn_add_cart') + ': ' + t(entry.key) + ' ' + getTierDisplayName(entry.key, tierName) + ' ' + durLabel(dur)">
+                          <span v-if="getCalculatedCost(entry.key, tierName, dur, durations[dur]) < durations[dur]" class="block text-[11px] line-through text-slate-400 leading-none">{{ formatNum(durations[dur]) }}</span>
+                          {{ formatNum(getCalculatedCost(entry.key, tierName, dur, durations[dur])) }}
+                        </button>
+                        <span v-else class="text-slate-400">—</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <!-- Variante A: una riga per fascia, alla durata scelta -->
+                <div v-else class="grid grid-cols-1 gap-1.5 mt-auto min-w-0">
+                    <button v-for="[tierName, durations] in cardTiers(entry)" :key="tierName"
+                            @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])"
+                            class="tier-row w-full min-w-0 overflow-hidden flex items-center gap-2 px-2.5 py-2 rounded-md border border-ogame-line text-left hover:border-slate-600 hover:bg-white/[0.03] transition-colors duration-150"
+                            :class="isItemDiscounted(entry.key, tierName, activeDiscountEvent) ? 'btn-discounted' : ''"
+                            :aria-label="t('shop_btn_add_cart') + ': ' + t(entry.key) + (tierName !== 'none' ? ' ' + getTierDisplayName(entry.key, tierName) : '')">
+                      <template v-if="tierName !== 'none'">
+                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getTierDotClass(tierName)"></span>
+                        <span class="text-xs text-slate-200 truncate min-w-0">{{ getTierDisplayName(entry.key, tierName) }}</span>
+                        <span v-if="getTierSuffix(entry.key, tierName)" class="text-xs text-slate-400 flex-shrink-0">{{ getTierSuffix(entry.key, tierName) }}</span>
+                      </template>
+                      <span v-else class="text-xs text-slate-400 truncate whitespace-nowrap min-w-0">{{ t('shop_buy') }}</span>
+                      <span class="ml-auto flex flex-col items-end leading-tight flex-shrink-0 tabular-nums">
+                        <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]"
+                              class="text-[11px] line-through text-slate-400">{{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}</span>
+                        <span class="flex items-baseline gap-1">
+                        <span class="text-[13px] font-semibold text-slate-100">{{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}</span>
+                        <span class="text-[11px] text-slate-400">MO</span>
+                        </span>
+                      </span>
+                      <svg class="tier-add-icon w-3.5 h-3.5 flex-shrink-0 text-ogame-accent" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"/></svg>
+                    </button>
                 </div>
               </article>
             </div>
@@ -787,120 +829,106 @@ const getSwipeStyle = (idx) => {
           :id="'cat-section-' + catData.id"
           class="scroll-mt-[100px]"
         >
-          <div class="section-divider flex items-center gap-3 mb-6">
-            <span class="w-[2px] h-4 bg-ogame-accent/40 rounded-full flex-shrink-0"></span>
-            <h2 class="text-[9px] font-black uppercase tracking-[0.25em] text-ogame-accent/60 font-mono">{{ t(catData.name) }}</h2>
-            <div class="h-px flex-1 bg-gradient-to-r from-ogame-accent/10 to-transparent"></div>
-          </div>
+          <h2 class="ov-sh mb-4" style="--tc:#a78bfa">{{ t(catData.name) }}</h2>
 
-          <div class="section-blocks space-y-10">
+          <div class="section-blocks space-y-6">
             <div v-for="block in catData.blocks" :key="block.blockKey" class="block-wrap">
-              <h3 v-if="block.titleKey" class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 mb-4 pl-1 font-mono">
+              <p v-if="block.titleKey" class="text-[13px] font-semibold text-slate-300 mb-3">
                 {{ t(block.titleKey) }}
-              </h3>
+              </p>
 
-              <div class="product-grid grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-2 md:gap-4">
+              <div class="product-grid grid grid-cols-1 sm:grid-cols-2 gap-3" :class="block.items.some(useMatrix) ? '' : 'xl:grid-cols-3'">
                 <article
-                  v-for="entry in block.items" :key="entry.key"
-                  class="product-card relative flex flex-col overflow-hidden rounded-xl bg-ogame-panel border border-slate-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
-                  :class="{
-                    'card-highlight': isItemEventRelated(entry.key, entry.val.costs),
-                    'card-muted': shouldDimUnrelated && !isItemEventRelated(entry.key, entry.val.costs),
-                    'just-added': lastAddedId === entry.key
-                  }"
-                >
-                  <!-- Image / Glyph -->
-                  <div class="relative flex items-center justify-center h-[80px] md:h-[108px] bg-black/30 border-b border-slate-700/15 overflow-hidden group">
-                    <img
-                      v-if="shopItemImageSrc(entry.key)"
-                      :src="shopItemImageSrc(entry.key)"
-                      :alt="t(entry.key)"
-                      class="h-[80%] w-[80%] object-contain drop-shadow-lg transition-transform duration-500 group-hover:scale-110"
-                      loading="lazy"
-                    />
-                    <div v-else
-                         class="glyph-tile w-14 h-14 md:w-16 md:h-16 rounded-2xl border flex items-center justify-center transition-transform duration-500 group-hover:scale-110"
-                         :class="DEFAULT_GLYPH.tint">
-                      <svg class="w-7 h-7 md:w-8 md:h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path v-for="(p, i) in DEFAULT_GLYPH.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
-                      </svg>
-                    </div>
-                    <div v-if="isItemEventRelated(entry.key, entry.val.costs)"
-                         class="absolute top-1.5 right-1.5 flex items-center gap-1 bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded-md leading-none shadow-sm">
-                      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                        <path v-for="(p, i) in getEventInfo(activeDiscountEvent).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
-                      </svg>
-                      <template v-if="getBestDiscountPctForCard(entry.key, entry.val.costs) > 0">–{{ getBestDiscountPctForCard(entry.key, entry.val.costs) }}%</template>
-                    </div>
+                v-for="entry in block.items" :key="entry.key"
+                class="product-card relative flex flex-col gap-2.5 p-3 rounded-xl bg-ogame-panel border border-ogame-line transition-colors duration-150 hover:border-slate-600"
+                :class="{
+                  'card-highlight': isItemEventRelated(entry.key, entry.val.costs),
+                  'card-muted': shouldDimUnrelated && !isItemEventRelated(entry.key, entry.val.costs),
+                  'just-added': lastAddedId === entry.key
+                }"
+              >
+                <!-- Immagine piccola + nome -->
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-12 h-12 rounded-lg bg-ogame-surface border border-ogame-line flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <img v-if="shopItemImageSrc(entry.key)" :src="shopItemImageSrc(entry.key)" :alt="t(entry.key)" class="w-[88%] h-[88%] object-contain" loading="lazy" />
+                    <svg v-else class="w-6 h-6" :class="DEFAULT_GLYPH.tint.split(' ')[0]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                      <path v-for="(p, i) in DEFAULT_GLYPH.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
+                    </svg>
                   </div>
+                  <h3 class="flex-1 min-w-0 text-[13px] font-semibold text-slate-100 leading-snug line-clamp-2">{{ t(entry.key) }}</h3>
+                  <span v-if="isItemEventRelated(entry.key, entry.val.costs)" class="ov-tag ov-tag-ok flex-shrink-0">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path v-for="(p, i) in getEventInfo(activeDiscountEvent).paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/></svg>
+                    <template v-if="getBestDiscountPctForCard(entry.key, entry.val.costs) > 0">–{{ getBestDiscountPctForCard(entry.key, entry.val.costs) }}%</template>
+                  </span>
+                </div>
 
-                  <!-- Name + Qty stepper -->
-                  <div class="px-3 pt-3 pb-1.5">
-                    <h4 class="text-xs font-black uppercase tracking-wider text-slate-300 leading-snug line-clamp-2 min-h-[2.5em]">{{ t(entry.key) }}</h4>
+                                <!-- Quantità + durata unica per tutta la card (variante A) -->
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <div class="inline-flex items-center border border-slate-700 rounded-md">
+                    <button @click="stepQty(entry.key, -1)" :aria-label="t('shop_label_qty') + ' −1'" class="qty-step" :disabled="(itemQuantities[entry.key] || 1) <= 1">−</button>
+                    <input type="number" v-model.number="itemQuantities[entry.key]" min="1" :id="'qty-' + entry.key" :name="'qty-' + entry.key" :aria-label="t('shop_label_qty') + ' ' + t(entry.key)" class="qty-input" />
+                    <button @click="stepQty(entry.key, 1)" :aria-label="t('shop_label_qty') + ' +1'" class="qty-step">+</button>
                   </div>
-
-                  <div class="px-3 pb-2">
-                    <div class="inline-flex items-center gap-0.5 bg-black/40 rounded-lg border border-slate-700/20 p-0.5">
-                      <button @click="stepQty(entry.key, -1)" :aria-label="t('shop_label_qty') + ' −1'"
-                              class="qty-step" :disabled="(itemQuantities[entry.key] || 1) <= 1">−</button>
-                      <input type="number" v-model.number="itemQuantities[entry.key]" min="1"
-                             :id="'qty-' + entry.key" :name="'qty-' + entry.key"
-                             :aria-label="t('shop_label_qty') + ' ' + t(entry.key)" class="qty-input" />
-                      <button @click="stepQty(entry.key, 1)" :aria-label="t('shop_label_qty') + ' +1'"
-                              class="qty-step">+</button>
-                    </div>
+                  <div v-if="!useMatrix(entry) && cardDurations(entry).length > 1" class="ov-seg">
+                    <button v-for="dur in cardDurations(entry)" :key="dur" type="button" @click="setCardDuration(entry, dur)"
+                            :aria-pressed="cardDuration(entry) === dur" class="!py-0.5">{{ durLabel(dur) }}</button>
                   </div>
+                </div>
 
-                  <!-- Tier rows -->
-                  <div class="px-3 pb-3 space-y-1.5 mt-auto">
-                    <div v-for="[tierName, durations] in TIER_DISPLAY_ORDER.filter(tk => entry.val.costs && entry.val.costs[tk]).map(tk => [tk, entry.val.costs[tk]])" :key="tierName">
+                <!-- Variante B: tabella fasce × durate, un clic sul prezzo lo aggiunge -->
+                <table v-if="useMatrix(entry)" class="w-full text-xs tabular-nums mt-auto">
+                  <thead>
+                    <tr class="font-mono text-[11px] uppercase tracking-[0.08em] text-slate-400">
+                      <th class="text-left font-bold pb-1"></th>
+                      <th v-for="dur in cardDurations(entry)" :key="dur" class="text-right font-bold pb-1 pl-1">{{ durLabel(dur) }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="[tierName, durations] in cardTiers(entry)" :key="tierName" class="border-t border-ogame-line">
+                      <td class="py-1.5 pr-1 whitespace-nowrap">
+                        <span class="inline-block w-2 h-2 rounded-full mr-1.5" :class="getTierDotClass(tierName)"></span>
+                        <span class="text-slate-200">{{ getTierDisplayName(entry.key, tierName) }}</span>
+                        <span v-if="getTierSuffix(entry.key, tierName)" class="text-slate-400 ml-1">{{ getTierSuffix(entry.key, tierName) }}</span>
+                      </td>
+                      <td v-for="dur in cardDurations(entry)" :key="dur" class="py-1 pl-1 text-right">
+                        <button v-if="durations[dur] != null" type="button"
+                                @click="addToShopCart(entry.key, tierName, dur, durations[dur])"
+                                class="price-cell" :class="isItemDiscounted(entry.key, tierName, activeDiscountEvent) ? 'btn-discounted' : ''"
+                                :aria-label="t('shop_btn_add_cart') + ': ' + t(entry.key) + ' ' + getTierDisplayName(entry.key, tierName) + ' ' + durLabel(dur)">
+                          <span v-if="getCalculatedCost(entry.key, tierName, dur, durations[dur]) < durations[dur]" class="block text-[11px] line-through text-slate-400 leading-none">{{ formatNum(durations[dur]) }}</span>
+                          {{ formatNum(getCalculatedCost(entry.key, tierName, dur, durations[dur])) }}
+                        </button>
+                        <span v-else class="text-slate-400">—</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
 
-                      <!-- Duration selector -->
-                      <div v-if="Object.keys(durations).length > 1" class="flex p-0.5 mb-1.5 bg-black/50 rounded-lg border border-slate-700/15">
-                        <button
-                          v-for="(_, dur) in durations" :key="dur"
-                          @click="selectedDurations[`${entry.key}_${tierName}`] = dur"
-                          class="flex-1 text-[11px] font-black uppercase py-1.5 rounded-md transition-all"
-                          :class="selectedDurations[`${entry.key}_${tierName}`] === dur ? 'bg-white/[0.08] text-slate-200' : 'text-slate-600'"
-                        >{{ dur === 'base' ? 'STD' : dur }}</button>
-                      </div>
-
-                      <!-- Add-to-cart button -->
-                      <button
-                        @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])"
-                        class="tier-row group/tier w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all duration-150"
-                        :class="[getTierColorClass(tierName), isItemDiscounted(entry.key, tierName, activeDiscountEvent) ? 'btn-discounted' : '']"
-                        :aria-label="t('shop_btn_add_cart') + ': ' + t(entry.key) + (tierName !== 'none' ? ' ' + getTierDisplayName(entry.key, tierName) : '')"
-                      >
-                        <div class="flex items-center gap-1.5 min-w-0 flex-1 pr-1">
-                          <template v-if="tierName !== 'none'">
-                            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="getTierDotClass(tierName)"></span>
-                            <span class="text-[11px] font-black uppercase tracking-wide truncate">{{ getTierDisplayName(entry.key, tierName) }}</span>
-                            <span v-if="getTierSuffix(entry.key, tierName)"
-                                  class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-black border flex-shrink-0"
-                                  :class="getTierBadgeClass(tierName)">
-                              {{ getTierSuffix(entry.key, tierName) }}
-                            </span>
-                          </template>
-                          <svg v-else class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 5v14m7-7H5"/></svg>
-                        </div>
-                        <div class="flex items-center gap-2 flex-shrink-0">
-                          <div class="flex flex-col items-end leading-none">
-                            <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]"
-                                  class="text-[10px] line-through opacity-35 font-mono mb-0.5">
-                              {{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}
-                            </span>
-                            <span class="text-sm font-black font-mono leading-none">
-                              {{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}<span class="text-[9px] opacity-50 font-bold ml-0.5">MO</span>
-                            </span>
-                          </div>
-                          <svg class="tier-add-icon w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"/></svg>
-                        </div>
-                      </button>
-
-                    </div>
-                  </div>
-                </article>
+                <!-- Variante A: una riga per fascia, alla durata scelta -->
+                <div v-else class="grid grid-cols-1 gap-1.5 mt-auto min-w-0">
+                    <button v-for="[tierName, durations] in cardTiers(entry)" :key="tierName"
+                            @click="addToShopCart(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])"
+                            class="tier-row w-full min-w-0 overflow-hidden flex items-center gap-2 px-2.5 py-2 rounded-md border border-ogame-line text-left hover:border-slate-600 hover:bg-white/[0.03] transition-colors duration-150"
+                            :class="isItemDiscounted(entry.key, tierName, activeDiscountEvent) ? 'btn-discounted' : ''"
+                            :aria-label="t('shop_btn_add_cart') + ': ' + t(entry.key) + (tierName !== 'none' ? ' ' + getTierDisplayName(entry.key, tierName) : '')">
+                      <template v-if="tierName !== 'none'">
+                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getTierDotClass(tierName)"></span>
+                        <span class="text-xs text-slate-200 truncate min-w-0">{{ getTierDisplayName(entry.key, tierName) }}</span>
+                        <span v-if="getTierSuffix(entry.key, tierName)" class="text-xs text-slate-400 flex-shrink-0">{{ getTierSuffix(entry.key, tierName) }}</span>
+                      </template>
+                      <span v-else class="text-xs text-slate-400 truncate whitespace-nowrap min-w-0">{{ t('shop_buy') }}</span>
+                      <span class="ml-auto flex flex-col items-end leading-tight flex-shrink-0 tabular-nums">
+                        <span v-if="getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]]) < durations[selectedDurations[`${entry.key}_${tierName}`]]"
+                              class="text-[11px] line-through text-slate-400">{{ formatNum(durations[selectedDurations[`${entry.key}_${tierName}`]]) }}</span>
+                        <span class="flex items-baseline gap-1">
+                        <span class="text-[13px] font-semibold text-slate-100">{{ formatNum(getCalculatedCost(entry.key, tierName, selectedDurations[`${entry.key}_${tierName}`], durations[selectedDurations[`${entry.key}_${tierName}`]])) }}</span>
+                        <span class="text-[11px] text-slate-400">MO</span>
+                        </span>
+                      </span>
+                      <svg class="tier-add-icon w-3.5 h-3.5 flex-shrink-0 text-ogame-accent" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"/></svg>
+                    </button>
+                </div>
+              </article>
               </div>
             </div>
           </div>
@@ -911,54 +939,50 @@ const getSwipeStyle = (idx) => {
     </main>
 
     <!-- ════ SIDEBAR RIGHT: STICKY CART ════ -->
-    <aside class="shop-sidebar-right hidden xl:flex flex-col">
+    <aside class="shop-sidebar-right flex flex-col">
       <div class="cart-sticky-container">
-        <div class="panel-header flex items-center justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <div class="relative w-10 h-10 rounded-xl bg-ogame-accent/10 flex items-center justify-center text-ogame-accent border border-ogame-accent/20 shadow-[0_0_15px_rgba(0,240,255,0.08)]">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-              <span v-if="cartTotalQty > 0" class="absolute -top-1.5 -right-1.5 bg-ogame-accent text-black text-[9px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{{ cartTotalQty }}</span>
-            </div>
-            <span class="text-xs font-black uppercase tracking-[0.2em] text-white">{{ t('shopping_cart_title') }}</span>
-          </div>
-          <button @click="requestClearCart" class="text-[10px] font-bold text-red-500/40 hover:text-red-400 transition-colors uppercase tracking-tighter" v-if="shopCart.length > 0">{{ t('shop_cart_clear') }}</button>
-        </div>
+        <h2 class="ov-sh mb-3 whitespace-nowrap" style="--tc:#a78bfa">
+          {{ t('shopping_cart_title') }}<span v-if="cartTotalQty > 0" class="text-slate-100">&nbsp;· {{ cartTotalQty }}</span>
+          <span class="ov-sh-r">
+            <button v-if="shopCart.length > 0" @click="requestClearCart" class="ov-btn ov-btn-ghost ov-btn-sm hover:!text-rose-300">{{ t('shop_cart_clear') }}</button>
+          </span>
+        </h2>
 
         <!-- Totale sopra la lista: leggibile senza dover scorrere il carrello -->
-        <div v-if="shopCart.length > 0" class="cart-total-card rounded-2xl border border-ogame-accent/20 bg-ogame-accent/[0.05] px-4 py-3.5 mb-4 flex-shrink-0">
+        <div v-if="shopCart.length > 0" class="cart-total-card pb-3 mb-1 flex-shrink-0 border-b border-ogame-line">
           <div class="flex items-baseline justify-between gap-2">
-            <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">{{ t('shopping_total_mo') }}</span>
-            <span class="text-[10px] font-mono text-slate-500">{{ cartTotalQty }} ×</span>
+            <span class="ov-stat-k">{{ t('shopping_total_mo') }}</span>
+            <span class="text-[11px] font-mono text-slate-400">{{ cartTotalQty }} ×</span>
           </div>
           <div class="mt-1 flex items-baseline gap-1.5">
-            <span class="text-[26px] leading-none font-black font-mono tracking-tight text-white glow-white">{{ formatNum(totalShopCartMO) }}</span>
-            <span class="text-[11px] font-black text-slate-500">MO</span>
+            <span class="text-[26px] leading-none font-bold tracking-tight text-slate-100 tabular-nums">{{ formatNum(totalShopCartMO) }}</span>
+            <span class="text-[11px] font-bold text-slate-400">MO</span>
           </div>
 
           <!-- Stima in € sul taglio di MO selezionato nel selettore in cima alla pagina -->
-          <div v-if="cartEuroEstimate" class="mt-3 pt-3 border-t border-white/10">
+          <div v-if="cartEuroEstimate" class="mt-3 pt-3 border-t border-ogame-line">
             <div class="flex items-baseline justify-between gap-2">
-              <span class="text-[9px] font-black uppercase tracking-widest text-violet-300/70">{{ t('shopping_est_cost') }}</span>
-              <span class="text-lg leading-none font-black font-mono text-violet-200">≈ {{ formatEuro(cartEuroEstimate.euro) }} €</span>
+              <span class="ov-stat-k">{{ t('shopping_est_cost') }}</span>
+              <span class="text-lg leading-none font-bold text-slate-100 tabular-nums">≈ {{ formatEuro(cartEuroEstimate.euro) }} €</span>
             </div>
-            <div class="text-[9px] text-slate-500 font-mono mt-1.5 text-right">
+            <div class="text-[11px] text-slate-400 font-mono mt-1.5 text-right">
               {{ cartEuroEstimate.packs }} × {{ cartEuroEstimate.pkgCost }} € = {{ formatNum(cartEuroEstimate.packsEuro) }} €
             </div>
           </div>
 
-          <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mt-3 px-2.5 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg">
-            <span class="text-[9px] font-black uppercase text-green-500">{{ t('shopping_cashback') }}</span>
-            <span class="text-[11px] font-black text-green-400 font-mono">+{{ formatNum(totalShopCartCashback) }}</span>
+          <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mt-3 px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
+            <span class="text-xs font-semibold text-emerald-400">{{ t('shopping_cashback') }}</span>
+            <span class="text-xs font-semibold text-emerald-300 tabular-nums">+{{ formatNum(totalShopCartCashback) }}</span>
           </div>
 
-          <button @click="cartDrawerOpen = true" class="checkout-btn w-full mt-3.5">
+          <button @click="cartDrawerOpen = true" class="ov-btn ov-btn-tint w-full mt-3.5" style="--tc:#a78bfa">
             {{ t('shopping_detail_btn') }}
           </button>
         </div>
 
-        <div class="cart-scroll-area custom-scrollbar space-y-2">
+        <div class="cart-scroll-area custom-scrollbar">
           <div v-for="item in reversedCart" :key="item.id + item.tier + item.duration + item.event"
-               class="group cart-row flex items-start gap-2.5 p-2.5 rounded-xl bg-ogame-surface border border-slate-700/30 hover:border-slate-600/50 transition-all">
+               class="group cart-row flex items-start gap-2.5 py-2.5 border-t border-ogame-line">
             <!-- Thumb -->
             <div class="w-10 h-10 rounded-lg bg-black/40 border border-slate-700/25 flex items-center justify-center flex-shrink-0 overflow-hidden">
               <img v-if="shopItemImageSrc(item.tKey)" :src="shopItemImageSrc(item.tKey)" :alt="t(item.tKey)" class="w-[85%] h-[85%] object-contain" loading="lazy" />
@@ -968,15 +992,15 @@ const getSwipeStyle = (idx) => {
             </div>
 
             <div class="flex-1 min-w-0">
-              <div class="text-xs font-bold text-slate-100 truncate leading-snug">{{ t(item.tKey) }}</div>
+              <div class="text-xs font-semibold text-slate-100 line-clamp-2 leading-snug" :title="t(item.tKey)">{{ t(item.tKey) }}</div>
               <div class="flex flex-wrap items-center gap-1 mt-1">
-                <span v-if="item.tier !== 'none'" class="inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-px rounded border"
+                <span v-if="item.tier !== 'none'" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase px-1.5 py-px rounded border"
                       :class="getTierBadgeClass(item.tier)">
-                  <span class="w-1 h-1 rounded-full" :class="getTierDotClass(item.tier)"></span>
+                  <span class="w-1.5 h-1.5 rounded-full" :class="getTierDotClass(item.tier)"></span>
                   {{ getTierDisplayName(item.tKey, item.tier) }}{{ getTierSuffix(item.tKey, item.tier) ? ' ' + getTierSuffix(item.tKey, item.tier) : '' }}
                 </span>
                 <span v-if="item.duration !== 'base'"
-                      class="text-[9px] font-black text-ogame-accent uppercase px-1.5 py-px bg-ogame-accent/10 border border-ogame-accent/20 rounded">{{ item.duration }}</span>
+                      class="text-[11px] font-bold text-ogame-accent uppercase px-1.5 py-px bg-ogame-accent/10 border border-ogame-accent/20 rounded">{{ item.duration }}</span>
                 <span v-if="item.event && item.event !== 'none'"
                       class="inline-flex items-center text-emerald-300 px-1 py-px bg-emerald-500/10 border border-emerald-500/20 rounded"
                       :title="t(getEventInfo(item.event)?.label)">
@@ -986,37 +1010,37 @@ const getSwipeStyle = (idx) => {
                 </span>
               </div>
               <!-- Qty stepper -->
-              <div class="inline-flex items-center gap-0.5 bg-black/40 rounded-md border border-slate-700/25 p-px mt-1.5">
-                <button @click="stepCartQty(item, -1)" class="cart-qty-step" :aria-label="t('shop_label_qty') + ' −1'">−</button>
-                <span class="text-[10px] font-black font-mono text-slate-200 min-w-[18px] text-center">{{ item.mult }}</span>
-                <button @click="stepCartQty(item, 1)" class="cart-qty-step" :aria-label="t('shop_label_qty') + ' +1'">+</button>
+              <div class="inline-flex items-center border border-slate-700 rounded-md mt-1.5">
+                <button @click="stepCartQty(item, -1)" class="qty-step" :aria-label="t('shop_label_qty') + ' −1'">−</button>
+                <span class="text-[13px] font-semibold tabular-nums text-slate-100 min-w-[28px] text-center">{{ item.mult }}</span>
+                <button @click="stepCartQty(item, 1)" class="qty-step" :aria-label="t('shop_label_qty') + ' +1'">+</button>
               </div>
             </div>
 
             <div class="flex flex-col items-end gap-1 flex-shrink-0">
-              <span class="text-xs font-mono font-black text-ogame-accent">{{ formatNum(item.cost) }}</span>
-              <span v-if="item.mult > 1" class="text-[9px] text-slate-600 font-mono">{{ formatNum(item.unitCost ?? Math.round(item.cost / item.mult)) }} {{ t('shop_list_each') }}</span>
+              <span class="text-[13px] font-semibold text-slate-100 tabular-nums">{{ formatNum(item.cost) }}</span>
+              <span v-if="item.mult > 1" class="text-[11px] text-slate-400 font-mono">{{ formatNum(item.unitCost ?? Math.round(item.cost / item.mult)) }} {{ t('shop_list_each') }}</span>
               <button @click="removeCartItem(item)" :aria-label="t('btn_delete')"
-                      class="text-red-500/50 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-0.5">
+                      class="text-slate-400 hover:text-rose-400 transition-colors p-0.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
               </button>
             </div>
           </div>
 
           <div v-if="shopCart.length === 0" class="flex flex-col items-center justify-center py-12 text-center px-4">
-            <svg class="w-12 h-12 mb-3 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-            <span class="text-[10px] uppercase font-black tracking-widest text-slate-600">{{ t('shopping_cart_empty') }}</span>
-            <span class="text-[10px] text-slate-700 mt-1.5 normal-case leading-relaxed">{{ t('shop_cart_empty_catalog_hint') }}</span>
+            <svg class="w-12 h-12 mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+            <span class="text-sm font-semibold text-slate-200">{{ t('shopping_cart_empty') }}</span>
+            <span class="text-[11px] text-slate-400 mt-1.5 normal-case leading-relaxed">{{ t('shop_cart_empty_catalog_hint') }}</span>
           </div>
         </div>
       </div>
     </aside>
 
     <!-- Mobile Floating Cart Button -->
-    <div class="xl:hidden fixed bottom-6 right-6 z-40">
-      <button @click="cartDrawerOpen = true" :aria-label="t('shopping_cart_title')" class="relative bg-ogame-accent text-black p-4 rounded-full shadow-[0_10px_25px_rgba(0,240,255,0.4)] active:scale-95 transition-transform border border-ogame-accent/80">
+    <div class="shop-fab fixed bottom-6 right-6 z-40">
+      <button @click="cartDrawerOpen = true" :aria-label="t('shopping_cart_title')" class="relative bg-ogame-accent text-black p-4 rounded-full shadow-[0_8px_20px_rgba(0,0,0,0.5)] active:scale-[0.97] transition-transform">
          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-         <span v-if="shopCart.length > 0" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-black">{{ cartTotalQty }}</span>
+         <span v-if="shopCart.length > 0" class="absolute -top-1 -right-1 bg-ogame-bg text-slate-100 text-[11px] font-bold min-w-5 h-5 px-1 rounded-full flex items-center justify-center border border-ogame-accent tabular-nums">{{ cartTotalQty }}</span>
       </button>
     </div>
 
@@ -1024,17 +1048,15 @@ const getSwipeStyle = (idx) => {
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="clearCartConfirmOpen" class="fixed inset-0 z-[200] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="clearCartConfirmOpen = false"></div>
-          <div class="bg-ogame-panel border border-white/10 rounded-xl w-full max-w-sm p-7 relative z-10 shadow-2xl">
-            <p class="text-white font-semibold text-base mb-2 leading-snug">{{ t('shopping_cart_title') }} — Reset?</p>
-            <p class="text-slate-400 text-sm mb-7">{{ t('msg_clear_cart_confirm') }}</p>
+          <div class="absolute inset-0 bg-black/70" @click="clearCartConfirmOpen = false"></div>
+          <div class="ov-dialog bg-ogame-panel border border-slate-700 rounded-xl w-full max-w-sm p-6 relative z-10 shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
+            <p class="text-slate-100 font-semibold text-base mb-2 leading-snug">{{ t('shop_cart_clear') }}?</p>
+            <p class="text-slate-400 text-sm mb-6">{{ t('msg_clear_cart_confirm') }}</p>
             <div class="flex justify-end gap-3">
-              <button @click="clearCartConfirmOpen = false"
-                      class="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors">
+              <button @click="clearCartConfirmOpen = false" class="ov-btn ov-btn-ghost">
                 {{ t('btn_cancel') }}
               </button>
-              <button @click="doClearCart"
-                      class="px-4 py-2 text-sm font-semibold text-white bg-red-700 hover:bg-red-600 rounded-lg transition-colors">
+              <button @click="doClearCart" class="ov-btn ov-btn-danger">
                 {{ t('btn_confirm') }}
               </button>
             </div>
@@ -1045,32 +1067,31 @@ const getSwipeStyle = (idx) => {
 
     <!-- ════ FULL CART DRAWER (Mobile/Desktop Detail) ════ -->
     <Teleport to="body">
-      <div v-show="cartDrawerOpen" class="fixed inset-0 z-[100] flex justify-end">
-        <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="cartDrawerOpen = false" />
-        <aside class="relative z-10 w-full max-w-xl bg-ogame-bg border-l border-white/10 flex flex-col shadow-2xl overflow-hidden">
-          <div class="header-drawer flex items-center justify-between px-8 py-6 border-b border-white/5 bg-black/40">
-            <span class="text-xs font-black uppercase tracking-[0.3em] text-white flex items-center gap-4">
-              <svg class="w-5 h-5 text-ogame-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-              {{ t('shopping_detail_btn') }}
-            </span>
-            <button @click="cartDrawerOpen = false" class="p-3 hover:bg-white/5 rounded-full text-slate-500 transition-all"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+      <Transition name="drawer">
+      <div v-if="cartDrawerOpen" class="fixed inset-0 z-[100] flex justify-end" role="dialog" aria-modal="true" :aria-label="t('shopping_cart_title')"
+          >
+        <div class="drawer-backdrop absolute inset-0 bg-black/70" @click="cartDrawerOpen = false" />
+        <aside class="drawer-panel relative z-10 w-full max-w-xl bg-ogame-bg border-l border-slate-700 flex flex-col shadow-2xl overflow-hidden">
+          <div class="header-drawer flex items-center justify-between px-5 py-4 border-b border-ogame-line">
+            <span class="text-[15px] font-semibold text-slate-100">{{ t('shopping_detail_btn') }}</span>
+            <button @click="cartDrawerOpen = false" class="ov-btn ov-btn-ghost w-9 px-0" :aria-label="t('pc_close')"><svg class="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
           </div>
-          <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-3 custom-scrollbar overflow-x-hidden">
-            <div v-for="(item, idx) in shopCart" :key="idx" class="relative group overflow-hidden rounded-2xl w-full">
+          <div class="flex-1 overflow-y-auto p-4 md:p-5 space-y-2 custom-scrollbar overflow-x-hidden">
+            <div v-for="(item, idx) in shopCart" :key="item.id + item.tier + item.duration + item.event" class="relative group overflow-hidden rounded-lg w-full">
               <!-- Delete background -->
               <div class="absolute inset-0 bg-red-600/90 flex justify-end items-center px-6 cursor-pointer" @click="removeShopCart(idx)">
-                <span class="text-xs font-black uppercase text-white mr-2 hidden lg:block">{{ t('btn_delete') }}</span>
+                <span class="text-xs font-bold uppercase text-white mr-2 hidden lg:block">{{ t('btn_delete') }}</span>
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
               </div>
 
               <!-- Item container -->
-              <div class="relative bg-ogame-panel flex items-center gap-3 md:gap-4 p-4 md:p-5 border border-slate-700/30 hover:border-ogame-accent/30 w-full transition-colors"
+              <div class="relative bg-ogame-panel flex items-center gap-3 p-3 md:p-4 border border-ogame-line rounded-lg w-full transition-colors"
                    @touchstart="tsStart($event, idx)"
                    @touchmove="tsMove($event, idx)"
                    @touchend="tsEnd(idx)"
                    :style="getSwipeStyle(idx)">
                 <!-- Thumb -->
-                <div class="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-black/40 border border-slate-700/25 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <div class="w-12 h-12 rounded-lg bg-ogame-surface border border-ogame-line flex items-center justify-center flex-shrink-0 overflow-hidden">
                   <img v-if="shopItemImageSrc(item.tKey)" :src="shopItemImageSrc(item.tKey)" :alt="t(item.tKey)" class="w-[85%] h-[85%] object-contain" loading="lazy" />
                   <svg v-else class="w-6 h-6" :class="DEFAULT_GLYPH.tint.split(' ')[0]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path v-for="(p, i) in DEFAULT_GLYPH.paths" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
@@ -1078,19 +1099,18 @@ const getSwipeStyle = (idx) => {
                 </div>
 
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-bold text-slate-100 line-clamp-1 pr-2 leading-snug">{{ t(item.tKey) }}</div>
+                  <div class="text-sm font-semibold text-slate-100 line-clamp-2 pr-2 leading-snug" :title="t(item.tKey)">{{ t(item.tKey) }}</div>
                   <div class="flex flex-wrap gap-1.5 mt-2">
                     <span v-if="item.tier !== 'none'"
-                          class="text-[10px] font-black uppercase px-2 py-0.5 rounded border flex items-center gap-1"
-                          :class="getTierBadgeClass(item.tier)">
+                          class="ov-tag ov-tag-mute">
                       <span class="w-1 h-1 rounded-full" :class="getTierDotClass(item.tier)"></span>
                       {{ getTierDisplayName(item.tKey, item.tier) }}
                       <span v-if="getTierSuffix(item.tKey, item.tier)" class="opacity-80">{{ getTierSuffix(item.tKey, item.tier) }}</span>
                     </span>
                     <span v-if="item.duration !== 'base'"
-                          class="text-[10px] font-black text-ogame-accent uppercase px-2 py-0.5 bg-ogame-accent/10 border border-ogame-accent/20 rounded">{{ item.duration }}</span>
+                          class="ov-tag ov-tag-mute">{{ item.duration }}</span>
                     <span v-if="item.event && item.event !== 'none'"
-                          class="text-[10px] font-black text-emerald-300 uppercase px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded inline-flex items-center gap-1">
+                          class="ov-tag ov-tag-ok">
                       <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path v-for="(p, i) in (getEventInfo(item.event)?.paths || [])" :key="i" stroke-linecap="round" stroke-linejoin="round" :d="p"/>
                       </svg>
@@ -1098,49 +1118,50 @@ const getSwipeStyle = (idx) => {
                     </span>
                   </div>
                   <!-- Qty stepper -->
-                  <div class="inline-flex items-center gap-0.5 bg-black/40 rounded-md border border-slate-700/25 p-px mt-2">
-                    <button @click="stepCartQty(item, -1)" class="cart-qty-step" :aria-label="t('shop_label_qty') + ' −1'">−</button>
-                    <span class="text-[11px] font-black font-mono text-slate-200 min-w-[22px] text-center">{{ item.mult }}</span>
-                    <button @click="stepCartQty(item, 1)" class="cart-qty-step" :aria-label="t('shop_label_qty') + ' +1'">+</button>
+                  <div class="inline-flex items-center border border-slate-700 rounded-md mt-2">
+                    <button @click="stepCartQty(item, -1)" class="qty-step" :aria-label="t('shop_label_qty') + ' −1'">−</button>
+                    <span class="text-[13px] font-semibold tabular-nums text-slate-100 min-w-[32px] text-center">{{ item.mult }}</span>
+                    <button @click="stepCartQty(item, 1)" class="qty-step" :aria-label="t('shop_label_qty') + ' +1'">+</button>
                   </div>
                 </div>
                 <div class="flex flex-col items-end gap-1 flex-shrink-0">
-                  <span class="text-base md:text-lg font-black text-ogame-accent font-mono tracking-tighter">{{ formatNum(item.cost) }}</span>
-                  <span class="text-[10px] text-slate-500 font-mono">{{ formatNum(item.unitCost ?? Math.round(item.cost / Math.max(1, item.mult))) }} {{ t('shop_list_each') }}</span>
+                  <span class="text-base font-semibold text-slate-100 tabular-nums">{{ formatNum(item.cost) }}</span>
+                  <span class="text-[11px] text-slate-400 tabular-nums">{{ formatNum(item.unitCost ?? Math.round(item.cost / Math.max(1, item.mult))) }} {{ t('shop_list_each') }}</span>
                 </div>
               </div>
             </div>
 
             <div v-if="shopCart.length === 0" class="flex flex-col items-center justify-center py-16 text-center px-6">
-              <svg class="w-14 h-14 mb-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-              <span class="text-[11px] uppercase font-black tracking-widest text-slate-600">{{ t('shopping_cart_empty') }}</span>
-              <span class="text-[11px] text-slate-700 mt-2 leading-relaxed">{{ t('shop_cart_empty_catalog_hint') }}</span>
+              <svg class="w-14 h-14 mb-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+              <span class="text-[11px] uppercase font-bold tracking-widest text-slate-400">{{ t('shopping_cart_empty') }}</span>
+              <span class="text-[11px] text-slate-400 mt-2 leading-relaxed">{{ t('shop_cart_empty_catalog_hint') }}</span>
             </div>
           </div>
-          <div class="p-6 md:p-10 border-t border-white/10 bg-black/80">
-             <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mb-4 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
-                <span class="text-[10px] font-black uppercase text-green-500 flex items-center gap-1.5">
+          <div class="p-5 border-t border-ogame-line bg-ogame-raised">
+             <div v-if="totalShopCartCashback > 0" class="flex items-center justify-between mb-4 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
+                <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"></path></svg>
                    {{ t('shopping_cashback') }}
                 </span>
-                <span class="text-xs font-black text-green-400 font-mono tracking-tight">+ {{ formatNum(totalShopCartCashback) }} MO</span>
+                <span class="text-xs font-semibold text-emerald-300 tabular-nums">+ {{ formatNum(totalShopCartCashback) }} MO</span>
              </div>
-             <div class="flex items-baseline justify-between gap-4 px-2" :class="cartEuroEstimate ? 'mb-3' : 'mb-6 md:mb-10'">
-                <span class="text-xs font-black text-slate-500 uppercase tracking-widest text-[11px]">{{ t('shopping_order_total') }}</span>
-                <span class="text-4xl font-black text-white glow-white tracking-tighter">{{ formatNum(totalShopCartMO) }} <span class="text-sm opacity-40 font-normal">MO</span></span>
+             <div class="flex items-baseline justify-between gap-4" :class="cartEuroEstimate ? 'mb-3' : 'mb-5'">
+                <span class="ov-stat-k">{{ t('shopping_order_total') }}</span>
+                <span class="text-3xl font-bold text-slate-100 tabular-nums">{{ formatNum(totalShopCartMO) }} <span class="text-sm text-slate-400 font-medium">MO</span></span>
              </div>
              <!-- Stima in € sul taglio di MO selezionato nel selettore in cima alla pagina -->
-             <div v-if="cartEuroEstimate" class="flex items-baseline justify-between gap-4 mb-6 md:mb-10 px-2">
-                <span class="text-[10px] font-black uppercase tracking-widest text-violet-300/70">{{ t('shopping_est_cost') }}</span>
+             <div v-if="cartEuroEstimate" class="flex items-baseline justify-between gap-4 mb-5">
+                <span class="ov-stat-k">{{ t('shopping_est_cost') }}</span>
                 <span class="text-right">
-                  <span class="text-xl font-black font-mono text-violet-200">≈ {{ formatEuro(cartEuroEstimate.euro) }} €</span>
-                  <span class="block text-[10px] text-slate-500 font-mono mt-1">{{ cartEuroEstimate.packs }} × {{ cartEuroEstimate.pkgCost }} € = {{ formatNum(cartEuroEstimate.packsEuro) }} €</span>
+                  <span class="text-xl font-bold tabular-nums text-slate-100">≈ {{ formatEuro(cartEuroEstimate.euro) }} €</span>
+                  <span class="block text-[11px] text-slate-400 tabular-nums mt-1">{{ cartEuroEstimate.packs }} × {{ cartEuroEstimate.pkgCost }} € = {{ formatNum(cartEuroEstimate.packsEuro) }} €</span>
                 </span>
              </div>
-             <button @click="cartDrawerOpen = false" class="w-full py-4 bg-white text-black text-[11px] font-black uppercase tracking-[0.4em] rounded-2xl hover:bg-ogame-accent transition-all shadow-[0_15px_30px_rgba(0,0,0,0.4)] active:scale-95">{{ t('shopping_save_close') }}</button>
+             <button @click="cartDrawerOpen = false" class="ov-btn ov-btn-primary w-full h-11">{{ t('shopping_save_close') }}</button>
           </div>
         </aside>
       </div>
+      </Transition>
     </Teleport>
 
   </div>
@@ -1152,40 +1173,37 @@ const getSwipeStyle = (idx) => {
 
 /* ─── BASE LAYOUT ─── */
 .shop-v4-root {
-  display: flex;
-  min-height: calc(100vh - 56px);
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr) 290px;
+  gap: 20px;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 0 1.5rem 2rem;
 }
+@media (max-width: 1279px) { .shop-v4-root { grid-template-columns: 200px minmax(0, 1fr); } }
+@media (max-width: 1023px) { .shop-v4-root { grid-template-columns: minmax(0, 1fr); padding: 0 1rem 2rem; } }
 
 .shop-sidebar-left {
-  width: 240px;
   position: sticky;
-  top: 56px;
-  height: calc(100vh - 56px);
-  border-right: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(3, 5, 7, 0.96);
-  backdrop-filter: blur(20px);
-  z-index: 30;
-  background-image: repeating-linear-gradient(
-    0deg, transparent, transparent 3px,
-    rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px
-  );
+  top: 72px;
+  max-height: calc(100vh - 88px);
+  margin-top: 1.5rem;
 }
 
 .shop-sidebar-right {
-  width: 280px;
   position: sticky;
-  top: 56px;
-  height: calc(100vh - 56px);
-  border-left: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(3, 5, 7, 0.96);
-  backdrop-filter: blur(20px);
-  z-index: 30;
+  top: 72px;
+  max-height: calc(100vh - 88px);
+  margin-top: 1.5rem;
+  background: theme('colors.ogame.panel');
+  border: 1px solid theme('colors.ogame.line');
+  border-radius: 12px;
 }
 
 .sidebar-scrollable {
   flex: 1;
   overflow-y: auto;
-  padding: 1.5rem 1.25rem;
+  padding: 0 0.25rem 1rem 0;
 }
 
 /* Header e totale restano fissi: scorre solo la lista degli articoli. */
@@ -1194,7 +1212,7 @@ const getSwipeStyle = (idx) => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 1.5rem 1.25rem;
+  padding: 1rem 1.125rem;
 }
 .cart-scroll-area {
   flex: 1;
@@ -1213,27 +1231,21 @@ const getSwipeStyle = (idx) => {
 
 .mobile-evt-btn {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  padding: 8px 12px;
+  min-height: 40px;
+  background: theme('colors.ogame.panel');
+  border: 1px solid theme('colors.ogame.line');
+  border-radius: 6px;
   color: theme('colors.slate.400');
-  font-family: monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: all 0.2s;
+  font-size: 12px;
+  transition: color 150ms, background-color 150ms, border-color 150ms;
 }
 .mobile-evt-active {
-  background: rgba(0, 240, 255, 0.08);
-  border-color: rgba(0, 240, 255, 0.3);
-  color: theme('colors.ogame.accent');
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px -4px rgba(0, 240, 255, 0.15);
+  background: theme('colors.ogame.raised');
+  border-color: theme('colors.slate.600');
+  color: theme('colors.slate.100');
 }
 
 /* ─── PRODUCT CARDS ─── */
@@ -1246,28 +1258,25 @@ const getSwipeStyle = (idx) => {
   filter: saturate(0.55);
   transition: opacity 0.2s, filter 0.2s;
 }
-.card-muted:hover, .card-muted:focus-within {
+.card-muted:focus-within {
   opacity: 1;
   filter: none;
 }
-.just-added { animation: flashAdd 0.8s ease-out; }
-@keyframes flashAdd {
-  0%   { border-color: rgba(0, 240, 255, 0.55); box-shadow: 0 0 10px rgba(6,182,212,0.25); }
-  100% { border-color: rgba(51, 65, 85, 0.2); box-shadow: none; }
-}
+/* Appena aggiunta: bordo ciano, poi torna al bordo normale con la transizione della card */
+.just-added { border-color: rgb(0 240 255 / 0.55) !important; transition-duration: 0ms !important; }
 
+@media (hover: hover) and (pointer: fine) { .card-muted:hover { opacity: 1; filter: none; } }
 /* Icona "+" sui tier row: appare all'hover come affordance di aggiunta */
-.tier-add-icon { opacity: 0; transition: opacity 0.15s; }
-.tier-row:hover .tier-add-icon, .tier-row:focus-visible .tier-add-icon { opacity: 0.7; }
+.tier-add-icon { opacity: 0.8; }
 
 /* ─── SIDEBAR ELEMENTS ─── */
 .section-label {
-  font-family: monospace;
-  font-size: 10px;
-  font-weight: 900;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
   color: theme('colors.slate.400');
-  letter-spacing: 0.15em;
+  letter-spacing: 0.12em;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1279,45 +1288,38 @@ const getSwipeStyle = (idx) => {
   align-items: center;
   gap: 8px;
   text-align: left;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border-radius: 6px;
-  font-family: monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: all 0.15s;
-  border: 1px solid transparent;
-  color: theme('colors.slate.500');
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 150ms, background-color 150ms;
+  color: theme('colors.slate.400');
 }
-.event-btn:hover, .cat-btn:hover { color: theme('colors.slate.300'); background: rgba(255,255,255,0.03); }
+@media (hover: hover) and (pointer: fine) { .event-btn:hover, .cat-btn:hover { color: theme('colors.slate.200'); background: rgba(255,255,255,0.03); } }
 
-.event-active {
-  background: rgba(0, 240, 255, 0.08);
-  border-color: rgba(0, 240, 255, 0.30);
-  color: theme('colors.ogame.accent');
-}
-.cat-active {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.10);
+.event-active, .cat-active {
+  background: theme('colors.ogame.raised');
   color: theme('colors.slate.100');
+  font-weight: 600;
 }
 
 .sidebar-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04) 50%, transparent);
-  margin: 1.5rem 0;
+  background: theme('colors.ogame.line');
+  margin: 1.25rem 0;
 }
 
 /* ─── CARD CONTROLS ─── */
 .qty-input {
   background: transparent;
   border: none;
-  color: #fff;
-  font-family: monospace;
-  font-size: 11px;
-  font-weight: 900;
-  width: 30px;
+  border-inline: 1px solid theme('colors.ogame.line');
+  color: theme('colors.slate.100');
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  width: 36px;
+  height: 28px;
   text-align: center;
   outline: none;
   -moz-appearance: textfield;
@@ -1328,76 +1330,65 @@ const getSwipeStyle = (idx) => {
   margin: 0;
 }
 .qty-step {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
   color: theme('colors.slate.400');
-  font-size: 13px;
-  font-weight: 900;
+  font-size: 14px;
   line-height: 1;
-  transition: all 0.15s;
+  transition: color 150ms, background-color 150ms;
 }
-.qty-step:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: #fff; }
+@media (hover: hover) and (pointer: fine) { .qty-step:hover:not(:disabled) { background: rgba(255,255,255,0.05); color: #fff; } }
 .qty-step:disabled { opacity: 0.3; cursor: not-allowed; }
 
-.cart-qty-step {
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  color: theme('colors.slate.400');
-  font-size: 11px;
-  font-weight: 900;
-  line-height: 1;
-  transition: all 0.15s;
+
+.price-cell {
+  display: inline-block;
+  min-width: 4.25rem;
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: 1px solid theme('colors.ogame.line');
+  font-weight: 600;
+  color: theme('colors.slate.100');
+  transition: border-color 150ms, color 150ms, background-color 150ms, transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.cart-qty-step:hover { background: rgba(255,255,255,0.08); color: #fff; }
+@media (hover: hover) and (pointer: fine) { .price-cell:hover { border-color: rgb(0 240 255 / 0.6); color: theme('colors.ogame.accent'); background: rgb(0 240 255 / 0.05); } }
+.price-cell:active { transform: scale(0.97); }
+@media (max-width: 359px) { .price-cell { min-width: 0; padding: 4px 5px; } }
+@media (pointer: coarse) { .qty-step { width: 40px; height: 40px; } .qty-input { width: 44px; height: 40px; } .price-cell { padding: 8px; } }
 
 .btn-discounted {
   border-color: rgba(34, 197, 94, 0.35) !important;
   background-color: rgba(34, 197, 94, 0.06) !important;
 }
 
-/* ─── CHECKOUT BTN ─── */
-.checkout-btn {
-  width: 100%;
-  background: rgba(0, 240, 255, 0.15);
-  border: 1px solid rgba(0, 240, 255, 0.35);
-  color: theme('colors.ogame.accent');
-  font-family: monospace;
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  border-radius: 6px;
-  padding: 11px;
-  transition: all 0.2s;
-}
-.checkout-btn:hover {
-  background: rgba(0, 240, 255, 0.25);
-  border-color: rgba(0, 240, 255, 0.55);
-  box-shadow: 0 0 16px rgba(6,182,212,0.2);
-}
 
-/* ─── GLOWS ─── */
-.glow-white { text-shadow: 0 0 20px rgba(255, 255, 255, 0.25); }
 
 /* ─── RESPONSIVE ─── */
-@media (max-width: 1440px) { .shop-sidebar-right { display: none; } }
-@media (max-width: 1024px) { .shop-sidebar-left { display: none; } }
+/* Il carrello resta visibile da 1280px; sotto resta il pulsante flottante */
+@media (max-width: 1279px) { .shop-sidebar-right { display: none; } }
+@media (min-width: 1280px) { .shop-fab { display: none; } }
 
 .custom-scrollbar::-webkit-scrollbar { width: 3px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.04); border-radius: 10px; }
 
+.qty-input:focus-visible { outline: 1px solid rgba(0, 240, 255, 0.6); outline-offset: 2px; border-radius: 4px; }
+
+/* Cassetto del carrello: entra dal bordo destro, esce più in fretta */
+.drawer-enter-active .drawer-panel { transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1); }
+.drawer-leave-active .drawer-panel { transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1); }
+.drawer-enter-from .drawer-panel, .drawer-leave-to .drawer-panel { transform: translateX(100%); }
+.drawer-enter-active .drawer-backdrop { transition: opacity 200ms ease-out; }
+.drawer-leave-active .drawer-backdrop { transition: opacity 150ms ease-out; }
+.drawer-enter-from .drawer-backdrop, .drawer-leave-to .drawer-backdrop { opacity: 0; }
+.drawer-enter-active { transition: opacity 300ms; }
+.drawer-leave-active { transition: opacity 200ms; }
+
 @media (prefers-reduced-motion: reduce) {
-  .just-added { animation: none; }
-  .card-muted { transition: none; }
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .drawer-enter-active .drawer-panel, .drawer-leave-active .drawer-panel { transition: opacity 150ms; transform: none; }
+  .drawer-enter-from .drawer-panel, .drawer-leave-to .drawer-panel { transform: none; opacity: 0; }
 }
 </style>

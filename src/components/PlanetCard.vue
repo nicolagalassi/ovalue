@@ -2,7 +2,8 @@
 import { ref, computed } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
-import { OGAME_DB } from '../data/ogame_db';
+import { OGAME_DB, METAL_BOOSTER_PCTS, RES_AMP_PCTS } from '../data/ogame_db';
+import NumStepper from './NumStepper.vue';
 
 const props = defineProps({
     planet: Object,
@@ -40,7 +41,7 @@ const lfResearchCount = computed(() =>
 // Amplificatore di risorse: item unico OGame con tagli fissi 15/20/25/30/40%.
 // Un valore fuori scala salvato prima (quando il campo era libero) resta
 // selezionabile finché non si sceglie un taglio valido, così non si perde il dato.
-const RES_AMP_STEPS = [15, 20, 25, 30, 40];
+const RES_AMP_STEPS = RES_AMP_PCTS;
 const resAmpOptions = computed(() => {
     const v = parseInt(props.planet.itemCustom) || 0;
     return (v > 0 && !RES_AMP_STEPS.includes(v))
@@ -82,6 +83,16 @@ const planetResearchMult = computed(() => calcPlanetResearchMult(props.planet));
 // Verifica se una ricerca LF è attiva. Default: inattiva (deve essere true esplicito)
 const isLfActive = (id) => props.planet.lfActive?.[id] === true;
 
+// Card compatta: i controlli si aprono con "Modifica pianeta"
+const editOpen = ref(false);
+
+// Riassunto per la card chiusa
+const lifeformLabel = computed(() => t('opt_' + (props.planet.lifeform || 'humans')));
+const pctLabel = (v) => (parseInt(v) || 0) > 0 ? `+${parseInt(v)}%` : '–';
+// Bonus metallo delle ricerche LF attive (stesso valore usato nel calcolo)
+const lfMetalPct = computed(() => props.lfResearchPct?.fromResearch ? (props.lfResearchPct.metal || 0) : 0);
+const fmtPct = (v) => (Math.round(v * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 });
+
 // Toggle attivazione ricerca
 const toggleLfResearch = (id) => {
     if (!props.planet.lfActive) props.planet.lfActive = {};
@@ -102,23 +113,24 @@ const breakdown = computed(() => {
     const bonuses = [];
     const { collFactor, mineBase, actCraw } = core;
 
-    if (g.plasma > 0) bonuses.push({ n: 'Plasma', v: g.plasma });
-    if (g.geologist) bonuses.push({ n: t('lbl_geo'), v: 10 });
-    if (g.staff) bonuses.push({ n: t('lbl_staff'), v: 2 });
-    if (g.playerClass === 'collector') bonuses.push({ n: 'Collector', v: 25 * collFactor });
-    if (g.allyClass === 'trader') bonuses.push({ n: 'Trader', v: 5 });
+    // c = colore della fonte, uguale nella barra e nella tabella
+    if (g.plasma > 0) bonuses.push({ n: 'Plasma', v: g.plasma, c: '#a78bfa' });
+    if (g.geologist) bonuses.push({ n: t('lbl_geo'), v: 10, c: '#f472b6' });
+    if (g.staff) bonuses.push({ n: t('lbl_staff'), v: 2, c: '#94a3b8' });
+    if (g.playerClass === 'collector') bonuses.push({ n: 'Collector', v: 25 * collFactor, c: '#22d3ee' });
+    if (g.allyClass === 'trader') bonuses.push({ n: 'Trader', v: 5, c: '#facc15' });
     const itemV = (parseInt(p.item) || 0) + (parseInt(p.itemCustom) || 0);
-    if (itemV > 0) bonuses.push({ n: t('lbl_item'), v: itemV });
+    if (itemV > 0) bonuses.push({ n: t('lbl_item'), v: itemV, c: '#fb923c' });
     const magma = parseInt(p.magma) || 0;
-    if (magma > 0 && p.lifeform === 'rocktal') bonuses.push({ n: `${t('lbl_magma')} (${magma})`, v: magma * 2 });
+    if (magma > 0 && p.lifeform === 'rocktal') bonuses.push({ n: `${t('lbl_magma')} (${magma})`, v: magma * 2, c: '#f97316' });
     const human = parseInt(p.human) || 0;
-    if (human > 0 && p.lifeform === 'humans') bonuses.push({ n: `${t('lbl_human')} (${human})`, v: human * 1.5 });
+    if (human > 0 && p.lifeform === 'humans') bonuses.push({ n: `${t('lbl_human')} (${human})`, v: human * 1.5, c: '#4ade80' });
     // Stessa regola di calcPlanetMetalProduction: ricerche LF oppure totale manuale, mai entrambi
     if (props.lfResearchPct?.fromResearch) {
         const lfMetal = props.lfResearchPct.metal || 0;
-        if (lfMetal > 0) bonuses.push({ n: t('lbl_lf_research_abbr'), v: lfMetal });
+        if (lfMetal > 0) bonuses.push({ n: t('lf_research_title'), v: lfMetal, c: '#34d399' });
     } else if ((g.lfBonus || 0) > 0) {
-        bonuses.push({ n: t('lbl_lf_tech_abbr'), v: g.lfBonus });
+        bonuses.push({ n: t('lbl_lf_tech_abbr'), v: g.lfBonus, c: '#34d399' });
     }
     if (actCraw > 0) {
         let mult = 0.02;
@@ -126,141 +138,159 @@ const breakdown = computed(() => {
             mult *= (1 + (50 * collFactor) / 100);
             if (p.overload) mult *= 1.5;
         }
-        bonuses.push({ n: `Crawler (${actCraw})`, v: Math.min(actCraw * mult, 50) });
+        bonuses.push({ n: `Crawler (${actCraw})`, v: Math.min(actCraw * mult, 50), c: '#fbbf24' });
     }
+    // Valore orario di ogni bonus: percentuale sulla miniera, come nel calcolo condiviso
+    for (const b of bonuses) b.amount = mineBase * (b.v / 100);
 
     return { ...core, bonuses };
 });
 </script>
 
 <template>
-  <div class="planet-card bg-ogame-panel rounded-xl border border-slate-700/25 hover:border-slate-600/40 transition-all duration-200 overflow-hidden flex flex-col">
+  <div class="planet-card ov-panel overflow-hidden flex flex-col">
 
     <!-- HEADER: numero + nome + posizione + azioni -->
-    <div class="flex items-center gap-2 px-3 py-2 border-b border-slate-700/20 bg-ogame-surface">
-      <span class="w-6 h-6 rounded bg-sky-500/[0.08] border border-sky-500/20 text-sky-400 text-[11px] font-black flex items-center justify-center flex-shrink-0 font-mono">
-        {{ index + 1 }}
-      </span>
+    <div class="flex items-center gap-2 px-3.5 py-2.5 border-b border-ogame-line">
+      <span class="w-5 text-[11px] font-mono text-slate-400 flex-shrink-0">{{ index + 1 }}</span>
       <input type="text" v-model="planet.name"
-             :aria-label="t('lbl_planet')"
-             class="flex-grow bg-transparent border-none text-slate-200 text-sm font-medium focus:ring-0 p-0 placeholder:text-slate-700 min-w-0"
+             :aria-label="t('lbl_planet')" :title="planet.name"
+             class="flex-grow bg-transparent border-none text-slate-100 text-sm font-semibold focus:ring-0 p-0 placeholder:text-slate-400 min-w-0 truncate"
              :placeholder="t('lbl_planet')" />
       <select v-model.number="planet.pos"
               :aria-label="t('lbl_position')"
-              class="bg-ogame-panel border border-slate-700/30 rounded-lg text-[11px] text-slate-400 px-2 py-1 focus:outline-none focus:border-sky-500/40 flex-shrink-0 cursor-pointer">
+              class="input-glass text-xs px-2 py-1 flex-shrink-0 cursor-pointer">
         <option value="8">P8 x1.35</option>
         <option value="7">P7 x1.23</option>
         <option value="9">P9 x1.23</option>
         <option value="6">P6 x1.17</option>
         <option value="10">P10 x1.17</option>
         <option value="1">Std x1.00</option>
+        <option v-if="![8, 7, 9, 6, 10, 1].includes(Number(planet.pos))" :value="planet.pos">P{{ planet.pos }} x1.00</option>
       </select>
       <button @click="emit('clone')" :title="t('btn_clone')" :aria-label="t('btn_clone')"
-              class="p-2 text-slate-500 hover:text-sky-400 hover:bg-sky-500/[0.07] rounded-lg transition flex-shrink-0">
+              class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-sky-300 border border-ogame-line hover:border-slate-600 rounded-md transition-colors flex-shrink-0">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
       </button>
       <button @click="emit('remove')" :title="t('btn_delete')" :aria-label="t('btn_delete')"
-              class="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/[0.07] rounded-lg transition flex-shrink-0">
+              class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-300 border border-ogame-line hover:border-rose-500/40 rounded-md transition-colors flex-shrink-0">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
 
-    <!-- MINIERE: 3 grandi input numerici -->
-    <div class="grid grid-cols-3 border-b border-slate-700/20">
-      <div class="px-3 pt-3 pb-2 border-r border-slate-700/15">
-        <label :for="'metal-' + index" class="text-[9px] text-slate-400 uppercase tracking-widest font-semibold mb-1 flex items-center gap-1 cursor-default">
-          <span class="w-1.5 h-1.5 rounded-full bg-slate-500" aria-hidden="true"></span> {{ t('res_metal') }}
-        </label>
-        <input :id="'metal-' + index" type="number" v-model.number="planet.metal" @focus="$event.target.select()"
-               class="w-full bg-transparent border-none text-[22px] font-black text-slate-100 text-center focus:ring-0 p-0 font-mono leading-tight" />
+    <!-- PRODUZIONE: risultato, barra composita e tabella delle fonti (sempre visibili) -->
+    <div class="bg-ogame-surface px-3.5 py-3 grid gap-2.5 border-b border-ogame-line">
+      <div class="flex items-end justify-between gap-3">
+        <div>
+          <div class="ov-label">{{ t('footer_prod_hour') }}</div>
+          <div class="text-[26px] leading-none font-bold text-sky-400 tabular-nums mt-1">{{ formatNum(breakdown.total) }}</div>
+        </div>
+        <div class="text-right text-xs text-slate-400">
+          {{ t('pc_per_day') }}
+          <div class="text-sm font-semibold text-slate-100 tabular-nums">{{ formatNum(breakdown.total * 24) }}</div>
+        </div>
       </div>
-      <div class="px-3 pt-3 pb-2 border-r border-slate-700/15">
-        <label :for="'crystal-' + index" class="text-[9px] text-sky-400/80 uppercase tracking-widest font-semibold mb-1 flex items-center gap-1 cursor-default">
-          <span class="w-1.5 h-1.5 rounded-full bg-sky-500" aria-hidden="true"></span> {{ t('res_crystal') }}
-        </label>
-        <input :id="'crystal-' + index" type="number" v-model.number="planet.crystal" @focus="$event.target.select()"
-               class="w-full bg-transparent border-none text-[22px] font-black text-sky-200 text-center focus:ring-0 p-0 font-mono leading-tight" />
+
+      <div class="flex h-2.5 rounded-full overflow-hidden gap-0.5 bg-ogame-line" role="img"
+           :aria-label="t('footer_prod_hour')">
+        <i class="block h-full" :style="{ flex: breakdown.mineBase || 0, background: '#38bdf8' }"></i>
+        <i v-for="(b, i) in breakdown.bonuses" :key="i" class="block h-full"
+           :style="{ flex: b.amount, background: b.c }" :title="b.n"></i>
       </div>
-      <div class="px-3 pt-3 pb-2">
-        <label :for="'deut-' + index" class="text-[9px] text-emerald-400/80 uppercase tracking-widest font-semibold mb-1 flex items-center gap-1 cursor-default">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span> {{ t('res_deuterium') }}
-        </label>
-        <input :id="'deut-' + index" type="number" v-model.number="planet.deuterium" @focus="$event.target.select()"
-               class="w-full bg-transparent border-none text-[22px] font-black text-emerald-200 text-center focus:ring-0 p-0 font-mono leading-tight" />
+
+      <div class="src-table text-[11.5px]">
+        <i class="sw" style="background:#38bdf8"></i>
+        <span class="text-slate-200">{{ t('lbl_mine_base') }}</span>
+        <span class="bar" style="color:#38bdf8"><s :style="{ width: breakdown.mineBase > 0 ? '100%' : '0%' }"></s></span>
+        <span class="text-slate-400 text-right">{{ t('pc_base') }}</span>
+        <span class="text-slate-100 font-semibold text-right tabular-nums">{{ formatNum(breakdown.mineBase) }}</span>
+        <template v-for="(b, i) in breakdown.bonuses" :key="i">
+          <i class="sw" :style="{ background: b.c }"></i>
+          <span class="text-slate-200 truncate" :title="b.n">{{ b.n }}</span>
+          <span class="bar" :style="{ color: b.c }"><s :style="{ width: Math.min(100, b.v) + '%' }"></s></span>
+          <span class="text-slate-400 text-right tabular-nums">+{{ fmtPct(b.v) }}%</span>
+          <span class="text-slate-100 font-semibold text-right tabular-nums">+{{ formatNum(b.amount) }}</span>
+        </template>
+        <i class="sw bg-slate-700"></i>
+        <span class="text-slate-400 col-span-3 min-w-0 truncate">{{ t('lbl_nat_prod') }}</span>
+        <span class="text-slate-400 text-right tabular-nums">+{{ formatNum(breakdown.natProd) }}</span>
       </div>
     </div>
 
-    <!-- LIFEFORM + CAMPO LF + ITEM -->
-    <div class="px-3 pt-2 pb-2 border-b border-slate-700/20 space-y-2">
-
-      <!-- Riga 1: Toggle LF (full width) -->
-      <div class="flex gap-0.5 bg-ogame-bg/50 rounded-lg p-0.5">
-        <button @click="planet.lifeform = 'humans'"
-                class="flex-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-all text-center"
-                :class="planet.lifeform === 'humans'
-                    ? 'bg-green-500/20 border border-green-400/30 text-green-300'
-                    : 'text-slate-600 hover:text-slate-400'">
-          {{ t('opt_humans') }}
-        </button>
-        <button @click="planet.lifeform = 'rocktal'"
-                class="flex-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-all text-center"
-                :class="planet.lifeform === 'rocktal'
-                    ? 'bg-orange-500/20 border border-orange-400/30 text-orange-300'
-                    : 'text-slate-600 hover:text-slate-400'">
-          Rock'tal
-        </button>
-        <button @click="planet.lifeform = 'mecha'"
-                class="flex-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-all text-center"
-                :class="planet.lifeform === 'mecha'
-                    ? 'bg-blue-500/20 border border-blue-400/30 text-blue-300'
-                    : 'text-slate-600 hover:text-slate-400'">
-          Mecha
-        </button>
-        <button @click="planet.lifeform = 'kaelesh'"
-                class="flex-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-all text-center"
-                :class="planet.lifeform === 'kaelesh'
-                    ? 'bg-violet-500/20 border border-violet-400/30 text-violet-300'
-                    : 'text-slate-600 hover:text-slate-400'">
-          Kaelesh
-        </button>
+    <!-- RIASSUNTO (card chiusa) -->
+    <div v-if="!editOpen" class="px-3.5 py-3 grid gap-2 border-b border-ogame-line">
+      <div class="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
+        <div class="min-w-0 flex items-baseline justify-between gap-1.5 px-2.5 py-1.5 rounded-md bg-ogame-surface border border-sky-500/30">
+          <span class="ov-label truncate">{{ t('res_metal') }}</span><b class="text-xl tabular-nums text-slate-100">{{ planet.metal }}</b>
+        </div>
+        <div class="min-w-0 flex items-baseline justify-between gap-1.5 px-2.5 py-1.5 rounded-md bg-ogame-surface border border-ogame-line">
+          <span class="ov-label truncate">{{ t('res_crystal') }}</span><b class="text-base tabular-nums text-slate-400">{{ planet.crystal }}</b>
+        </div>
+        <div class="min-w-0 flex items-baseline justify-between gap-1.5 px-2.5 py-1.5 rounded-md bg-ogame-surface border border-ogame-line">
+          <span class="ov-label truncate">{{ t('res_deuterium') }}</span><b class="text-base tabular-nums text-slate-400">{{ planet.deuterium }}</b>
+        </div>
       </div>
+      <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-400">
+        <span>{{ lifeformLabel }}</span>·
+        <span>Crawler <b class="text-slate-100 tabular-nums">{{ planet.crawlers || 0 }}/{{ breakdown.maxCraw }}</b></span>
+        <span v-if="breakdown.isCrawCapReached" class="ov-tag ov-tag-bad">CAP</span>
+        <span v-if="planet.overload" class="ov-tag ov-tag-warn">150%</span>·
+        <span>{{ t('lbl_item') }} {{ pctLabel(planet.item) }}</span>·
+        <span>{{ t('lbl_item_additional') }} {{ pctLabel(planet.itemCustom) }}</span>·
+        <span>LF <b class="text-slate-100">{{ lfResearchCount }}</b></span>
+      </div>
+    </div>
 
-      <!-- Riga 2: Edificio LF (sinistra, se presente) + Item (destra) -->
-      <div class="flex items-end justify-between gap-2">
-
-        <!-- Campo edificio LF (solo humans/rocktal) -->
-        <div v-if="planet.lifeform === 'rocktal'" class="flex flex-col gap-0.5">
-          <span class="text-[8px] text-orange-400/60 uppercase tracking-wider font-semibold">{{ t('lbl_magma') }}</span>
-          <input type="number" v-model.number="planet.magma" @focus="$event.target.select()"
-                 class="w-16 bg-ogame-bg/50 border border-orange-500/20 rounded-lg px-2 py-1 text-[11px] font-mono text-orange-300 text-center focus:outline-none focus:border-orange-400/50" />
+    <!-- MODIFICA (card aperta): tutti i controlli -->
+    <template v-else>
+      <div class="px-3.5 py-3 grid gap-3 border-b border-ogame-line">
+        <!-- Miniere -->
+        <div class="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2">
+          <div>
+            <label :for="'metal-' + index" class="ov-label mb-1">{{ t('res_metal') }}</label>
+            <NumStepper :id="'metal-' + index" v-model="planet.metal"
+                        input-class="h-9 text-lg font-bold !border-sky-500/45" />
+          </div>
+          <div>
+            <label :for="'crystal-' + index" class="ov-label mb-1">{{ t('res_crystal') }}</label>
+            <NumStepper :id="'crystal-' + index" v-model="planet.crystal"
+                        input-class="h-9 text-sm font-semibold text-slate-400" />
+          </div>
+          <div>
+            <label :for="'deut-' + index" class="ov-label mb-1">{{ t('res_deuterium') }}</label>
+            <NumStepper :id="'deut-' + index" v-model="planet.deuterium"
+                        input-class="h-9 text-sm font-semibold text-slate-400" />
+          </div>
         </div>
-        <div v-else-if="planet.lifeform === 'humans'" class="flex flex-col gap-0.5">
-          <span class="text-[8px] text-green-400/60 uppercase tracking-wider font-semibold">{{ t('lbl_human') }}</span>
-          <input type="number" v-model.number="planet.human" @focus="$event.target.select()"
-                 class="w-16 bg-ogame-bg/50 border border-green-500/20 rounded-lg px-2 py-1 text-[11px] font-mono text-green-300 text-center focus:outline-none focus:border-green-400/50" />
-        </div>
-        <!-- Placeholder invisibile per mantenere l'allineamento item a destra -->
-        <div v-else class="w-16 flex-shrink-0"></div>
 
-        <!-- Item + Custom (sempre a destra) -->
-        <div class="flex items-end gap-1.5">
-          <div class="flex flex-col gap-0.5">
-            <span class="text-[8px] text-slate-400 uppercase tracking-wider font-semibold text-center">{{ t('lbl_item') }}</span>
-            <select v-model.number="planet.item"
-                    :aria-label="t('lbl_item')"
-                    class="bg-ogame-bg/50 border border-slate-700/25 rounded-lg text-[11px] text-slate-400 px-1.5 py-1 focus:outline-none focus:border-sky-500/40 cursor-pointer">
+        <!-- Forma di vita -->
+        <div class="ov-seg ov-seg-full" role="group" :aria-label="t('lbl_lifeform')">
+          <button v-for="lf in ['humans','rocktal','mecha','kaelesh']" :key="lf" type="button"
+                  @click="planet.lifeform = lf" :aria-pressed="planet.lifeform === lf">
+            {{ t('opt_' + lf) }}
+          </button>
+        </div>
+
+        <!-- Edificio LF (solo Umani/Rock'tal) + Item + Ampl. risorse -->
+        <div class="grid gap-2" :class="planet.lifeform === 'rocktal' || planet.lifeform === 'humans' ? 'grid-cols-3' : 'grid-cols-2'">
+          <div v-if="planet.lifeform === 'rocktal'">
+            <label :for="'magma-' + index" class="ov-label mb-1 truncate">{{ t('lbl_magma') }}</label>
+            <NumStepper :id="'magma-' + index" v-model="planet.magma" input-class="h-8 text-sm" />
+          </div>
+          <div v-else-if="planet.lifeform === 'humans'">
+            <label :for="'human-' + index" class="ov-label mb-1 truncate">{{ t('lbl_human') }}</label>
+            <NumStepper :id="'human-' + index" v-model="planet.human" input-class="h-8 text-sm" />
+          </div>
+          <div>
+            <label :for="'item-' + index" class="ov-label mb-1">{{ t('lbl_item') }}</label>
+            <select :id="'item-' + index" v-model.number="planet.item" class="input-glass w-full h-8 px-2 text-sm cursor-pointer">
               <option value="0">&ndash;</option>
-              <option value="10">+10%</option>
-              <option value="20">+20%</option>
-              <option value="30">+30%</option>
-              <option value="40">+40%</option>
+              <option v-for="pct in METAL_BOOSTER_PCTS" :key="pct" v-memo="[pct]" :value="pct">+{{ pct }}%</option>
             </select>
           </div>
-          <div class="flex flex-col gap-0.5">
-            <span class="text-[8px] text-slate-400 uppercase tracking-wider font-semibold text-center">{{ t('lbl_item_additional') }}</span>
-            <select v-model.number="planet.itemCustom"
-                    :aria-label="t('lbl_item_additional')"
-                    class="bg-ogame-bg/50 border border-slate-700/25 rounded-lg text-[11px] text-slate-400 px-1.5 py-1 focus:outline-none focus:border-sky-500/40 cursor-pointer">
+          <div>
+            <label :for="'amp-' + index" class="ov-label mb-1">{{ t('lbl_item_additional') }}</label>
+            <select :id="'amp-' + index" v-model.number="planet.itemCustom" class="input-glass w-full h-8 px-2 text-sm cursor-pointer">
               <option value="0">&ndash;</option>
               <!-- v-memo: evita che il re-render della scheda riscriva gli attributi delle
                    option (Vue lo fa sempre) chiudendo la tendina nativa già aperta. -->
@@ -268,167 +298,124 @@ const breakdown = computed(() => {
             </select>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- CRAWLER -->
-    <div class="px-3 py-2 border-b border-slate-700/20 flex items-center gap-3">
-      <svg class="w-3.5 h-3.5 text-amber-400/50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
-      </svg>
-      <input type="number" v-model.number="planet.crawlers" @focus="$event.target.select()"
-             :aria-label="t('lbl_crawlers')"
-             class="w-20 bg-ogame-bg/50 border border-amber-500/20 rounded-lg px-2 py-1 text-sm font-mono text-amber-300 text-center focus:outline-none focus:border-amber-400/50" />
-      <span class="text-[10px] text-slate-400 font-mono">/ {{ breakdown.maxCraw }}</span>
-
-      <label class="flex items-center gap-1.5 cursor-pointer ml-auto"
-             :class="{'opacity-40 cursor-not-allowed': global.playerClass !== 'collector'}"
-             :aria-label="t('lbl_overload')" :title="t('lbl_overload')">
-        <div class="relative">
-          <input type="checkbox" v-model="planet.overload" :disabled="global.playerClass !== 'collector'" class="sr-only peer">
-          <div class="w-8 h-4 bg-slate-800 rounded-full border border-slate-700/40 peer-checked:bg-amber-600/30 peer-checked:border-amber-500/40 transition-all"></div>
-          <div class="absolute top-0.5 left-0.5 w-3 h-3 bg-slate-500 rounded-full peer-checked:translate-x-4 peer-checked:bg-amber-400 transition-all duration-200"></div>
+        <!-- Crawler -->
+        <div class="flex items-center gap-2">
+          <label :for="'craw-' + index" class="ov-label w-14 flex-shrink-0">Crawler</label>
+          <NumStepper :id="'craw-' + index" v-model="planet.crawlers" :aria-label="t('lbl_crawlers')"
+                      class="w-28" input-class="h-8 text-sm" />
+          <span class="text-sm text-slate-400 tabular-nums">/ {{ breakdown.maxCraw }}</span>
+          <span v-if="breakdown.isCrawCapReached" class="ov-tag ov-tag-bad">CAP</span>
+          <label class="flex items-center gap-1.5 cursor-pointer ml-auto"
+                 :class="{'opacity-50 cursor-not-allowed': global.playerClass !== 'collector'}"
+                 :title="t('lbl_overload')">
+            <span class="relative">
+              <input type="checkbox" v-model="planet.overload" :disabled="global.playerClass !== 'collector'" class="sr-only peer" :aria-label="t('lbl_overload')">
+              <span class="block w-8 h-[18px] bg-slate-700 rounded-full peer-checked:bg-amber-500/50 peer-focus-visible:ring-2 peer-focus-visible:ring-ogame-accent/60 transition-colors"></span>
+              <span class="absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-slate-400 rounded-full peer-checked:translate-x-3.5 peer-checked:bg-amber-300 transition-transform duration-150"></span>
+            </span>
+            <span class="text-xs text-slate-400">150%</span>
+          </label>
         </div>
-        <span class="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">150%</span>
-      </label>
+      </div>
 
-      <span v-if="breakdown.isCrawCapReached"
-            class="text-[9px] text-rose-400/80 font-mono uppercase bg-rose-500/[0.08] border border-rose-500/20 px-1.5 py-0.5 rounded flex-shrink-0">
-        CAP
-      </span>
-    </div>
-
-    <!-- RICERCHE LF (collassabile) -->
-    <div class="border-b border-slate-700/20">
-
-      <!-- Header toggle -->
-      <button @click="$emit('toggle-lf-research')"
-              :aria-expanded="showLfResearch"
-              :aria-controls="'lf-research-body-' + index"
-              class="w-full flex items-center justify-between px-3 py-2 text-[10px] text-purple-400/60 hover:text-purple-300 transition-colors">
-        <span class="flex items-center gap-1.5 font-semibold uppercase tracking-wider">
-          <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+      <!-- RICERCHE LF (apribile; stato condiviso da tutte le card) -->
+      <div class="border-b border-ogame-line">
+        <button @click="$emit('toggle-lf-research')"
+                :aria-expanded="showLfResearch"
+                :aria-controls="'lf-research-body-' + index"
+                class="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors">
           {{ t('lf_research_title') }}
-          <span v-if="lfResearchCount > 0"
-                class="px-1.5 py-0.5 rounded bg-purple-500/15 border border-purple-500/25 text-purple-300 font-mono normal-case tracking-normal">
-            {{ lfResearchCount }}
-          </span>
-        </span>
-        <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
-             :class="{ 'rotate-180': showLfResearch }"
-             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-        </svg>
-      </button>
+          <b class="text-slate-100">{{ lfResearchCount }} {{ t('pc_lf_active') }}</b>
+          <span v-if="lfMetalPct > 0" class="text-emerald-400">→ +{{ fmtPct(lfMetalPct) }}%</span>
+          <svg class="w-3 h-3 ml-auto transition-transform duration-150 flex-shrink-0"
+               :class="{ 'rotate-180': showLfResearch }" aria-hidden="true"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
 
-      <!-- Corpo espandibile -->
-      <div v-show="showLfResearch" :id="'lf-research-body-' + index" class="px-3 pb-3">
+        <div v-show="showLfResearch" :id="'lf-research-body-' + index" class="px-3.5 pb-3">
+          <!-- Livello Lifeform -->
+          <div class="flex items-center justify-between py-1.5 mb-2 border-b border-ogame-line">
+            <span class="text-xs text-slate-400">{{ t('lf_lifeform_level') }}</span>
+            <input type="number" v-model.number="planet.lifeformLevel" @focus="$event.target.select()" min="0" max="100"
+                   :aria-label="t('lf_lifeform_level')"
+                   class="input-glass w-16 h-7 px-1.5 text-xs text-center tabular-nums" />
+          </div>
 
-        <!-- Livello Lifeform -->
-        <div class="flex items-center justify-between py-1.5 mb-2 border-b border-slate-700/20">
-          <span class="text-[10px] text-slate-500 font-medium">{{ t('lf_lifeform_level') }}</span>
-          <input type="number" v-model.number="planet.lifeformLevel" @focus="$event.target.select()" min="0" max="100"
-                 :aria-label="t('lf_lifeform_level')"
-                 class="w-16 bg-ogame-bg/50 border border-slate-700/30 rounded-md px-1.5 py-1 text-[11px] font-mono text-purple-300 text-center focus:outline-none focus:border-purple-400/40" />
-        </div>
-
-        <!-- Ricerche ordinate per tier T1→T18; colore = specie -->
-        <div class="space-y-0.5">
-          <div v-for="r in lfResearchByTier" :key="r.id"
-               class="flex items-center gap-1.5 px-1.5 py-1 rounded-md transition-colors"
-               :class="isLfActive(r.id) ? SPECIES_COLORS[r.species].bg : 'bg-transparent'">
-
-            <!-- Dot specie + Tier + Nome -->
-            <span class="flex-grow min-w-0 flex items-center gap-1.5 overflow-hidden">
-              <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="SPECIES_COLORS[r.species].dot"></span>
-              <span class="flex-shrink-0 text-[9px] font-mono font-bold px-1 py-0.5 rounded bg-slate-800/70 transition-colors"
-                    :class="isLfActive(r.id) ? 'text-slate-500' : 'text-slate-700'">
-                T{{ r.tier }}
+          <!-- Ricerche ordinate per tier T1→T18; colore = specie -->
+          <div class="space-y-0.5">
+            <div v-for="r in lfResearchByTier" :key="r.id"
+                 class="flex items-center gap-1.5 px-1.5 py-1 rounded-md transition-colors"
+                 :class="isLfActive(r.id) ? SPECIES_COLORS[r.species].bg : 'bg-transparent'">
+              <span class="flex-grow min-w-0 flex items-center gap-1.5 overflow-hidden">
+                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="SPECIES_COLORS[r.species].dot"></span>
+                <span class="flex-shrink-0 text-[11px] font-mono font-bold px-1 py-0.5 rounded bg-ogame-raised text-slate-400">T{{ r.tier }}</span>
+                <span class="truncate text-[11px] cursor-default"
+                      :class="isLfActive(r.id) ? 'text-slate-200' : 'text-slate-400 line-through'"
+                      :title="r.name">{{ r.name }}</span>
               </span>
-              <span class="truncate text-[10px] transition-colors cursor-default"
-                    :class="isLfActive(r.id) ? 'text-slate-300' : 'text-slate-600 line-through'"
-                    :title="r.name">{{ r.name }}</span>
-            </span>
-
-            <!-- Toggle attivo/inattivo -->
-            <button @click="toggleLfResearch(r.id)"
-                    :aria-pressed="isLfActive(r.id)"
-                    :aria-label="r.name"
-                    class="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-[9px] font-bold transition-all border"
-                    :class="isLfActive(r.id)
-                        ? 'bg-purple-500/15 border-purple-500/30 text-purple-300 hover:bg-purple-500/25'
-                        : 'bg-slate-700/20 border-slate-700/40 text-slate-600 hover:border-slate-600/50'">
-              <span aria-hidden="true">{{ isLfActive(r.id) ? '✓' : '×' }}</span>
-            </button>
-
-            <!-- Input livello -->
-            <input type="number" v-model.number="planet.lfResearch[r.id]" @focus="$event.target.select()" min="0"
-                   :aria-label="r.name + ' — ' + t('lbl_level_abbr')"
-                   class="flex-shrink-0 w-12 bg-ogame-bg/60 border border-slate-700/30 rounded-md px-1 py-1 text-[11px] font-mono text-center focus:outline-none focus:border-purple-400/40 transition-opacity"
-                   :class="[isLfActive(r.id) ? 'text-purple-300' : 'text-slate-600 opacity-50']" />
-
-            <!-- Bonus preview -->
-            <span class="flex-shrink-0 w-[3.5rem] text-right text-[9px] font-mono"
-                  :class="(r.bonus[6]||0) > 0 ? 'text-purple-400/70' : 'text-emerald-500/60'">
-              <template v-if="(planet.lfResearch[r.id]||0) > 0 && isLfActive(r.id)">
-                <template v-if="(r.bonus[6]||0) > 0">
-                  +{{ (planetResearchMult * (r.bonus[6]*100) * (planet.lfResearch[r.id]||0)).toFixed(2) }}%<span class="text-purple-600"> col</span>
+              <button @click="toggleLfResearch(r.id)"
+                      :aria-pressed="isLfActive(r.id)"
+                      :aria-label="r.name"
+                      class="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-[11px] font-bold transition-colors border"
+                      :class="isLfActive(r.id)
+                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25'
+                          : 'bg-ogame-surface border-slate-700 text-slate-400 hover:border-slate-500'">
+                <span aria-hidden="true">{{ isLfActive(r.id) ? '✓' : '×' }}</span>
+              </button>
+              <input type="number" v-model.number="planet.lfResearch[r.id]" @focus="$event.target.select()" min="0"
+                     :aria-label="r.name + ' — ' + t('lbl_level_abbr')"
+                     class="input-glass flex-shrink-0 w-12 h-7 px-1 text-[11px] text-center tabular-nums"
+                     :class="isLfActive(r.id) ? 'text-slate-100' : 'text-slate-400'" />
+              <span class="flex-shrink-0 w-[3.75rem] text-right text-[11px] tabular-nums"
+                    :class="(r.bonus[6]||0) > 0 ? 'text-violet-300' : 'text-emerald-400'">
+                <template v-if="(planet.lfResearch[r.id]||0) > 0 && isLfActive(r.id)">
+                  <template v-if="(r.bonus[6]||0) > 0">
+                    +{{ (planetResearchMult * (r.bonus[6]*100) * (planet.lfResearch[r.id]||0)).toFixed(2) }}%<span class="text-violet-400"> col</span>
+                  </template>
+                  <template v-else>
+                    +{{ (planetResearchMult * (r.bonus[0]*100) * (planet.lfResearch[r.id]||0)).toFixed(2) }}%
+                  </template>
                 </template>
-                <template v-else>
-                  +{{ (planetResearchMult * (r.bonus[0]*100) * (planet.lfResearch[r.id]||0)).toFixed(2) }}%
-                </template>
-              </template>
-              <span v-else class="text-slate-700">—</span>
-            </span>
-
+                <span v-else class="text-slate-400">—</span>
+              </span>
+            </div>
           </div>
+
+          <!-- Edifici amplificatori -->
+          <template v-if="lfMetalBuildings.length > 0">
+            <div class="mt-3 pt-2 border-t border-ogame-line">
+              <div class="ov-sh mb-1.5" style="--tc:#fbbf24">{{ t('lf_section_buildings') }}</div>
+              <div v-for="b in lfMetalBuildings" :key="b.id" class="flex items-center gap-1.5 px-1.5 py-1">
+                <span class="flex-grow min-w-0 text-[11px] text-slate-300 truncate" :title="b.name">{{ b.name }}</span>
+                <input type="number" v-model.number="planet.lfBuildings[b.id]" @focus="$event.target.select()" min="0"
+                       :aria-label="b.name + ' — ' + t('lbl_level_abbr')"
+                       class="input-glass flex-shrink-0 w-12 h-7 px-1 text-[11px] text-center tabular-nums" />
+                <span class="flex-shrink-0 w-[3.75rem]"></span>
+              </div>
+            </div>
+          </template>
         </div>
-
-        <!-- Edifici amplificatori -->
-        <template v-if="lfMetalBuildings.length > 0">
-          <div class="mt-3 pt-2 border-t border-slate-700/20">
-            <div class="text-[9px] text-amber-500/60 uppercase tracking-widest font-bold mb-1.5 flex items-center gap-1.5">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-              {{ t('lf_section_buildings') }}
-            </div>
-            <div v-for="b in lfMetalBuildings" :key="b.id"
-                 class="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-amber-500/[0.04]">
-              <span class="flex-grow min-w-0 text-[10px] text-slate-400 truncate" :title="b.name">{{ b.name }}</span>
-              <input type="number" v-model.number="planet.lfBuildings[b.id]" @focus="$event.target.select()" min="0"
-                     :aria-label="b.name + ' — ' + t('lbl_level_abbr')"
-                     class="flex-shrink-0 w-12 bg-ogame-bg/60 border border-slate-700/30 rounded-md px-1 py-1 text-[11px] font-mono text-amber-300 text-center focus:outline-none focus:border-amber-400/40" />
-              <span class="flex-shrink-0 w-[3.5rem]"></span>
-            </div>
-          </div>
-        </template>
-
       </div>
-    </div>
+    </template>
 
-    <!-- PRODUZIONE FOOTER -->
-    <div class="bg-ogame-surface px-3 pt-2.5 pb-3 flex-grow flex flex-col justify-between">
-
-      <!-- Dettagli base -->
-      <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono mb-1.5">
-        <span>{{ t('lbl_nat_prod') }}: {{ formatNum(breakdown.natProd) }}</span>
-        <span>{{ t('lbl_mine_base') }}: {{ formatNum(breakdown.mineBase) }}</span>
-      </div>
-
-      <!-- Bonus chips -->
-      <div v-if="breakdown.bonuses.length > 0" class="flex flex-wrap gap-1 mb-2">
-        <span v-for="(b, i) in breakdown.bonuses" :key="i"
-              class="inline-flex items-center text-[9px] bg-emerald-500/[0.06] border border-emerald-500/15 text-emerald-400/70 px-1.5 py-0.5 rounded font-mono">
-          +{{ formatNum(breakdown.mineBase * (b.v / 100)) }}
-          <span class="text-emerald-700 ml-0.5">{{ b.n }}</span>
-        </span>
-      </div>
-
-      <!-- Totale orario -->
-      <div class="flex items-center justify-between pt-2 border-t border-slate-700/20">
-        <span class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">{{ t('footer_prod_hour') }}</span>
-        <span class="text-xl font-black font-mono text-ogame-accent leading-none">{{ formatNum(breakdown.total) }}</span>
-      </div>
-    </div>
+    <!-- Apri / chiudi la modifica -->
+    <button type="button" @click="editOpen = !editOpen" :aria-expanded="editOpen"
+            class="mt-auto w-full flex items-center gap-2 px-3.5 py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+      {{ editOpen ? t('pc_close') : t('pc_edit') }}
+      <svg class="w-3 h-3 ml-auto transition-transform duration-150" :class="{ 'rotate-180': editOpen }" aria-hidden="true"
+           fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+    </button>
 
   </div>
 </template>
+
+<style scoped>
+/* Tabella delle fonti: colore · nome · barretta · % · valore orario */
+.src-table { display: grid; grid-template-columns: 8px minmax(0, 1fr) 56px auto auto; gap: 4px 8px; align-items: center; }
+.src-table .sw { width: 8px; height: 8px; border-radius: 2px; display: block; }
+.src-table .bar { height: 4px; border-radius: 2px; background: #1e293b; position: relative; overflow: hidden; display: block; }
+.src-table .bar > s { position: absolute; inset: 0 auto 0 0; background: currentColor; text-decoration: none; }
+</style>

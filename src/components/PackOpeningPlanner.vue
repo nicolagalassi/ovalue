@@ -10,15 +10,15 @@
 import { reactive, computed, watch } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
-import { useOgameFormulas } from '../composables/useOgameFormulas';
-import { SHOP_ITEMS } from '../data/ogame_db';
+import { useOgameFormulas, formatInt, formatPct } from '../composables/useOgameFormulas';
+import { SHOP_ITEMS, RES_AMP_PCTS } from '../data/ogame_db';
 import { getEventDiscountFactor } from '../data/shopDiscounts';
 
 const { t } = useLanguage();
 const { activeProfile, saveProfiles } = useProfiles();
 const { calcPlanetMetalProduction, calcLFResearchBonus } = useOgameFormulas();
 
-const formatNum = (n) => new Intl.NumberFormat('it-IT').format(Math.floor(n));
+const formatNum = formatInt;
 
 // ── Catalogo item ─────────────────────────────────────────────────────────
 // Solo metallo: il Pacchetto Metallo vale 1 giorno di produzione di metallo.
@@ -33,7 +33,7 @@ const BOOSTERS = [
 ].map(b => ({ ...b, key: 'booster_metal', base: SHOP_ITEMS.items.booster_metal.costs[b.tier][b.dur] }));
 // Amplificatore di risorse: solo 30 giorni (taglio minimo). Campo pianeta:
 // `itemCustom`, si somma all'amplificatore di metallo.
-const AMPS = [15, 20, 25, 30, 40].map(pct => ({
+const AMPS = RES_AMP_PCTS.map(pct => ({
     id: `a${pct}`, pct, tier: 'none', dur: '30d', key: `res_amp_${pct}`,
     base: SHOP_ITEMS.items[`res_amp_${pct}`].costs.none['30d'],
 }));
@@ -264,130 +264,124 @@ const strategyLabel = (s) => {
 <template>
   <div>
     <!-- Intro -->
-    <div class="card-glass mb-8 bg-amber-500/[0.03] p-6 flex items-start gap-4">
-        <div class="hidden md:block p-3 rounded-xl bg-amber-500/[0.08] text-amber-400 flex-shrink-0">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-        </div>
-        <div class="space-y-2">
-            <p class="text-sm text-slate-300 leading-relaxed font-medium">{{ t('pop_intro') }}</p>
-            <p class="text-xs text-slate-500 leading-relaxed">{{ t('pop_note_duration') }}</p>
-        </div>
+    <div class="mb-5 grid gap-1 max-w-[80ch]">
+        <p class="text-sm text-slate-300 leading-relaxed">{{ t('pop_intro') }}</p>
+        <p class="text-xs text-slate-400 leading-relaxed">{{ t('pop_note_duration') }}</p>
     </div>
 
-    <div v-if="!production.rows.length" class="card-glass p-8 text-center">
+    <div v-if="!production.rows.length" class="ov-panel p-8 text-center">
         <p class="text-slate-300 mb-4">{{ t('pop_no_planets') }}</p>
-        <router-link to="/metal" class="inline-block px-4 py-2 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-bold hover:bg-amber-500/10">
+        <router-link to="/metal" class="ov-btn ov-btn-tint">
             {{ t('pop_go_production') }}
         </router-link>
     </div>
 
-    <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
         <!-- Colonna impostazioni -->
-        <div class="lg:col-span-1 space-y-6">
+        <div class="lg:col-span-1 grid gap-4 min-w-0">
             <!-- Budget -->
-            <div class="card-glass p-5 bg-amber-500/[0.03] border border-amber-500/20">
-                <h3 class="text-[11px] font-black text-amber-400 uppercase tracking-widest font-mono mb-3">{{ t('pop_budget_title') }}</h3>
-                <label for="pop-owned" class="block text-[11px] font-bold text-slate-400 mb-1">{{ t('pop_owned_packs') }}</label>
-                <input id="pop-owned" v-model.lazy="formPacks" type="text" inputmode="numeric" @focus="$event.target.select()"
-                       class="input-glass w-full px-4 py-2.5 text-white font-black text-center text-xl mb-3">
-                <label for="pop-mo" class="block text-[11px] font-bold text-slate-400 mb-1">{{ t('pop_available_mo') }}</label>
-                <input id="pop-mo" v-model.lazy="formMo" type="text" inputmode="numeric" @focus="$event.target.select()"
-                       class="input-glass w-full px-4 py-2.5 text-ogame-dm font-black text-center text-xl">
-                <p class="text-[11px] text-slate-500 mt-2 text-center">{{ t('pop_budget_hint') }}</p>
+            <div class="ov-panel p-5 grid gap-3">
+                <h3 class="ov-sh">{{ t('pop_budget_title') }}</h3>
+                <div>
+                    <label for="pop-owned" class="ov-label mb-1.5">{{ t('pop_owned_packs') }}</label>
+                    <input id="pop-owned" v-model.lazy="formPacks" type="text" inputmode="numeric" @focus="$event.target.select()"
+                           class="input-glass w-full h-10 px-3 text-lg font-bold tabular-nums">
+                </div>
+                <div>
+                    <label for="pop-mo" class="ov-label mb-1.5">{{ t('pop_available_mo') }}</label>
+                    <input id="pop-mo" v-model.lazy="formMo" type="text" inputmode="numeric" @focus="$event.target.select()"
+                           class="input-glass w-full h-10 px-3 text-lg font-bold tabular-nums">
+                </div>
+                <p class="text-[11px] text-slate-400">{{ t('pop_budget_hint') }}</p>
             </div>
 
             <!-- Sconti -->
-            <div class="card-glass p-5 space-y-4">
+            <div class="ov-panel p-5 grid gap-4" style="--tc:#a78bfa">
+                <h3 class="ov-sh">{{ t('lbl_cost_dm') }}</h3>
                 <div>
-                    <label for="pop-pack-event" class="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{{ t('pop_pack_event') }}</label>
-                    <select id="pop-pack-event" v-model="state.packEvent" class="input-glass w-full px-3 py-2 text-sm">
+                    <label for="pop-pack-event" class="ov-label mb-1.5">{{ t('pop_pack_event') }}</label>
+                    <select id="pop-pack-event" v-model="state.packEvent" class="input-glass w-full h-9 px-3 text-sm">
                         <option v-for="e in EVENT_OPTIONS" :key="e.id" :value="e.id">{{ t(e.label) }}</option>
                     </select>
-                    <p class="text-[11px] text-slate-500 mt-1">{{ t('pop_pack_price') }}: <span class="text-ogame-dm font-bold">{{ formatNum(packPrice) }}</span></p>
+                    <p class="text-[11px] text-slate-400 mt-1">{{ t('pop_pack_price') }}: <span class="text-slate-100 font-semibold tabular-nums">{{ formatNum(packPrice) }}</span></p>
                 </div>
                 <div>
-                    <label for="pop-item-event" class="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{{ t('pop_item_event') }}</label>
-                    <select id="pop-item-event" v-model="state.itemEvent" class="input-glass w-full px-3 py-2 text-sm">
+                    <label for="pop-item-event" class="ov-label mb-1.5">{{ t('pop_item_event') }}</label>
+                    <select id="pop-item-event" v-model="state.itemEvent" class="input-glass w-full h-9 px-3 text-sm">
                         <option v-for="e in EVENT_OPTIONS" :key="e.id" :value="e.id">{{ t(e.label) }}</option>
                     </select>
                 </div>
             </div>
 
             <!-- Item considerati -->
-            <div class="card-glass p-5">
-                <h3 class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">{{ t('pop_options_title') }}</h3>
+            <div class="ov-panel p-5 grid gap-3">
+                <h3 class="ov-sh">{{ t('pop_options_title') }}</h3>
                 <div class="space-y-1.5">
                     <label v-for="o in [...boosterOpts, ...ampOpts]" :key="o.id"
-                           class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-white/[0.03] cursor-pointer">
-                        <input type="checkbox" v-model="state.enabled[o.id]" class="accent-amber-400">
-                        <span class="flex-1 text-xs text-slate-300">{{ itemLabel(o) }}</span>
-                        <span class="text-xs font-mono font-bold text-ogame-dm">{{ formatNum(o.cost) }}</span>
+                           class="flex items-center gap-2.5 px-1 py-1 rounded-md hover:bg-white/[0.03] cursor-pointer">
+                        <input type="checkbox" v-model="state.enabled[o.id]" class="w-4 h-4 accent-cyan-400">
+                        <span class="flex-1 text-[13px] text-slate-200">{{ itemLabel(o) }}</span>
+                        <span class="text-xs text-slate-400 tabular-nums">{{ formatNum(o.cost) }}</span>
                     </label>
                 </div>
             </div>
 
             <!-- Produzione -->
-            <div class="card-glass p-5 space-y-2">
-                <div class="flex justify-between items-baseline gap-2">
-                    <span class="text-xs text-slate-400">{{ t('pop_base_prod') }}</span>
-                    <span class="font-mono font-bold text-white">{{ formatNum(production.dailyNoItems) }}</span>
-                </div>
-                <div class="flex justify-between items-baseline gap-2">
-                    <span class="text-xs text-slate-500">{{ t('pop_current_prod') }}</span>
-                    <span class="font-mono text-slate-400">{{ formatNum(production.dailyCurrent) }}</span>
-                </div>
-                <p class="text-[11px] text-slate-500 leading-snug">{{ t('pop_base_prod_hint') }}</p>
+            <div class="ov-panel p-5 grid gap-2.5" style="--tc:#38bdf8">
+                <div class="ov-stat"><span class="ov-stat-k">{{ t('pop_base_prod') }}</span><span class="ov-stat-v">{{ formatNum(production.dailyNoItems) }}</span></div>
+                <div class="ov-stat"><span class="ov-stat-k">{{ t('pop_current_prod') }}</span><span class="text-base font-semibold text-slate-300 tabular-nums">{{ formatNum(production.dailyCurrent) }}</span></div>
+                <p class="text-[11px] text-slate-400 leading-snug">{{ t('pop_base_prod_hint') }}</p>
             </div>
         </div>
 
         <!-- Colonna risultati -->
-        <div class="lg:col-span-2 space-y-6">
+        <div class="lg:col-span-2 grid gap-4 min-w-0">
             <!-- Risultato ottimo -->
-            <div v-if="optimal" class="card-glass p-6 border border-ogame-success/25 bg-ogame-success/[0.03]">
-                <h3 class="text-[11px] font-black text-ogame-success uppercase tracking-widest font-mono mb-4">{{ t('pop_strat_optimal') }}</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div v-if="optimal" class="ov-panel p-5 grid gap-4" style="--tc:#34d399">
+                <h3 class="ov-sh">{{ t('pop_strat_optimal') }}</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-ogame-line rounded-lg overflow-hidden [&>div]:bg-ogame-panel [&>div]:px-3 [&>div]:py-2.5">
                     <div>
-                        <div class="text-[10px] uppercase text-slate-500 font-bold">{{ t('pop_total_metal') }}</div>
-                        <div class="text-lg font-black text-white font-mono">{{ formatNum(optimal.total) }}</div>
+                        <div class="ov-stat-k">{{ t('pop_total_metal') }}</div>
+                        <div class="ov-stat-v">{{ formatNum(optimal.total) }}</div>
                     </div>
                     <div>
-                        <div class="text-[10px] uppercase text-slate-500 font-bold">{{ t('pop_packs') }}</div>
-                        <div class="text-lg font-black text-amber-300 font-mono">
+                        <div class="ov-stat-k">{{ t('pop_packs') }}</div>
+                        <div class="ov-stat-v text-amber-300">
                             {{ formatNum(optimal.packs) }}
-                            <span v-if="optimal.extraPacks" class="text-xs text-slate-500">(+{{ formatNum(optimal.extraPacks) }})</span>
+                            <span v-if="optimal.extraPacks" class="text-sm text-slate-400">(+{{ formatNum(optimal.extraPacks) }})</span>
                         </div>
                     </div>
                     <div>
-                        <div class="text-[10px] uppercase text-slate-500 font-bold">{{ t('pop_pack_value') }}</div>
-                        <div class="text-lg font-black text-white font-mono">{{ formatNum(optimal.packValue) }}</div>
+                        <div class="ov-stat-k">{{ t('pop_pack_value') }}</div>
+                        <div class="ov-stat-v">{{ formatNum(optimal.packValue) }}</div>
                     </div>
                     <div>
-                        <div class="text-[10px] uppercase text-slate-500 font-bold">{{ t('pop_gain') }}</div>
-                        <div class="text-lg font-black font-mono" :class="optimal.total > noneTotal ? 'text-ogame-success' : 'text-slate-400'">
-                            +{{ noneTotal > 0 ? ((optimal.total / noneTotal - 1) * 100).toFixed(2) : '0.00' }}%
+                        <div class="ov-stat-k">{{ t('pop_gain') }}</div>
+                        <div class="ov-stat-v" :class="optimal.total > noneTotal ? '!text-emerald-400' : '!text-slate-400'">
+                            +{{ noneTotal > 0 ? formatPct((optimal.total / noneTotal - 1) * 100, 2) : '0,00' }}%
                         </div>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-slate-700/30 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-400">
-                    <span>{{ t('pop_items_cost') }}: <b class="text-ogame-dm">{{ formatNum(optimal.itemsCost) }}</b></span>
-                    <span>{{ t('pop_packs_cost') }}: <b class="text-ogame-dm">{{ formatNum(optimal.extraPacks * packPrice) }}</b></span>
+                <div class="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-slate-400">
+                    <span>{{ t('pop_items_cost') }}: <b class="text-slate-100 tabular-nums">{{ formatNum(optimal.itemsCost) }}</b></span>
+                    <span>{{ t('pop_packs_cost') }}: <b class="text-slate-100 tabular-nums">{{ formatNum(optimal.extraPacks * packPrice) }}</b></span>
                     <span>{{ t('pop_leftover') }}: <b class="text-slate-300">{{ formatNum(optimal.leftover) }}</b></span>
                 </div>
-                <div v-if="shoppingSummary.length" class="mt-4 flex flex-wrap gap-2">
+                <div v-if="shoppingSummary.length" class="flex flex-wrap gap-2">
                     <span v-for="s in shoppingSummary" :key="s.item.id"
-                          class="px-2.5 py-1 rounded-md bg-black/40 border border-slate-700/40 text-xs text-slate-200">
+                          class="px-2.5 py-1 rounded-md bg-ogame-raised border border-slate-700 text-xs text-slate-200">
                         {{ s.n }}× {{ itemLabel(s.item) }}
                     </span>
                 </div>
             </div>
 
             <!-- Confronto strategie -->
-            <div class="card-glass p-6">
-                <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider mb-4">{{ t('pop_results_title') }}</h3>
+            <div class="ov-panel p-5 grid gap-3">
+                <h3 class="ov-sh">{{ t('pop_results_title') }}</h3>
                 <div class="overflow-x-auto -mx-2">
-                    <table class="w-full text-xs min-w-[520px]">
+                    <table class="w-full text-[13px] tabular-nums min-w-[520px]">
                         <thead>
-                            <tr class="text-[10px] uppercase tracking-wider text-slate-500 text-left">
+                            <tr class="font-mono text-[11px] uppercase tracking-[0.08em] text-slate-400 text-left">
                                 <th class="px-2 py-2 font-bold">{{ t('pop_strategy') }}</th>
                                 <th class="px-2 py-2 font-bold text-right">{{ t('pop_items_cost') }}</th>
                                 <th class="px-2 py-2 font-bold text-right">{{ t('pop_packs') }}</th>
@@ -396,31 +390,31 @@ const strategyLabel = (s) => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="s in strategies" :key="s.id" class="border-t border-slate-700/20"
-                                :class="s.optimal ? 'bg-ogame-success/[0.05]' : ''">
-                                <td class="px-2 py-2" :class="s.optimal ? 'text-ogame-success font-bold' : 'text-slate-300'">{{ strategyLabel(s) }}</td>
-                                <td class="px-2 py-2 text-right font-mono text-ogame-dm">{{ formatNum(s.res.itemsCost) }}</td>
-                                <td class="px-2 py-2 text-right font-mono text-amber-300">
-                                    {{ formatNum(s.res.packs) }}<span v-if="s.res.extraPacks" class="text-slate-500"> (+{{ formatNum(s.res.extraPacks) }})</span>
+                            <tr v-for="s in strategies" :key="s.id" class="border-t border-ogame-line"
+                                :class="s.optimal ? 'bg-emerald-400/[0.06]' : ''">
+                                <td class="px-2 py-2" :class="s.optimal ? 'text-slate-100 font-semibold' : 'text-slate-300'">{{ strategyLabel(s) }}</td>
+                                <td class="px-2 py-2 text-right text-slate-300">{{ formatNum(s.res.itemsCost) }}</td>
+                                <td class="px-2 py-2 text-right text-slate-200">
+                                    {{ formatNum(s.res.packs) }}<span v-if="s.res.extraPacks" class="text-slate-400"> (+{{ formatNum(s.res.extraPacks) }})</span>
                                 </td>
-                                <td class="px-2 py-2 text-right font-mono text-white">{{ formatNum(s.res.total) }}</td>
-                                <td class="px-2 py-2 text-right font-mono" :class="s.vsBest >= -0.0001 ? 'text-ogame-success' : 'text-ogame-danger'">
-                                    {{ s.vsBest >= -0.0001 ? '—' : s.vsBest.toFixed(2) + '%' }}
+                                <td class="px-2 py-2 text-right text-slate-100">{{ formatNum(s.res.total) }}</td>
+                                <td class="px-2 py-2 text-right font-mono" :class="s.vsBest >= -0.0001 ? 'text-emerald-400' : 'text-slate-400'">
+                                    {{ s.vsBest >= -0.0001 ? '—' : formatPct(s.vsBest, 2) + '%' }}
                                 </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <p class="text-[11px] text-slate-500 mt-3">{{ t('pop_unaffordable_hidden') }}</p>
+                <p class="text-[11px] text-slate-400">{{ t('pop_unaffordable_hidden') }}</p>
             </div>
 
             <!-- Piano per pianeta -->
-            <div v-if="plan.length" class="card-glass p-6">
-                <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider mb-4">{{ t('pop_plan_title') }}</h3>
+            <div v-if="plan.length" class="ov-panel p-5 grid gap-3">
+                <h3 class="ov-sh">{{ t('pop_plan_title') }}</h3>
                 <div class="overflow-x-auto -mx-2">
-                    <table class="w-full text-xs min-w-[480px]">
+                    <table class="w-full text-[13px] tabular-nums min-w-[480px]">
                         <thead>
-                            <tr class="text-[10px] uppercase tracking-wider text-slate-500 text-left">
+                            <tr class="font-mono text-[11px] uppercase tracking-[0.08em] text-slate-400 text-left">
                                 <th class="px-2 py-2 font-bold">{{ t('pop_planet') }}</th>
                                 <th class="px-2 py-2 font-bold text-right">{{ t('pop_mine_daily') }}</th>
                                 <th class="px-2 py-2 font-bold">{{ t('pop_items') }}</th>
@@ -428,19 +422,19 @@ const strategyLabel = (s) => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="r in plan" :key="r.idx" class="border-t border-slate-700/20">
+                            <tr v-for="r in plan" :key="r.idx" class="border-t border-ogame-line">
                                 <td class="px-2 py-2 text-slate-300">
-                                    {{ r.name }} <span v-if="r.pos" class="text-slate-500 font-mono">[{{ r.pos }}]</span>
+                                    {{ r.name }} <span v-if="r.pos" class="text-slate-400">[{{ r.pos }}]</span>
                                 </td>
-                                <td class="px-2 py-2 text-right font-mono text-slate-400">{{ formatNum(r.perPct * 100) }}</td>
+                                <td class="px-2 py-2 text-right text-slate-300">{{ formatNum(r.perPct * 100) }}</td>
                                 <td class="px-2 py-2">
-                                    <span v-if="!r.combo.b && !r.combo.a" class="text-slate-600">—</span>
+                                    <span v-if="!r.combo.b && !r.combo.a" class="text-slate-400">—</span>
                                     <span v-else class="flex flex-wrap gap-1">
                                         <span v-if="r.combo.b" class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300">{{ shortLabel(r.combo.b) }}</span>
                                         <span v-if="r.combo.a" class="px-1.5 py-0.5 rounded bg-ogame-accent/10 text-ogame-accent">{{ shortLabel(r.combo.a) }}</span>
                                     </span>
                                 </td>
-                                <td class="px-2 py-2 text-right font-mono text-ogame-dm">{{ r.combo.cost ? formatNum(r.combo.cost) : '—' }}</td>
+                                <td class="px-2 py-2 text-right text-slate-300">{{ r.combo.cost ? formatNum(r.combo.cost) : '—' }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -448,5 +442,15 @@ const strategyLabel = (s) => {
             </div>
         </div>
     </div>
+    <!-- Barra fissa dei risultati: portata fuori dal contenitore della pagina, a tutta larghezza come le altre -->
+    <Teleport defer to="#pack-resultbar-slot">
+    <div v-if="optimal" class="ov-resultbar">
+      <div class="ov-resultbar-in">
+        <div class="ov-stat"><span class="ov-stat-k">{{ t('pop_total_metal') }}</span><span class="ov-stat-v">{{ formatNum(optimal.total) }}</span></div>
+        <div class="ov-stat"><span class="ov-stat-k">{{ t('pop_packs') }}</span><span class="ov-stat-v text-amber-300">{{ formatNum(optimal.packs) }}<span v-if="optimal.extraPacks" class="text-sm text-slate-400"> (+{{ formatNum(optimal.extraPacks) }})</span></span></div>
+        <div class="ov-stat"><span class="ov-stat-k">{{ t('pop_gain') }}</span><span class="ov-stat-v text-emerald-400">+{{ noneTotal > 0 ? formatPct((optimal.total / noneTotal - 1) * 100, 2) : '0,00' }}%</span></div>
+      </div>
+    </div>
+    </Teleport>
   </div>
 </template>

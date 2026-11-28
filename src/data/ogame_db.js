@@ -486,7 +486,13 @@ export const DM_PACKAGES = [
     { cost: 10,  amount: 150000 },
     { cost: 5,   amount: 60000 }
 ];
-export const DM_EVENT_BONUSES = [0, 30, 40, 50, 60, 100, 130];
+export const DM_EVENT_BONUSES = [0, 30, 40, 50, 60, 100, 110, 130];
+// Percentuali degli item di produzione: amplificatore di metallo e amplificatore di risorse.
+// Unica fonte per Production Core, modifica massiva, Planner e Planner apertura.
+export const METAL_BOOSTER_PCTS = [10, 20, 30, 40];
+export const RES_AMP_PCTS = [15, 20, 25, 30, 40];
+// Sconti dello shop sui pacchetti risorse (stessi valori in Pack Exchange e Production Planner)
+export const SHOP_PACK_DISCOUNTS = [0, 20, 30];
 export const DM_PAYMENT_BONUS_PER_EUR = 1000;
 
 // MO effettiva di un taglio dati i bonus attivi.

@@ -1,10 +1,17 @@
 import { OGAME_DB } from '../data/ogame_db';
 
+// Numeri interi con separatore delle migliaia sempre presente: in it-IT Intl non raggruppa
+// i numeri a 4 cifre ("7500" accanto a "28.000" nelle colonne).
+const NUM_FMT = new Intl.NumberFormat('it-IT', { useGrouping: 'always' });
+export const formatInt = (n) => NUM_FMT.format(Math.floor(n));
+// Percentuali e decimali con la virgola italiana e un numero fisso di cifre
+export const formatPct = (v, d = 2) => new Intl.NumberFormat('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d }).format(v || 0);
+
 export function useOgameFormulas() {
     
     // Formatter numeri (es. 1.000.000)
     const formatNum = (n) => {
-        return new Intl.NumberFormat('it-IT').format(Math.floor(n));
+        return NUM_FMT.format(Math.floor(n));
     };
 
     // Calcolo Produzione Base Miniera (Identico al vecchio script)

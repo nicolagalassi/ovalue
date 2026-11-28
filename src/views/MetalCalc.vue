@@ -1,16 +1,29 @@
 <script setup>
+import PageHead from '../components/PageHead.vue';
 import { ref, reactive, computed, watch } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
-import { useOgameFormulas } from '../composables/useOgameFormulas';
+import { useOgameFormulas, formatPct } from '../composables/useOgameFormulas';
 import { useProfiles } from '../composables/useProfiles';
 import { useToast } from '../composables/useToast';
-import { OGAME_DB } from '../data/ogame_db';
+import { useOverlay } from '../composables/useOverlay';
+import { OGAME_DB, METAL_BOOSTER_PCTS, RES_AMP_PCTS } from '../data/ogame_db';
 import PlanetCard from '../components/PlanetCard.vue';
+import NumStepper from '../components/NumStepper.vue';
 
 const { t } = useLanguage();
 const { show: showToast } = useToast();
 const { calcPlanetMetalProduction, calcLFResearchBonus, formatNum } = useOgameFormulas();
 const { activeProfile, saveProfiles } = useProfiles();
+// Impostazioni account: chiuse di default (arrivano dall'Exporter), aperte se mancano i dati
+const settingsOpen = ref(!activeProfile.value?.lastSync);
+const bulkOpen = ref(false);
+
+// Valori letti dal gioco all'ultimo import: se l'utente li ha cambiati a mano,
+// "Ripristina dal gioco" li rimette. Assenti nei profili sincronizzati prima di questa versione.
+const gameSettings = computed(() => activeProfile.value?.production?.gameSettings || null);
+const settingsModified = computed(() => !!gameSettings.value &&
+    Object.entries(gameSettings.value).some(([k, v]) => settings[k] !== v));
+const restoreGameSettings = () => { if (gameSettings.value) Object.assign(settings, gameSettings.value); };
 
 const settings = reactive({
     ecoSpeed: 8,
@@ -81,6 +94,8 @@ const resetAll = () => { resetConfirmOpen.value = true; };
 const doResetAll = () => { planets.value = [createPlanet()]; resetConfirmOpen.value = false; };
 
 const bulkConfirmOpen = ref(false);
+useOverlay(bulkConfirmOpen);
+useOverlay(resetConfirmOpen);
 const requestBulk = () => { if (bulkValue.value !== '' && planets.value.length > 1) { bulkConfirmOpen.value = true; } else { applyBulk(); } };
 const doBulkApply = () => { applyBulk(); bulkConfirmOpen.value = false; };
 
@@ -118,9 +133,9 @@ const applyBulk = () => {
     if (target !== 'lifeform' && isNaN(val)) return;
     planets.value.forEach(p => {
         if (target === 'overload') p.overload = (val === 1);
-        else if (target === 'item') { if ([0,10,20,30,40].includes(val)) p.item = val; }
+        else if (target === 'item') { if (val === 0 || METAL_BOOSTER_PCTS.includes(val)) p.item = val; }
         // Amplificatore di risorse: tagli fissi come nella scheda pianeta
-        else if (target === 'itemCustom') { if ([0,15,20,25,30,40].includes(val)) p.itemCustom = val; }
+        else if (target === 'itemCustom') { if (val === 0 || RES_AMP_PCTS.includes(val)) p.itemCustom = val; }
         else if (target === 'lifeform') p.lifeform = val;
         else if (p.hasOwnProperty(target)) p[target] = val;
     });
@@ -169,33 +184,46 @@ const collBreakdown = computed(() => {
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-32">
-    <!-- Page Header -->
-    <div class="mb-10 text-center relative">
-        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase">
-            {{ t('metal_calc_title') }}
-        </h1>
-        <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-sky-500 to-sky-400 mx-auto rounded-full opacity-70"></div>
-    </div>
-
-
+  <div class="w-full min-w-0 max-w-7xl mx-auto px-4 md:px-6 pt-6 pb-8">
+    <PageHead tool="metal" :title="t('metal_calc_title')" :sub="t('card_metal_desc')" />
 
     <!-- ── IMPOSTAZIONI GLOBALI ──────────────────────────────────────── -->
-    <div class="card-glass p-5 mb-6">
+    <div class="ov-panel p-5 mb-4" style="--tc:#38bdf8">
 
-        <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2 uppercase tracking-wider">
-            <svg class="w-3.5 h-3.5 text-sky-400/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+        <h2 class="ov-sh" :class="settingsOpen ? 'mb-4' : 'mb-3'">
             {{ t('settings_title') }}
-        </h3>
+            <span class="ov-sh-r flex items-center gap-2">
+                <template v-if="settingsModified">
+                    <span class="ov-tag ov-tag-warn">{{ t('settings_modified') }}</span>
+                    <button type="button" @click="restoreGameSettings" class="ov-btn ov-btn-ghost ov-btn-sm">{{ t('btn_restore_game') }}</button>
+                </template>
+                <span v-else-if="activeProfile?.lastSync" class="ov-tag ov-tag-ok">{{ t('settings_from_game') }}</span>
+                <button type="button" @click="settingsOpen = !settingsOpen" :aria-expanded="settingsOpen" aria-controls="mc-settings-form"
+                        class="ov-btn ov-btn-ghost ov-btn-sm">{{ settingsOpen ? t('pc_close') : t('btn_edit') }}</button>
+            </span>
+        </h2>
 
-        <!-- Riga 1: controlli principali -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+        <!-- Riepilogo: i valori arrivano dall'Exporter, di solito non serve toccarli -->
+        <dl v-if="!settingsOpen" class="flex flex-wrap gap-x-6 gap-y-2 text-[13px]">
+            <div class="flex items-baseline gap-1.5"><dt class="text-slate-400">{{ t('lbl_eco_short') }}</dt><dd class="font-semibold text-slate-100 tabular-nums">×{{ settings.ecoSpeed }}</dd></div>
+            <div class="flex items-baseline gap-1.5"><dt class="text-slate-400">{{ t('lbl_player_class') }}</dt>
+                <dd class="font-semibold text-slate-100">{{ settings.playerClass === 'collector' ? t('opt_collector') : t('opt_general') }}<span v-if="settings.playerClass === 'collector' && lfResearchPct.collectorBonus > 0" class="text-violet-300 font-medium"> +{{ formatPct(lfResearchPct.collectorBonus, 2) }}%</span></dd></div>
+            <div class="flex items-baseline gap-1.5"><dt class="text-slate-400">{{ t('lbl_plasma_short') }}</dt><dd class="font-semibold text-slate-100 tabular-nums">{{ settings.plasma }}</dd></div>
+            <div class="flex items-baseline gap-1.5"><dt class="text-slate-400">LF</dt><dd class="font-semibold text-emerald-300 tabular-nums">+{{ formatPct(hasLfResearchData ? lfResearchPct.metal : settings.lfBonus, 2) }}%</dd></div>
+            <div class="flex items-baseline gap-1.5"><dt class="text-slate-400">{{ t('lbl_geo_short') }}</dt><dd class="font-semibold" :class="settings.geologist ? 'text-emerald-300' : 'text-slate-500'">{{ settings.geologist ? '✓' : '–' }}</dd></div>
+            <div class="flex items-baseline gap-1.5"><dt class="text-slate-400">{{ t('lbl_staff_short') }}</dt><dd class="font-semibold" :class="settings.staff ? 'text-emerald-300' : 'text-slate-500'">{{ settings.staff ? '✓' : '–' }}</dd></div>
+            <div class="flex items-baseline gap-1.5"><dt class="text-slate-400">{{ t('lbl_ally_short') }}</dt><dd class="font-semibold text-slate-100">{{ settings.allyClass === 'trader' ? t('opt_trader') : t('opt_none') }}</dd></div>
+        </dl>
+
+        <div v-show="settingsOpen" id="mc-settings-form">
+        <!-- Riga 1: controlli principali (campi larghi quanto il valore che contengono) -->
+        <div class="flex flex-wrap items-end gap-x-5 gap-y-3 mb-4">
             <div>
-                <label for="mc-eco-speed" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_eco_speed') }}</label>
-                <input id="mc-eco-speed" type="number" v-model.number="settings.ecoSpeed" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
+                <label for="mc-eco-speed" class="ov-label mb-1.5">{{ t('lbl_eco_speed') }}</label>
+                <NumStepper id="mc-eco-speed" v-model="settings.ecoSpeed" :min="1" :max="10" class="w-24" input-class="h-10" />
             </div>
-            <div class="col-span-2">
-                <label for="mc-player-class" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_player_class') }}</label>
+            <div class="min-w-[16rem] flex-1 max-w-sm">
+                <label for="mc-player-class" class="ov-label mb-1.5">{{ t('lbl_player_class') }}</label>
                 <div class="flex gap-2">
                     <select id="mc-player-class" v-model="settings.playerClass" class="input-glass flex-grow px-3 py-2 text-sm h-10">
                         <option value="collector">{{ t('opt_collector') }}</option>
@@ -206,8 +234,8 @@ const collBreakdown = computed(() => {
                         <div v-if="lfResearchPct.collectorBonus > 0"
                              class="input-glass h-10 w-24 px-2 flex items-center justify-center gap-1 font-mono text-sm cursor-default select-none"
                              :title="t('lbl_lf_collector_bonus')">
-                            <span class="text-violet-300">+{{ lfResearchPct.collectorBonus.toFixed(2) }}%</span>
-                            <span class="text-[10px] text-violet-500/60 uppercase tracking-wider font-bold">{{ t('lbl_auto') }}</span>
+                            <span class="text-violet-300">+{{ formatPct(lfResearchPct.collectorBonus, 2) }}%</span>
+                            <span class="ov-tag ov-tag-ok">{{ t('lbl_auto') }}</span>
                         </div>
                         <!-- Manuale: nessun dato T18 importato -->
                         <input v-else type="number" step="0.1"
@@ -218,39 +246,38 @@ const collBreakdown = computed(() => {
                 </div>
             </div>
             <div>
-                <label for="mc-plasma" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('lbl_plasma') }}</label>
-                <input id="mc-plasma" type="number" v-model.number="settings.plasma" @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
+                <label for="mc-plasma" class="ov-label mb-1.5">{{ t('lbl_plasma') }}</label>
+                <NumStepper id="mc-plasma" v-model="settings.plasma" class="w-28" input-class="h-10" />
             </div>
-            <div>
-                <label for="mc-lf-bonus" class="block text-[10px] uppercase tracking-wider font-semibold mb-1.5"
-                    :class="hasLfResearchData ? 'text-ogame-success/70' : 'text-slate-500'">
+            <div class="w-44">
+                <label for="mc-lf-bonus" class="ov-label mb-1.5 whitespace-nowrap">
                     {{ t('lbl_lf_bonus') }} %
-                    <span v-if="hasLfResearchData" class="normal-case tracking-normal text-[9px] text-ogame-success/50 ml-1">{{ t('lbl_auto') }}</span>
+                    <span v-if="hasLfResearchData" class="ov-tag ov-tag-ok ml-1">{{ t('lbl_auto') }}</span>
                 </label>
                 <!-- Computed: mostra il totale calcolato dalle ricerche reali -->
                 <div v-if="hasLfResearchData"
-                    class="input-glass w-full px-3 py-2 text-center font-mono text-ogame-success cursor-default select-none"
+                    class="input-glass w-full h-10 px-3 flex items-center justify-center tabular-nums text-emerald-300 !border-dashed cursor-default select-none"
                     :title="t('lbl_lf_bonus_computed')">
-                    +{{ lfResearchPct.metal.toFixed(2) }}
+                    +{{ formatPct(lfResearchPct.metal, 2) }}
                 </div>
                 <!-- Manuale: nessun dato LF importato -->
                 <input v-else id="mc-lf-bonus" type="number" v-model.number="settings.lfBonus"
-                    @focus="$event.target.select()" class="input-glass w-full px-3 py-2 text-center font-mono">
+                    @focus="$event.target.select()" class="input-glass w-full h-10 px-2 text-center tabular-nums">
             </div>
         </div>
 
         <!-- Riga 2: flag e classe alleanza -->
-        <div class="flex items-center gap-4 flex-wrap border-t border-slate-700/20 pt-3">
+        <div class="flex items-center gap-4 flex-wrap border-t border-ogame-line pt-3">
             <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" v-model="settings.geologist" class="w-4 h-4 accent-sky-500 rounded cursor-pointer">
+                <input type="checkbox" v-model="settings.geologist" class="w-4 h-4 accent-cyan-400 rounded cursor-pointer">
                 <span class="text-sm text-slate-400 group-hover:text-slate-200 transition-colors">{{ t('lbl_geo') }}</span>
             </label>
             <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" v-model="settings.staff" class="w-4 h-4 accent-sky-500 rounded cursor-pointer">
+                <input type="checkbox" v-model="settings.staff" class="w-4 h-4 accent-cyan-400 rounded cursor-pointer">
                 <span class="text-sm text-slate-400 group-hover:text-slate-200 transition-colors">{{ t('lbl_staff') }}</span>
             </label>
             <div class="flex items-center gap-2 ml-auto">
-                <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{{ t('lbl_ally_class') }}</span>
+                <span class="ov-label">{{ t('lbl_ally_class') }}</span>
                 <select v-model="settings.allyClass" class="input-glass px-3 py-1.5 text-sm">
                     <option value="none">{{ t('opt_none') }}</option>
                     <option value="trader">{{ t('opt_trader') }}</option>
@@ -259,28 +286,46 @@ const collBreakdown = computed(() => {
         </div>
 
         <!-- Collector bonus detail (condizionale) -->
-        <div v-if="settings.playerClass === 'collector'" class="mt-3 pt-3 border-t border-slate-700/20 flex items-center gap-x-6 gap-y-1.5 flex-wrap">
+        <div v-if="settings.playerClass === 'collector'" class="mt-3 pt-3 border-t border-ogame-line flex items-center gap-x-6 gap-y-1.5 flex-wrap">
             <div class="flex items-baseline gap-1.5">
                 <span class="text-xs text-slate-400">{{ t('lbl_mine_prod_ext') }}</span>
-                <span class="text-sm font-black text-sky-300 font-mono">+{{ collBreakdown.mine }}%</span>
+                <span class="text-sm font-bold text-sky-300 tabular-nums">+{{ collBreakdown.mine }}%</span>
             </div>
             <div class="flex items-baseline gap-1.5">
                 <span class="text-xs text-slate-400">{{ t('lbl_crawler_prod_ext') }}</span>
-                <span class="text-sm font-black text-amber-300 font-mono">+{{ collBreakdown.crawler }}%</span>
+                <span class="text-sm font-bold text-amber-300 tabular-nums">+{{ collBreakdown.crawler }}%</span>
             </div>
             <div class="flex items-baseline gap-1.5">
                 <span class="text-xs text-slate-400">{{ t('lbl_max_crawlers_geo_ext') }}</span>
-                <span class="text-sm font-black text-emerald-300 font-mono">+{{ collBreakdown.geo }}%</span>
+                <span class="text-sm font-bold text-emerald-300 tabular-nums">+{{ collBreakdown.geo }}%</span>
             </div>
+        </div>
         </div>
     </div>
 
-    <!-- ── MODIFICA MASSIVA ───────────────────────────────────────── -->
-    <div class="bg-ogame-panel border border-slate-700/20 rounded-xl p-3 mb-6 flex items-center gap-3 flex-wrap">
-        <div class="flex items-center gap-1.5 text-violet-400/70 flex-shrink-0">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-            <span class="text-[11px] font-semibold uppercase tracking-wider">{{ t('bulk_title') }}</span>
+    <div class="flex flex-row justify-between items-center mb-4 gap-4">
+        <h2 class="ov-sh flex-grow" style="--tc:#38bdf8">
+            {{ t('planet_mgmt') }} <span class="text-slate-100">· {{ planets.length }}</span>
+        </h2>
+        <div class="flex items-center gap-2">
+            <button @click="resetAll" :aria-label="t('btn_reset')" class="ov-btn ov-btn-ghost w-9 px-0 hover:!text-rose-300 hover:!border-rose-500/40" :title="t('btn_reset')">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+            <button type="button" @click="bulkOpen = !bulkOpen" :aria-expanded="bulkOpen" aria-controls="mc-bulk"
+                    class="ov-btn ov-btn-ghost" :class="bulkOpen && '!text-slate-100 !border-slate-500'">
+                <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h10M4 12h16M4 18h7m9-12h-2m-6 12h8"/><circle cx="16" cy="6" r="2"/><circle cx="13" cy="18" r="2"/></svg>
+                <span class="hidden sm:inline">{{ t('btn_bulk_edit') }}</span>
+            </button>
+            <button @click="addPlanet" class="ov-btn ov-btn-primary">
+                <span class="text-lg leading-none">+</span>
+                <span class="hidden md:inline">{{ t('btn_add_planet') }}</span>
+            </button>
         </div>
+    </div>
+
+    <!-- Modifica massiva: si apre da "Modifica tutti" -->
+    <div v-if="bulkOpen" id="mc-bulk" class="ov-panel p-3 mb-4 flex items-center gap-3 flex-wrap" style="--tc:#38bdf8">
+        <span class="ov-sh ov-sh-noline flex-shrink-0">{{ t('bulk_title') }}</span>
         <select v-model="bulkTarget" class="input-glass px-2 py-1.5 text-sm flex-shrink-0">
             <option value="metal">{{ t('lbl_mine_metal') }}</option>
             <option value="crystal">{{ t('lbl_mine_crystal') }}</option>
@@ -305,52 +350,25 @@ const collBreakdown = computed(() => {
         </select>
         <select v-else-if="bulkTarget === 'item'" v-model="bulkValue" class="input-glass px-2 py-1.5 text-sm flex-shrink-0">
             <option value="0">&ndash;</option>
-            <option value="10">+10%</option>
-            <option value="20">+20%</option>
-            <option value="30">+30%</option>
-            <option value="40">+40%</option>
+            <option v-for="pct in METAL_BOOSTER_PCTS" :key="pct" :value="pct">+{{ pct }}%</option>
         </select>
         <select v-else-if="bulkTarget === 'itemCustom'" v-model="bulkValue" class="input-glass px-2 py-1.5 text-sm flex-shrink-0">
             <option value="0">&ndash;</option>
-            <option value="15">+15%</option>
-            <option value="20">+20%</option>
-            <option value="25">+25%</option>
-            <option value="30">+30%</option>
-            <option value="40">+40%</option>
+            <option v-for="pct in RES_AMP_PCTS" :key="pct" :value="pct">+{{ pct }}%</option>
         </select>
         <select v-else-if="bulkTarget === 'lf_research_active' || bulkTarget === 'overload'" v-model="bulkValue" class="input-glass px-2 py-1.5 text-sm flex-shrink-0">
             <option value="1">{{ t('bulk_lf_enable') }}</option>
             <option value="0">{{ t('bulk_lf_disable') }}</option>
         </select>
         <input v-else type="number" v-model="bulkValue" @focus="$event.target.select()"
-               :placeholder="t('bulk_placeholder')" class="input-glass px-3 py-1.5 text-sm font-mono w-28 flex-shrink-0">
+               :placeholder="t('bulk_placeholder')" class="input-glass px-3 py-1.5 text-sm tabular-nums w-36 flex-shrink-0">
 
-        <button @click="requestBulk"
-                class="bg-violet-600/80 hover:bg-violet-500 text-white font-semibold px-4 py-1.5 rounded-lg text-sm transition flex-shrink-0">
+        <button @click="requestBulk" class="ov-btn ov-btn-tint flex-shrink-0">
             {{ t('btn_bulk_apply') }}
         </button>
     </div>
 
-    <div class="flex flex-row justify-between items-center mb-6 gap-4">
-        <h2 class="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 font-mono">
-            <svg class="w-3.5 h-3.5 text-sky-400/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>{{ t('planet_mgmt') }}</span>
-            <span class="text-xs font-bold text-sky-400 bg-sky-900/20 px-2 py-1 rounded border border-sky-500/20">
-                {{ planets.length }}
-            </span>
-        </h2>
-        <div class="flex items-center gap-2">
-            <button @click="resetAll" :aria-label="t('btn_reset')" class="flex items-center justify-center w-9 h-9 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-200 transition border border-red-500/20" :title="t('btn_reset')">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-            </button>
-            <button @click="addPlanet" class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center gap-2">
-                <span class="text-lg leading-none">+</span>
-                <span class="hidden md:inline">{{ t('btn_add_planet') }}</span>
-            </button>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
         <PlanetCard
             v-for="(planet, index) in planets"
             :key="planet.id"
@@ -365,37 +383,28 @@ const collBreakdown = computed(() => {
         />
     </div>
 
-<div class="fixed bottom-0 left-0 w-full bg-ogame-bg/95 backdrop-blur-xl border-t border-slate-700/25 py-3 z-40">
-        <div class="max-w-7xl mx-auto flex flex-row items-center px-4 md:px-6 gap-0">
-            <div class="text-center flex-1 cursor-default">
-                <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-0.5">{{ t('footer_prod_hour') }}</div>
-                <div class="text-xl md:text-3xl font-black text-slate-100 font-mono tracking-tight">
-                    {{ formatNum(totals.hourly) }}
-                </div>
-            </div>
-            <div class="h-10 w-px bg-slate-700/30 mx-4"></div>
-            <div class="text-center flex-1 cursor-default">
-                <div class="text-[9px] text-amber-400/50 uppercase tracking-widest font-semibold mb-0.5">{{ t('footer_pack_day') }}</div>
-                <div class="text-xl md:text-3xl font-black text-amber-300 font-mono tracking-tight">
-                    {{ formatNum(totals.daily) }}
-                </div>
-            </div>
-        </div>
+  </div>
+
+  <!-- Barra fissa dei risultati -->
+  <div class="ov-resultbar">
+    <div class="ov-resultbar-in">
+      <div class="ov-stat"><span class="ov-stat-k">{{ t('footer_prod_hour') }}</span><span class="ov-stat-v md:text-2xl">{{ formatNum(totals.hourly) }}</span></div>
+      <div class="ov-stat"><span class="ov-stat-k">{{ t('footer_pack_day') }}</span><span class="ov-stat-v md:text-2xl text-amber-300">{{ formatNum(totals.daily) }}</span></div>
     </div>
   </div>
 
   <!-- Confirm bulk apply dialog -->
   <Transition name="fade">
     <div v-if="bulkConfirmOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="bulkConfirmOpen = false"></div>
-      <div class="bg-ogame-panel border border-white/10 rounded-xl w-full max-w-sm p-7 relative z-10 shadow-2xl">
+      <div class="absolute inset-0 bg-black/70" @click="bulkConfirmOpen = false"></div>
+      <div class="ov-dialog bg-ogame-panel border border-slate-700 rounded-xl w-full max-w-sm p-6 relative z-10 shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
         <p class="text-white font-semibold text-base mb-2 leading-snug">{{ t('btn_bulk_apply') }}?</p>
         <p class="text-slate-400 text-sm mb-7">{{ t('msg_bulk_confirm') }}</p>
         <div class="flex justify-end gap-3">
-          <button @click="bulkConfirmOpen = false" class="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition text-sm">
+          <button @click="bulkConfirmOpen = false" class="ov-btn ov-btn-ghost">
             {{ t('btn_cancel') }}
           </button>
-          <button @click="doBulkApply" class="px-6 py-2 rounded-xl bg-violet-700 hover:bg-violet-600 text-white font-black uppercase tracking-wider transition text-sm">
+          <button @click="doBulkApply" class="ov-btn ov-btn-primary">
             {{ t('btn_confirm') }}
           </button>
         </div>
@@ -406,15 +415,15 @@ const collBreakdown = computed(() => {
   <!-- Confirm reset dialog -->
   <Transition name="fade">
     <div v-if="resetConfirmOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" :aria-label="t('btn_reset')">
-      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="resetConfirmOpen = false"></div>
-      <div class="bg-ogame-panel border border-white/10 rounded-xl w-full max-w-sm p-7 relative z-10 shadow-2xl">
+      <div class="absolute inset-0 bg-black/70" @click="resetConfirmOpen = false"></div>
+      <div class="ov-dialog bg-ogame-panel border border-slate-700 rounded-xl w-full max-w-sm p-6 relative z-10 shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
         <p class="text-white font-semibold text-base mb-2 leading-snug">{{ t('btn_reset') }}?</p>
         <p class="text-slate-400 text-sm mb-7">{{ t('msg_reset_confirm') }}</p>
         <div class="flex justify-end gap-3">
-          <button @click="resetConfirmOpen = false" class="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition text-sm">
+          <button @click="resetConfirmOpen = false" class="ov-btn ov-btn-ghost">
             {{ t('btn_cancel') }}
           </button>
-          <button @click="doResetAll" class="px-6 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-black uppercase tracking-wider transition text-sm">
+          <button @click="doResetAll" class="ov-btn ov-btn-danger">
             {{ t('btn_confirm') }}
           </button>
         </div>
@@ -425,11 +434,4 @@ const collBreakdown = computed(() => {
 </template>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-
-@media (prefers-reduced-motion: reduce) {
-  .fade-enter-active, .fade-leave-active { transition: none; }
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-}
 </style>

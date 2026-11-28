@@ -1,10 +1,13 @@
 <script setup>
+import { computed } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
 import { useOgameFormulas } from '../composables/useOgameFormulas';
 import Footer from '../components/Footer.vue';
+import ToolIcon from '../components/ToolIcon.vue';
 import { useExporterStatus } from '../composables/useExporterStatus';
 import { EXPORTER_INSTALL_URL } from '../data/links';
+import { TOOLS } from '../data/tools';
 
 const { t, currentLang } = useLanguage();
 // Exodus speaks Italian and English only: Italian stays Italian, every other language opens it in English
@@ -14,207 +17,170 @@ const { formatNum } = useOgameFormulas();
 const { exporterDetected } = useExporterStatus();
 const installSteps = ['home_step_install', 'home_step_overview', 'home_step_back'];
 
+// Piano salvato dal Production Planner per questo profilo (solo lettura)
+const plan = computed(() => {
+    const id = activeProfile.value?.id;
+    if (!id) return null;
+    try {
+        const s = JSON.parse(localStorage.getItem('ovalue_strategy_state') || '{}')[id];
+        const steps = s?.result?.steps?.length || 0;
+        return steps ? { steps, done: Array.isArray(s.doneSteps) ? s.doneSteps.length : 0, final: s.result.finalProd || 0 } : null;
+    } catch { return null; }
+});
 
+const planets = computed(() => activeProfile.value?.production?.planets?.length || 0);
+const daily = computed(() => activeProfile.value?.production?.daily || 0);
+
+// "Aggiornato 3 ore fa"
+const syncedAgo = computed(() => {
+    const ts = activeProfile.value?.lastSync;
+    if (!ts) return '';
+    const diff = (Date.now() - ts) / 1000;
+    const rtf = new Intl.RelativeTimeFormat(currentLang.value || 'it', { numeric: 'auto' });
+    if (diff < 3600) return rtf.format(-Math.max(1, Math.round(diff / 60)), 'minute');
+    if (diff < 86400) return rtf.format(-Math.round(diff / 3600), 'hour');
+    return rtf.format(-Math.round(diff / 86400), 'day');
+});
+
+// Dato vivo di ogni strumento, dal profilo attivo
+const toolStat = (id) => {
+    const p = activeProfile.value;
+    if (!p?.lastSync) return null;
+    if (id === 'metal' && daily.value) return { v: formatNum(daily.value), k: t('lbl_met_day') };
+    if (id === 'pack') {
+        const n = p.packExchange?.queue?.length || 0;
+        return n ? { v: formatNum(n), k: t('lbl_in_queue') } : null;
+    }
+    if (id === 'shopping') {
+        const n = (p.shoppingList?.cart || []).reduce((s, i) => s + (i.mult || 1), 0);
+        return n ? { v: formatNum(n), k: t('lbl_in_cart') } : null;
+    }
+    if (id === 'strategy' && plan.value) return { v: `${plan.value.done}/${plan.value.steps}`, k: t('home_plan_steps') };
+    return null;
+};
 </script>
 
 <template>
   <div class="flex flex-col w-full flex-grow">
 
-    <!-- Main -->
-    <div class="flex-grow flex flex-col">
+    <div class="flex-grow w-full max-w-7xl mx-auto px-4 md:px-6 pt-6 pb-8 flex flex-col gap-6">
+      <h1 class="sr-only">OValue</h1>
 
-      <!-- ── HERO ──────────────────────────────────────────────────────────── -->
-      <div class="relative px-4 md:px-8 pt-5 md:pt-6 pb-3 flex flex-col items-center text-center overflow-hidden">
-        <div class="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(14,40,90,0.4),transparent)] pointer-events-none"></div>
-
-        <div class="hero-content relative z-10">
-
-          <!-- Primo accesso: tagline + passi per installare lo script -->
-          <template v-if="!activeProfile?.lastSync">
-            <p class="text-sm text-slate-400 mb-5 leading-relaxed max-w-lg mx-auto text-balance">
-              {{ t('index_desc') }}
-            </p>
-
-            <!-- Script non rilevato: riquadro in evidenza con i 3 passi -->
-            <div v-if="!exporterDetected"
-                 class="w-full max-w-2xl mx-auto mb-3 rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] shadow-[0_0_40px_rgba(56,189,248,0.08)] px-5 py-5 md:px-7 md:py-6 text-left">
-              <p class="text-[10px] font-black uppercase tracking-[0.2em] text-sky-400/80 mb-1">{{ t('home_script_kicker') }}</p>
-              <h2 class="text-lg md:text-xl font-bold text-slate-100 mb-4 text-balance">{{ t('home_script_title') }}</h2>
-              <ol class="grid gap-3 sm:grid-cols-3 mb-5">
-                <li v-for="(key, i) in installSteps" :key="key" class="flex sm:flex-col gap-3 sm:gap-2">
-                  <span class="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-black"
-                        :class="i === 0 ? 'bg-sky-400 text-ogame-bg' : 'bg-white/[0.06] text-slate-300 border border-white/10'">{{ i + 1 }}</span>
-                  <span class="text-sm text-slate-300 leading-snug">{{ t(key) }}</span>
-                </li>
-              </ol>
-              <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                <a :href="EXPORTER_INSTALL_URL" target="_blank" rel="noopener noreferrer"
-                   class="flex-shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-sky-500/[0.2] hover:bg-sky-500/[0.3] text-sky-100 text-sm font-bold uppercase tracking-widest border border-sky-400/50 hover:border-sky-300/70 transition-all duration-200">
-                  <svg class="w-4 h-4 flex-shrink-0" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                  {{ t('btn_download_script') }}
-                </a>
-                <span class="text-[11px] text-slate-500 leading-snug">{{ t('home_script_note') }}</span>
-              </div>
-            </div>
-
-            <!-- Script rilevato ma nessun dato ancora: manca solo la Panoramica -->
-            <p v-else class="text-xs text-emerald-400/80 mb-2">{{ t('home_script_detected_hint') }}</p>
-          </template>
-
-          <div v-if="activeProfile?.lastSync" class="flex items-center justify-center gap-2 flex-wrap">
-            <div v-if="activeProfile.production?.daily" class="profile-chip">
-              <span class="chip-dot bg-amber-400/60"></span>
-              <span class="text-amber-300/80 font-medium">{{ formatNum(activeProfile.production.daily) }}</span>
-              <span class="text-slate-500">{{ t('lbl_met_day') }}</span>
-            </div>
+      <!-- ── Profilo attivo: chi sono e i numeri che contano ─────────────── -->
+      <section v-if="activeProfile?.lastSync" class="home-hero ov-panel p-5 md:p-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div class="min-w-0">
+          <div class="ov-label">{{ t('home_profile') }}</div>
+          <div class="mt-1 text-2xl md:text-[28px] font-bold text-slate-100 leading-tight truncate" :title="activeProfile.name">{{ activeProfile.name }}</div>
+          <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-slate-400">
+            <span v-if="activeProfile.syncServer && activeProfile.syncServer.split('.')[0] !== activeProfile.name" class="inline-flex items-center gap-1.5">
+              {{ activeProfile.syncServer.split('.')[0] }}
+            </span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>{{ t('home_synced') }} {{ syncedAgo }}</span>
           </div>
-
         </div>
-      </div>
+        <dl class="grid grid-cols-2 sm:grid-cols-3 gap-px rounded-lg overflow-hidden bg-ogame-line border border-ogame-line">
+          <div class="bg-ogame-surface px-4 py-3 min-w-0 col-span-2 sm:col-span-1">
+            <dt class="ov-label">{{ t('home_daily') }}</dt>
+            <dd class="mt-0.5 text-xl font-bold tabular-nums text-sky-300">{{ formatNum(daily) }}</dd>
+          </div>
+          <div class="bg-ogame-surface px-4 py-3 min-w-0">
+            <dt class="ov-label">{{ t('home_planets') }}</dt>
+            <dd class="mt-0.5 text-xl font-bold tabular-nums text-slate-100">{{ planets }}</dd>
+          </div>
+          <div class="bg-ogame-surface px-4 py-3 min-w-0">
+            <dt class="ov-label">{{ t('home_plan') }}</dt>
+            <dd class="mt-0.5 text-xl font-bold tabular-nums" :class="plan ? 'text-emerald-300' : 'text-slate-500'">
+              {{ plan ? `${plan.done}/${plan.steps}` : '—' }}
+            </dd>
+          </div>
+        </dl>
+      </section>
 
-      <!-- ── TOOL CARDS ──────────────────────────────────────────────────── -->
-      <div class="px-4 md:px-6 pt-2 pb-6 md:pb-8">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-6xl mx-auto">
+      <!-- ── Primo accesso: passi per installare lo script ────────────────── -->
+      <template v-else>
+        <p class="text-[15px] text-slate-300 max-w-2xl text-balance leading-relaxed">{{ t('index_desc') }}</p>
+        <div v-if="!exporterDetected" class="ov-panel p-5 md:p-6 grid gap-4">
+          <h2 class="text-lg md:text-xl font-bold text-slate-100 text-balance">{{ t('home_script_title') }}</h2>
+          <ol class="grid gap-3 sm:grid-cols-3">
+            <li v-for="(key, i) in installSteps" :key="key" class="flex sm:flex-col gap-3 sm:gap-2">
+              <span class="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold"
+                    :class="i === 0 ? 'bg-ogame-accent text-ogame-bg' : 'bg-ogame-raised text-slate-300 border border-slate-700'">{{ i + 1 }}</span>
+              <span class="text-sm text-slate-300 leading-snug">{{ t(key) }}</span>
+            </li>
+          </ol>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+            <a :href="EXPORTER_INSTALL_URL" target="_blank" rel="noopener noreferrer" class="ov-btn ov-btn-primary">
+              <svg class="w-4 h-4 flex-shrink-0" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              {{ t('btn_download_script') }}
+            </a>
+            <span class="text-xs text-slate-400 leading-snug">{{ t('home_script_note') }}</span>
+          </div>
+        </div>
+        <p v-else class="text-sm text-emerald-400">{{ t('home_script_detected_hint') }}</p>
+      </template>
 
-          <!-- Production Core -->
-          <router-link to="/metal" class="tool-card card-1 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-mine transition-colors duration-300">
-            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-            <div class="py-8 md:py-10 px-6 flex flex-col items-center text-center gap-4">
-              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-sky-950/60 border border-sky-500/25 flex items-center justify-center group-hover:border-sky-400/50 group-hover:bg-sky-950/80 group-hover:shadow-[0_0_30px_rgba(56,189,248,0.12)] transition-all duration-300">
-                <svg class="w-8 h-8 md:w-10 md:h-10 text-sky-400/70 group-hover:text-sky-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
-              </div>
-              <div class="flex-grow">
-                <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-sky-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_metal_title') }}</h2>
-                <p class="text-sm text-slate-500 leading-snug px-2">{{ t('card_metal_desc') }}</p>
-                <div v-if="activeProfile?.production?.daily" class="mt-3 text-sm text-sky-400/70 font-medium">
-                  {{ formatNum(activeProfile.production.daily) }} <span class="text-slate-600 font-normal">{{ t('lbl_met_day') }}</span>
+      <!-- ── Strumenti ─────────────────────────────────────────────────────── -->
+      <section class="grid gap-3">
+        <h2 class="ov-sh" style="--tc:#00f0ff">{{ t('home_tools') }}</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <router-link v-for="tool in TOOLS" :key="tool.to" :to="tool.to"
+                       class="tool-card group ov-panel overflow-hidden flex flex-col"
+                       :style="{ '--tool': tool.color }">
+            <!-- Fascia superiore nel colore dello strumento, con l'immagine di gioco -->
+            <div class="tool-band relative h-16 sm:h-24 flex items-center sm:items-end justify-between px-5 sm:pb-3">
+              <span class="ov-tile"><ToolIcon :tool="tool" class="w-5 h-5" /></span>
+              <img :src="tool.img" alt="" aria-hidden="true" loading="lazy"
+                   class="tool-img absolute right-4 top-2 sm:top-3 w-12 h-12 sm:w-[72px] sm:h-[72px] rounded-lg object-cover" />
+            </div>
+            <div class="px-5 pt-3 pb-5 flex flex-col gap-2 flex-grow">
+              <h3 class="text-base font-bold text-slate-100">{{ t(tool.titleKey) }}</h3>
+              <p class="text-[13px] text-slate-400 leading-snug flex-grow">{{ t(tool.descKey) }}</p>
+              <div class="mt-2 flex items-end justify-between gap-3 pt-3 border-t border-ogame-line">
+                <div v-if="toolStat(tool.id)" class="min-w-0">
+                  <div class="text-lg font-bold tabular-nums text-slate-100 leading-none">{{ toolStat(tool.id).v }}</div>
+                  <div class="text-[11px] text-slate-400 mt-1">{{ toolStat(tool.id).k }}</div>
                 </div>
+                <span v-else class="text-[12px] text-slate-500">{{ t('home_no_data') }}</span>
+                <span class="tool-open text-[13px] font-semibold inline-flex items-center gap-1 flex-none">
+                  {{ t('btn_open') }}
+                  <svg class="w-3.5 h-3.5 transition-transform duration-150" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6l6 6-6 6"/></svg>
+                </span>
               </div>
-              <span class="text-xs font-semibold text-slate-600 group-hover:text-sky-400 uppercase tracking-widest transition-colors flex items-center gap-1">
-                {{ t('btn_open') }} <span class="text-base leading-none group-hover:translate-x-0.5 transition-transform inline-block">›</span>
-              </span>
             </div>
           </router-link>
-
-          <!-- Pack Exchange -->
-          <router-link to="/pack" class="tool-card card-2 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-pack transition-colors duration-300">
-            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-            <div class="py-8 md:py-10 px-6 flex flex-col items-center text-center gap-4">
-              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-amber-950/60 border border-amber-500/25 flex items-center justify-center group-hover:border-amber-400/50 group-hover:bg-amber-950/80 group-hover:shadow-[0_0_30px_rgba(251,191,36,0.12)] transition-all duration-300">
-                <svg class="w-8 h-8 md:w-10 md:h-10 text-amber-400/70 group-hover:text-amber-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              </div>
-              <div class="flex-grow">
-                <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-amber-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_pack_title') }}</h2>
-                <p class="text-sm text-slate-500 leading-snug px-2">{{ t('card_pack_desc') }}</p>
-                <div v-if="activeProfile?.packExchange?.queue?.length" class="mt-3 text-sm text-amber-400/70 font-medium">
-                  {{ activeProfile.packExchange.queue.length }} <span class="text-slate-600 font-normal">{{ t('lbl_in_queue') }}</span>
-                </div>
-              </div>
-              <span class="text-xs font-semibold text-slate-600 group-hover:text-amber-400 uppercase tracking-widest transition-colors flex items-center gap-1">
-                {{ t('btn_open') }} <span class="text-base leading-none group-hover:translate-x-0.5 transition-transform inline-block">›</span>
-              </span>
-            </div>
-          </router-link>
-
-          <!-- Shopping List -->
-          <router-link to="/shopping" class="tool-card card-3 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-shopping transition-colors duration-300">
-            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-            <div class="py-8 md:py-10 px-6 flex flex-col items-center text-center gap-4">
-              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-violet-950/60 border border-violet-500/25 flex items-center justify-center group-hover:border-violet-400/50 group-hover:bg-violet-950/80 group-hover:shadow-[0_0_30px_rgba(139,92,246,0.12)] transition-all duration-300">
-                <svg class="w-8 h-8 md:w-10 md:h-10 text-violet-400/70 group-hover:text-violet-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-              </div>
-              <div class="flex-grow">
-                <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-violet-300 transition-colors uppercase tracking-tight mb-2">{{ t('shopping_title') }}</h2>
-                <p class="text-sm text-slate-500 leading-snug px-2">{{ t('card_shopping_desc') }}</p>
-                <div v-if="activeProfile?.shoppingList?.cart?.length" class="mt-3 text-sm text-violet-400/70 font-medium">
-                  {{ activeProfile.shoppingList.cart.length }} <span class="text-slate-600 font-normal">{{ t('lbl_in_cart') }}</span>
-                </div>
-              </div>
-              <span class="text-xs font-semibold text-slate-600 group-hover:text-violet-400 uppercase tracking-widest transition-colors flex items-center gap-1">
-                {{ t('btn_open') }} <span class="text-base leading-none group-hover:translate-x-0.5 transition-transform inline-block">›</span>
-              </span>
-            </div>
-          </router-link>
-
-          <!-- Production Planner -->
-          <router-link to="/strategy" class="tool-card card-4 group relative rounded-2xl overflow-hidden block bg-ogame-panel hover:bg-ogame-hover-strategy transition-colors duration-300">
-            <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-            <div class="py-8 md:py-10 px-6 flex flex-col items-center text-center gap-4">
-              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-emerald-950/60 border border-emerald-500/25 flex items-center justify-center group-hover:border-emerald-400/50 group-hover:bg-emerald-950/80 group-hover:shadow-[0_0_30px_rgba(52,211,153,0.12)] transition-all duration-300">
-                <svg class="w-8 h-8 md:w-10 md:h-10 text-emerald-400/70 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-              </div>
-              <div class="flex-grow">
-                <h2 class="text-lg md:text-xl font-bold text-slate-200 group-hover:text-emerald-300 transition-colors uppercase tracking-tight mb-2">{{ t('card_strategy_title') }}</h2>
-                <p class="text-sm text-slate-500 leading-snug px-2">{{ t('card_strategy_desc') }}</p>
-              </div>
-              <span class="text-xs font-semibold text-slate-600 group-hover:text-emerald-400 uppercase tracking-widest transition-colors flex items-center gap-1">
-                {{ t('btn_open') }} <span class="text-base leading-none group-hover:translate-x-0.5 transition-transform inline-block">›</span>
-              </span>
-            </div>
-          </router-link>
-
         </div>
+      </section>
 
-        <!-- ── PIANO FUSIONI ─────────────────────────────────────────────────
-             the merge rankings, a separate static site proxied under /fusion/ (public/_redirects): a full page
-             load, not a router-link, so the Vue app and its service worker stay out of the way -->
-        <!-- the same 4-column grid as the cards, so the banner is exactly two cards wide and centred -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-6xl mx-auto mt-5">
-          <a :href="fusionHref()"
-             class="fusion-banner group relative sm:col-span-2 lg:col-start-2 flex items-center gap-3 md:gap-4 rounded-2xl px-4 md:px-5 py-3.5 md:py-4 overflow-hidden">
-            <div class="flex-shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-xl bg-amber-950/60 border border-amber-400/40 flex items-center justify-center group-hover:border-amber-300/70 transition-colors">
-              <svg class="w-5 h-5 md:w-6 md:h-6 text-amber-300" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/></svg>
-            </div>
-            <div class="flex-grow min-w-0 text-left">
-              <div class="flex items-center gap-2 flex-wrap">
-                <h2 class="text-base md:text-lg font-bold text-amber-200 uppercase tracking-tight">{{ t('home_fusion_title') }}</h2>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-amber-950 bg-amber-300 rounded px-1.5 py-0.5">2026</span>
-              </div>
-              <p class="text-xs md:text-sm text-slate-400 leading-snug mt-0.5">{{ t('home_fusion_desc') }}</p>
-            </div>
-            <span class="flex-shrink-0 text-xl md:text-2xl text-amber-400/70 group-hover:text-amber-300 group-hover:translate-x-1 transition-all" aria-hidden="true">›</span>
-          </a>
+      <!-- ── PIANO FUSIONI: sito statico sotto /fusion/, caricamento completo (non router-link) ── -->
+      <a :href="fusionHref()"
+         class="fusion-banner ov-panel group flex items-center gap-4 px-5 py-4 hover:border-amber-400/40 transition-colors duration-150">
+        <span class="ov-tile" style="--tool:#fbbf24" aria-hidden="true">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/></svg>
+        </span>
+        <div class="flex-grow min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-slate-100">{{ t('home_fusion_title') }}</span>
+            <span class="ov-tag ov-tag-warn">2026</span>
+          </div>
+          <span class="block text-sm text-slate-400 mt-0.5">{{ t('home_fusion_desc') }}</span>
         </div>
+        <span class="ov-btn ov-btn-ghost ov-btn-sm flex-none">{{ t('btn_open') }}&nbsp;↗&#xFE0E;</span>
+      </a>
+
+      <!-- ── Link esterni ─────────────────────────────────────────────────── -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer" class="ov-btn ov-btn-ghost ov-btn-sm">
+          <img src="/Immagini%20Ogame/ostats-logo-v3.png" alt="" aria-hidden="true" class="h-4 w-4 object-contain" />
+          {{ t('card_ostats_title') }}&nbsp;↗&#xFE0E;
+        </a>
+        <a href="https://www.ogameutilities.it/index.html" target="_blank" rel="noopener noreferrer" class="ov-btn ov-btn-ghost ov-btn-sm">
+          <img src="/Immagini%20Ogame/ogame%20util.ico" alt="" aria-hidden="true" class="h-4 w-4 object-contain" />
+          {{ t('card_ou_title') }}&nbsp;↗&#xFE0E;
+        </a>
+        <router-link to="/settings" class="ov-btn ov-btn-ghost ov-btn-sm">{{ t('home_report_title') }}</router-link>
+        <a href="https://ko-fi.com/galax95" target="_blank" rel="noopener noreferrer" class="ov-btn ov-btn-tint ov-btn-sm"
+           style="--tc: #fbbf24" :title="t('support_banner_text')">{{ t('support_banner_link') }}&nbsp;↗&#xFE0E;</a>
       </div>
-
-      <!-- ── EXTERNAL LINKS — riga compatta ───────────────────────────────── -->
-      <div class="px-4 md:px-6 py-3 max-w-4xl mx-auto w-full">
-        <div class="flex items-center justify-center gap-2 flex-wrap">
-          <!-- external links -->
-          <a href="https://ostats.eu/" target="_blank" rel="noopener noreferrer"
-             class="ext-link group">
-            <img src="/Immagini%20Ogame/ostats-logo-v3.png" :alt="''" aria-hidden="true" class="h-4 w-4 object-contain opacity-60 group-hover:opacity-100 transition-opacity" />
-            <span>{{ t('card_ostats_title') }}</span>
-            <svg class="w-3 h-3 text-slate-700 group-hover:text-slate-400 transition-colors" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-          </a>
-          <a href="https://www.ogameutilities.it/index.html" target="_blank" rel="noopener noreferrer"
-             class="ext-link group">
-            <img src="/Immagini%20Ogame/ogame%20util.ico" :alt="''" aria-hidden="true" class="h-4 w-4 object-contain opacity-60 group-hover:opacity-100 transition-opacity" />
-            <span>{{ t('card_ou_title') }}</span>
-            <svg class="w-3 h-3 text-slate-700 group-hover:text-slate-400 transition-colors" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-          </a>
-          <router-link to="/settings" class="ext-link group">
-            <svg class="w-3.5 h-3.5 text-rose-500/60 group-hover:text-rose-400 transition-colors" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            <span>{{ t('home_report_title') }}</span>
-          </router-link>
-          <a href="https://ko-fi.com/galax95" target="_blank" rel="noopener noreferrer"
-             class="ext-link ext-link-kofi group" :title="t('support_banner_text')">
-            <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M18 8h1a4 4 0 010 8h-1"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
-              <line x1="6" y1="1" x2="6" y2="4" stroke-linecap="round"/>
-              <line x1="10" y1="1" x2="10" y2="4" stroke-linecap="round"/>
-              <line x1="14" y1="1" x2="14" y2="4" stroke-linecap="round"/>
-            </svg>
-            <span>{{ t('support_banner_link') }}</span>
-          </a>
-        </div>
-      </div>
-
     </div>
 
     <Footer class="flex-shrink-0 w-full" />
@@ -222,102 +188,33 @@ const installSteps = ['home_step_install', 'home_step_overview', 'home_step_back
 </template>
 
 <style scoped>
-/* ── Hero entrance ───────────────────────────────────────────────── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+.home-hero {
+  background:
+    radial-gradient(ellipse 50% 140% at 0% 0%, rgb(0 240 255 / 0.07), transparent 70%),
+    theme('colors.ogame.panel');
 }
-.hero-content { animation: fadeUp 0.5s ease-out 0.05s both; }
-
-/* ── Profile chips ───────────────────────────────────────────────── */
-.profile-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border: 1px solid rgba(100, 116, 139, 0.2);
-  border-radius: 999px;
-  background: rgba(255,255,255,0.02);
-  font-size: 11px;
-  color: rgba(148, 163, 184, 0.8);
-  letter-spacing: 0.02em;
-  text-decoration: none;
+.tool-card {
+  transition: border-color 150ms, transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.chip-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
+.tool-band {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tool) 16%, transparent), color-mix(in srgb, var(--tool) 4%, transparent));
+  border-bottom: 1px solid color-mix(in srgb, var(--tool) 22%, transparent);
 }
-
-/* ── Piano Fusioni: highlighted, warm against the blue page ───────── */
-.fusion-banner {
-  display: flex;
-  text-decoration: none;
-  background: linear-gradient(100deg, rgba(120, 72, 10, 0.32), rgba(15, 23, 42, 0.6) 60%);
-  border: 1px solid rgba(251, 191, 36, 0.35);
-  box-shadow: inset 0 1px 0 rgba(253, 230, 138, 0.08);
-  transition: border-color 0.2s, background 0.2s;
+.tool-img {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tool) 35%, transparent);
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.fusion-banner:hover {
-  border-color: rgba(252, 211, 77, 0.7);
-  background: linear-gradient(100deg, rgba(146, 88, 12, 0.42), rgba(15, 23, 42, 0.6) 60%);
+.tool-open { color: var(--tool); }
+@media (hover: hover) and (pointer: fine) {
+  .tool-card:hover { border-color: color-mix(in srgb, var(--tool) 45%, transparent); transform: translateY(-2px); }
+  .tool-card:hover .tool-img { transform: scale(1.04); }
+  .tool-card:hover .tool-open svg { transform: translateX(2px); }
 }
-.fusion-banner:focus-visible { outline: 2px solid rgb(252, 211, 77); outline-offset: 3px; }
-
-/* ── External links riga compatta ────────────────────────────────── */
-.ext-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(100, 116, 139, 0.15);
-  background: rgba(255, 255, 255, 0.02);
-  font-size: 12px;
-  font-weight: 500;
-  color: rgba(148, 163, 184, 0.75);
-  text-decoration: none;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
-}
-.ext-link:hover {
-  color: rgba(226, 232, 240, 0.95);
-  border-color: rgba(148, 163, 184, 0.3);
-  background: rgba(255, 255, 255, 0.04);
-}
-.ext-link:focus-visible { outline: 2px solid rgba(96,165,250,0.9); outline-offset: 2px; }
-
-/* Pillola Ko-fi: tinta ambra calda, coerente col bottone tazzina dell'header */
-.ext-link-kofi {
-  border-color: rgba(251, 191, 36, 0.18);
-  background: rgba(251, 191, 36, 0.04);
-  color: rgba(252, 211, 77, 0.75);
-}
-.ext-link-kofi:hover {
-  border-color: rgba(251, 191, 36, 0.4);
-  background: rgba(251, 191, 36, 0.08);
-  color: rgba(253, 230, 138, 0.95);
-}
-
-/* ── Tool cards entrance ─────────────────────────────────────────── */
-@keyframes cardIn {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.card-1 { animation: cardIn 0.5s ease-out 0.2s both; }
-.card-2 { animation: cardIn 0.5s ease-out 0.3s both; }
-.card-3 { animation: cardIn 0.5s ease-out 0.4s both; }
-.card-4 { animation: cardIn 0.5s ease-out 0.5s both; }
-.tool-card { cursor: pointer; }
-.tool-card:focus-visible { outline: 2px solid rgba(96,165,250,0.9); outline-offset: 3px; }
-
-/* ── Focus visible ───────────────────────────────────────────────── */
-.profile-chip:focus-visible { outline: 2px solid rgba(96,165,250,0.9); outline-offset: 2px; border-radius: 999px; }
-
-/* ── Reduced motion ──────────────────────────────────────────────── */
+.tool-card:active { transform: scale(0.99); }
+.tool-card:focus-visible, .fusion-banner:focus-visible { outline: 2px solid rgb(0 240 255 / 0.7); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
-  .hero-content { animation: none; }
-  .card-1, .card-2, .card-3, .card-4 { animation: none; }
-  .chip-dot { animation: none !important; }
+  .tool-card, .tool-img { transition: border-color 150ms; }
+  .tool-card:hover, .tool-card:active, .tool-card:hover .tool-img { transform: none; }
 }
 </style>

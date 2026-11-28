@@ -1,11 +1,13 @@
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeUnmount } from 'vue';
+import PageHead from '../components/PageHead.vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeUnmount, nextTick } from 'vue';
 import { useLanguage } from '../composables/useLanguage';
 import { useProfiles } from '../composables/useProfiles';
-import { useOgameFormulas } from '../composables/useOgameFormulas';
+import { useOgameFormulas, formatInt, formatPct } from '../composables/useOgameFormulas';
 import { useStrategy, toMSU, isStepDoneInProfile, rewindPlanProgress, applyStepToState } from '../composables/useStrategy';
 import { useToast } from '../composables/useToast';
-import { OGAME_DB } from '../data/ogame_db';
+import { usePurchaseSettings } from '../composables/usePurchaseSettings';
+import { OGAME_DB, DM_EVENT_BONUSES, SHOP_PACK_DISCOUNTS, METAL_BOOSTER_PCTS, RES_AMP_PCTS } from '../data/ogame_db';
 
 const { t } = useLanguage();
 const { show: showToast } = useToast();
@@ -19,9 +21,9 @@ const result = ref(null);
 const progress = ref(null);        // { step, maxSteps, currentProd, initialProd, target } dal worker
 const doneSteps = ref(new Set());  // blocchi spuntati come "fatto" nella roadmap
 const typeFilter = ref('all');     // filtro tipo nella roadmap
-// Risorse già possedute (come in Pack Exchange): abbassano i pacchetti da comprare.
-// Salvate per profilo insieme al piano; di default prese da Pack Exchange.
-const stock = ref({ metal: 0, crystal: 0, deuterium: 0 });
+// Risorse già possedute, sconto shop e bonus MO: condivisi con Pack Exchange e
+// Shopping List (vivono nel profilo), si inseriscono una volta sola.
+const { stock, shopDiscount, moBonus } = usePurchaseSettings();
 
 // Form
 const target = ref(0);             // Δ goal in metallo/giorno
@@ -32,11 +34,9 @@ const goalMSU = ref(0);
 // Ripartizione [metallo, cristallo, deuterio] dell'obiettivo, nota solo se preso
 // dalla coda di Pack Exchange (inserendo gli MSU a mano non la si conosce).
 const goalRes = ref(null);
-const maxSteps = ref(500);
+const maxSteps = ref(2000);
 
-// Impostazioni costo pacchetti / MO (locali a questa view)
-const shopDiscount = ref(0);
-const moBonus = ref(0);
+// Impostazioni del valore dei pacchetti (locali a questa view)
 const packMode = ref('dynamic');           // 'dynamic' | 'fixed'
 const packBatch = ref(10);                 // pacchi per aggiornamento valore dinamico
 const playerClassOverride = ref('inherit'); // 'inherit' | 'collector'
@@ -54,8 +54,8 @@ const crawlerMode = ref('max');
 const overloadMode = ref('profile');
 const itemMode = ref('profile');
 const itemCustomMode = ref('profile');
-const ITEM_STEPS = [10, 20, 30, 40];
-const ITEM_CUSTOM_STEPS = [15, 20, 25, 30, 40];
+const ITEM_STEPS = METAL_BOOSTER_PCTS;
+const ITEM_CUSTOM_STEPS = RES_AMP_PCTS;
 // ───── Persistenza configurazione ────────────────────────────────────────
 const STRATEGY_CFG_KEY = 'ovalue_strategy_config';
 const _saveConfig = () => {
@@ -74,8 +74,6 @@ const _saveConfig = () => {
             capLf: capLf.value,
             capLfResearch: capLfResearch.value,
             maxSteps: maxSteps.value,
-            shopDiscount: shopDiscount.value,
-            moBonus: moBonus.value,
             crawlerMode: crawlerMode.value,
             overloadMode: overloadMode.value,
             itemMode: itemMode.value,
@@ -89,7 +87,7 @@ const formTarget = computed({
     get() {
         return isNaN(target.value) || target.value === 0
             ? ''
-            : new Intl.NumberFormat('it-IT').format(Math.floor(target.value));
+            : formatInt(target.value);
     },
     set(newValue) {
         const rawValue = String(newValue).replace(/[^0-9]/g, '');
@@ -99,7 +97,7 @@ const formTarget = computed({
 });
 // Input obiettivo di spesa (MSU) con separatore migliaia
 const formGoalMSU = computed({
-    get() { return goalMSU.value ? new Intl.NumberFormat('it-IT').format(Math.floor(goalMSU.value)) : ''; },
+    get() { return goalMSU.value ? formatInt(goalMSU.value) : ''; },
     set(v) { const n = parseInt(String(v).replace(/[^0-9]/g, '')); goalMSU.value = isNaN(n) ? 0 : n; goalRes.value = null; }
 });
 
@@ -107,7 +105,7 @@ const formGoalMSU = computed({
 const stockInput = (key) => computed({
     get() {
         const v = stock.value[key] || 0;
-        return v ? new Intl.NumberFormat('it-IT').format(Math.floor(v)) : '';
+        return v ? formatInt(v) : '';
     },
     set(newValue) {
         const parsed = parseInt(String(newValue).replace(/[^0-9]/g, ''));
@@ -122,6 +120,12 @@ const includeCrawlerMines = ref(false);
 const includePlasma = ref(true);
 const includeLf = ref(true);
 const includeLfResearch = ref(false);
+// Livello massimo per categoria (0 = nessun limite)
+const capMine = ref(0);
+const capPlasma = ref(0);
+const capLf = ref(0);
+const capLfResearch = ref(0);
+const capModels = { capMine, capPlasma, capLf, capLfResearch };
 
 // Elenco delle ricerche LF candidabili dal planner: quelle con bonus metallo
 // diretto, più quelle che alzano il Potenziamento Collezionista (bonus[6]), che
@@ -161,10 +165,6 @@ const activeLfIdsOf = (planetList) => {
 // Ricerche attive su cui si basa la selezione corrente (per aggiungere le nuove)
 let activeLfBasis = { profileId: null, ids: [] };
 
-const capMine = ref(0);            // 0 = nessun cap
-const capPlasma = ref(0);
-const capLf = ref(0);
-const capLfResearch = ref(0);
 const lfChoice = ref([]);          // per pianeta: 'inherit' | 'rocktal' | 'humans' | 'mecha'
 
 
@@ -186,9 +186,8 @@ onMounted(() => {
         if (cfg.capPlasma !== undefined)             capPlasma.value = cfg.capPlasma;
         if (cfg.capLf !== undefined)                 capLf.value = cfg.capLf;
         if (cfg.capLfResearch !== undefined)         capLfResearch.value = cfg.capLfResearch;
-        if (cfg.maxSteps !== undefined)              maxSteps.value = cfg.maxSteps;
-        if (cfg.shopDiscount !== undefined)          shopDiscount.value = cfg.shopDiscount;
-        if (cfg.moBonus !== undefined)               moBonus.value = cfg.moBonus;
+        // 500 era il vecchio default: chi non l'ha mai cambiato passa al nuovo (2000)
+        if (cfg.maxSteps !== undefined && cfg.maxSteps !== 500) maxSteps.value = cfg.maxSteps;
         if (cfg.crawlerMode !== undefined)           crawlerMode.value = cfg.crawlerMode;
         if (cfg.overloadMode !== undefined)          overloadMode.value = cfg.overloadMode;
         if (cfg.itemMode !== undefined)              itemMode.value = cfg.itemMode;
@@ -197,7 +196,7 @@ onMounted(() => {
 });
 watch(
     [packMode, packBatch, playerClassOverride, includeMines, includeCrawlerMines, includePlasma, includeLf, includeLfResearch,
-     capMine, capPlasma, capLf, capLfResearch, maxSteps, shopDiscount, moBonus,
+     capMine, capPlasma, capLf, capLfResearch, maxSteps,
      crawlerMode, overloadMode, itemMode, itemCustomMode],
     _saveConfig
 );
@@ -302,7 +301,6 @@ const buildStateEntry = (withResult) => ({
     lfChoice: [...lfChoice.value],
     doneSteps: withResult ? [...doneSteps.value] : [],
     typeFilter: typeFilter.value,
-    stock: { ...stock.value },
     goalMode: goalMode.value,
     goalMSU: goalMSU.value,
     goalRes: goalRes.value,
@@ -346,12 +344,7 @@ const restoreProfileState = (profile) => {
     const saved = profile?.id ? readStateStore()[profile.id] : null;
     const planets = profile?.production?.planets || [];
 
-    const peStock = profile?.packExchange?.stock || {};
-    const defaultStock = {
-        metal: peStock.metal || 0, crystal: peStock.crystal || 0, deuterium: peStock.deuterium || 0
-    };
     if (!saved) {
-        stock.value = defaultStock;
         goalMode.value = 'production';
         goalMSU.value = 0;
         goalRes.value = null;
@@ -385,7 +378,6 @@ const restoreProfileState = (profile) => {
     activeLfBasis = { profileId: profile.id, ids: activeNow };
     doneSteps.value = new Set(Array.isArray(saved.doneSteps) ? saved.doneSteps : []);
     typeFilter.value = saved.typeFilter || 'all';
-    stock.value = saved.stock ? { ...defaultStock, ...saved.stock } : defaultStock;
     goalMode.value = saved.goalMode === 'spend' ? 'spend' : 'production';
     goalMSU.value = saved.goalMSU || 0;
     goalRes.value = Array.isArray(saved.goalRes) ? saved.goalRes : null;
@@ -438,7 +430,7 @@ onMounted(() => window.addEventListener('pagehide', onPageHide));
 // Persistenza dello stato per profilo. `result` e `doneSteps` sono sempre
 // riassegnati per intero, quindi non serve il deep watch (che su un piano da
 // centinaia di step costerebbe caro); solo lfChoice viene mutato in posizione.
-watch([target, lfResearchIds, doneSteps, typeFilter, result, stock, goalMode, goalMSU], saveProfileState);
+watch([target, lfResearchIds, doneSteps, typeFilter, result, goalMode, goalMSU], saveProfileState);
 watch(lfChoice, saveProfileState, { deep: true });
 
 // Applica le ipotesi di simulazione allo stato iniziale (copia: il profilo non
@@ -620,7 +612,7 @@ watch(profileActiveLfIds, (ids) => {
 
 // ───── LF per-pianeta: helpers per il toggle ────────────────────────────
 const lfOpts = [
-    { v: 'inherit', l: '≡', ac: 'bg-slate-700/70 text-slate-200' },
+    { v: 'inherit', l: '=', ac: 'bg-slate-700/70 text-slate-200' },
     { v: 'humans',  l: 'U',  ac: 'bg-blue-500/20 text-blue-300 border border-blue-400/30' },
     { v: 'rocktal', l: 'R',  ac: 'bg-orange-500/20 text-orange-300 border border-orange-400/30' },
     { v: 'mecha',   l: 'M',  ac: 'bg-teal-500/20 text-teal-300 border border-teal-400/30' },
@@ -814,9 +806,9 @@ const buildPlannerOptions = () => ({
     packMode: packMode.value,
     packBatch: packBatch.value,
     caps: {
-        metalMine:  capMine.value      > 0 ? capMine.value      : Infinity,
-        plasma:     capPlasma.value    > 0 ? capPlasma.value    : Infinity,
-        lfBuilding: capLf.value        > 0 ? capLf.value        : Infinity,
+        metalMine:  capMine.value       > 0 ? capMine.value       : Infinity,
+        plasma:     capPlasma.value     > 0 ? capPlasma.value     : Infinity,
+        lfBuilding: capLf.value         > 0 ? capLf.value         : Infinity,
         lfResearch: capLfResearch.value > 0 ? capLfResearch.value : Infinity,
     }
 });
@@ -849,6 +841,13 @@ const finalizePlan = (planRes, initialState, kept = null) => {
     typeFilter.value = 'all';
     isComputing.value = false;
     progress.value = null;
+    // I risultati compaiono sotto la configurazione: li si porta in vista
+    nextTick(() => {
+        const el = document.getElementById('strategy-results');
+        if (!el) return;
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    });
 };
 
 const runPlannerSync = (initialState, options, kept = null) => {
@@ -1142,10 +1141,10 @@ const typeSummary = computed(() => {
 
 // ───── Selezione ricerche LF (pannello per-ricerca) ──────────────────────
 const LF_SPECIES_CHIP = {
-    humans:  { on: 'bg-blue-500/20 text-blue-200 border-blue-400/40',     off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
-    rocktal: { on: 'bg-orange-500/20 text-orange-200 border-orange-400/40', off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
-    mecha:   { on: 'bg-teal-500/20 text-teal-200 border-teal-400/40',     off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
-    kaelesh: { on: 'bg-purple-500/20 text-purple-200 border-purple-400/40', off: 'bg-black/20 text-slate-600 border-slate-700/30 hover:text-slate-400' },
+    humans:  { on: 'bg-blue-500/20 text-blue-200 border-blue-400/40',     off: 'bg-transparent text-slate-400 border-ogame-line hover:text-slate-200 hover:border-slate-600' },
+    rocktal: { on: 'bg-orange-500/20 text-orange-200 border-orange-400/40', off: 'bg-transparent text-slate-400 border-ogame-line hover:text-slate-200 hover:border-slate-600' },
+    mecha:   { on: 'bg-teal-500/20 text-teal-200 border-teal-400/40',     off: 'bg-transparent text-slate-400 border-ogame-line hover:text-slate-200 hover:border-slate-600' },
+    kaelesh: { on: 'bg-purple-500/20 text-purple-200 border-purple-400/40', off: 'bg-transparent text-slate-400 border-ogame-line hover:text-slate-200 hover:border-slate-600' },
 };
 const isLfResSelected = (id) => lfResearchIds.value.includes(id);
 const toggleLfRes = (id) => {
@@ -1154,479 +1153,342 @@ const toggleLfRes = (id) => {
         : [...lfResearchIds.value, id];
 };
 const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; };
+
+// Ref raggruppati per i v-for compatti della configurazione
+const categoryModels = { includeMines, includeCrawlerMines, includePlasma, includeLf, includeLfResearch };
+const stockModels = { stockMet, stockCry, stockDeu };
+
+// ───── Riassunti dei gruppi di configurazione (visibili anche da chiusi) ─────
+const buildSummary = computed(() => {
+    const parts = [
+        includeMines.value && t('lbl_mine_metal'),
+        includeCrawlerMines.value && t('strategy_crawler_mines'),
+        includePlasma.value && t('plasma_technology'),
+        includeLf.value && t('strategy_lf_buildings'),
+        includeLfResearch.value && t('strategy_lf_research'),
+    ].filter(Boolean);
+    return parts.join(' · ');
+});
+const simSummary = computed(() => [
+    packMode.value === 'dynamic' ? `${t('strategy_pack_dynamic')} (${packBatch.value})` : t('strategy_pack_fixed'),
+    playerClassOverride.value === 'inherit' ? t(playerClassLabelKey.value) : t('opt_collector'),
+    ...simOptions.value.map(o => `${t(o.label)}: ${o.choices.find(c => c.value === o.model.value)?.text ?? '–'}`),
+].join(' · '));
+const lfOverrideSummary = computed(() => {
+    const n = lfChoice.value.filter(v => v && v !== 'inherit').length;
+    return n === 0 ? t('strategy_lf_inherit') : `${n} / ${planets.value.length}`;
+});
+const resourcesSummary = computed(() => [
+    `${t('lbl_stock')}: ${stockMSU.value > 0 ? formatNum(stockMSU.value) + ' MSU' : '0'}`,
+    `${t('lbl_shop_discount')} ${shopDiscount.value ? '–' + shopDiscount.value + '%' : t('opt_none')}`,
+    `${t('lbl_event_bonus')} ${moBonus.value ? '+' + moBonus.value + '%' : '–'}`,
+].join(' · '));
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-10 pb-12">
-    <!-- Page Header -->
-    <div class="mb-10 text-center relative">
-        <h1 class="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase">
-            {{ t('strategy_title') }}
-        </h1>
-        <div class="mt-2 h-[3px] w-24 bg-gradient-to-r from-emerald-500 to-emerald-400 mx-auto rounded-full opacity-70"></div>
-    </div>
+  <div class="w-full min-w-0 max-w-7xl mx-auto px-4 md:px-6 pt-6 pb-8" style="--tc:#34d399">
+    <!-- Titolo compatto -->
+    <PageHead tool="strategy" :title="t('strategy_title')" :sub="t('card_strategy_desc')">
+        <template #title>
+            <button type="button" @click="showIntro = !showIntro" :aria-expanded="showIntro" aria-controls="strategy-intro-content"
+                    :aria-label="t('strategy_intro')"
+                    class="w-5 h-5 rounded-full border border-slate-600 text-slate-400 hover:text-slate-200 text-[11px] font-bold inline-flex items-center justify-center">?</button>
+        </template>
+    </PageHead>
 
-    <!-- Intro -->
-    <div class="card-glass mb-8 bg-emerald-500/[0.03] relative overflow-hidden">
-        <button @click="showIntro = !showIntro" :aria-expanded="showIntro" aria-controls="strategy-intro-content" class="md:hidden w-full flex items-center justify-between px-4 py-3 text-emerald-400">
-            <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span class="text-xs font-black uppercase tracking-widest">{{ t('strategy_title') }}</span>
-            </div>
-            <svg class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': showIntro }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </button>
-        <div id="strategy-intro-content" class="p-6 md:flex md:flex-row md:items-center md:gap-6 relative z-10" :class="showIntro ? 'block' : 'hidden md:flex'">
-            <div class="hidden md:block p-4 rounded-2xl bg-emerald-500/[0.08] text-emerald-400 flex-shrink-0">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3zm12-3c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3z"/></svg>
-            </div>
-            <div class="flex-grow">
-                <p class="text-sm text-slate-300 leading-relaxed font-medium">{{ t('strategy_intro') }}</p>
-            </div>
-        </div>
+    <!-- Spiegazione: si apre dal "?" -->
+    <div v-if="showIntro" id="strategy-intro-content" class="ov-panel px-5 py-4 mb-5 text-sm text-slate-300 leading-relaxed max-w-[75ch]">
+        {{ t('strategy_intro') }}
     </div>
 
     <!-- Stato corrente -->
-    <div v-if="!activeProfile || planets.length === 0" class="card-glass p-8 text-center">
+    <div v-if="!activeProfile || planets.length === 0" class="ov-panel p-8 text-center">
         <p class="text-sm text-slate-400">{{ t('strategy_no_planets') }}</p>
-        <router-link to="/metal" class="mt-3 inline-block px-4 py-2 rounded-lg bg-sky-600/80 hover:bg-sky-500 text-white text-xs font-semibold uppercase tracking-wider">
+        <router-link to="/metal" class="mt-3 ov-btn ov-btn-tint" style="--tc:#38bdf8">
             {{ t('strategy_go_to_metal') }}
         </router-link>
     </div>
 
     <template v-else>
         <!-- ────── INPUT ────── -->
-        <div class="card-glass p-5 mb-6">
-            <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2.5 uppercase tracking-wider">
-                <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
-                {{ t('strategy_input_title') }}
-            </h3>
+        <div class="grid grid-cols-1 gap-3 mb-6">
 
-            <!-- Riga 1: statistiche + target + step + LF -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 items-start">
-                <!-- Produzione attuale -->
-                <div class="col-span-2 md:col-span-1 bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
-                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">
-                        {{ currentProd !== profileDailyProd && profileDailyProd > 0 ? t('strategy_sim_start_prod') : t('strategy_current_prod') }}
-                    </div>
-                    <div class="text-2xl font-black text-slate-200 font-mono">{{ formatNum(currentProd) }}</div>
-                    <div class="text-[10px] text-slate-600 mt-1">{{ t('lbl_dm') }} / {{ t('strategy_per_day') }}</div>
-                    <!-- Con ipotesi attive la partenza differisce dal Production Core: si mostrano entrambi -->
-                    <div v-if="currentProd !== profileDailyProd && profileDailyProd > 0"
-                         class="text-[10px] text-slate-500 mt-1.5 font-mono">
-                        Production Core: {{ formatNum(profileDailyProd) }}
-                        <span :class="currentProd > profileDailyProd ? 'text-emerald-400' : 'text-red-400'">
-                            ({{ currentProd > profileDailyProd ? '+' : '' }}{{ ((currentProd / profileDailyProd - 1) * 100).toFixed(1) }}%)
-                        </span>
+        <!-- Obiettivo: una riga -->
+        <div class="ov-panel p-5 grid grid-cols-1 md:grid-cols-[1fr_1.5fr_.65fr_.75fr] gap-5 items-start">
+            <!-- Produzione di partenza -->
+            <div class="ov-stat">
+                <span class="ov-stat-k">{{ currentProd !== profileDailyProd && profileDailyProd > 0 ? t('strategy_sim_start_prod') : t('strategy_current_prod') }}</span>
+                <span class="text-3xl font-bold text-slate-100 tabular-nums leading-tight">{{ formatNum(currentProd) }}</span>
+                <span class="text-[11px] text-slate-400">{{ t('strategy_per_day') }}</span>
+                <!-- Con ipotesi attive la partenza differisce dal Production Core: si mostrano entrambi -->
+                <span v-if="currentProd !== profileDailyProd && profileDailyProd > 0" class="text-[11px] text-slate-400 mt-1 tabular-nums">
+                    Production Core: {{ formatNum(profileDailyProd) }}
+                    <span :class="currentProd > profileDailyProd ? 'text-emerald-400' : 'text-rose-400'">
+                        ({{ currentProd > profileDailyProd ? '+' : '' }}{{ formatPct((currentProd / profileDailyProd - 1) * 100, 1) }}%)
+                    </span>
+                </span>
+            </div>
+
+            <!-- Obiettivo: produzione da raggiungere oppure spesa da fare -->
+            <div class="grid gap-2 min-w-0">
+                <div class="flex items-center justify-between gap-3">
+                    <label :for="goalMode === 'production' ? 'strat-target' : 'strat-goal-msu'" class="ov-label">
+                        {{ goalMode === 'production' ? t('strategy_target') : t('strategy_goal_msu') }}
+                    </label>
+                    <div class="ov-seg">
+                        <button type="button" @click="goalMode = 'production'" :aria-pressed="goalMode === 'production'">{{ t('strategy_goal_mode_production') }}</button>
+                        <button type="button" @click="goalMode = 'spend'" :title="t('strategy_goal_mode_spend_hint')" :aria-pressed="goalMode === 'spend'">{{ t('strategy_goal_mode_spend') }}</button>
                     </div>
                 </div>
-                <!-- Obiettivo: produzione da raggiungere oppure spesa da fare -->
-                <div class="col-span-2 md:col-span-1 bg-ogame-surface rounded-xl p-4 border border-emerald-500/25">
-                    <div class="flex gap-1 mb-2 bg-black/30 p-0.5 rounded-lg">
-                        <button @click="goalMode = 'production'"
-                                class="flex-1 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md transition-colors"
-                                :class="goalMode === 'production' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-600 hover:text-slate-400'">
-                            {{ t('strategy_goal_mode_production') }}
-                        </button>
-                        <button @click="goalMode = 'spend'"
-                                :title="t('strategy_goal_mode_spend_hint')"
-                                class="flex-1 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md transition-colors"
-                                :class="goalMode === 'spend' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-600 hover:text-slate-400'">
-                            {{ t('strategy_goal_mode_spend') }}
-                        </button>
-                    </div>
-                    <template v-if="goalMode === 'production'">
-                    <label for="strat-target" class="block text-[10px] text-emerald-400 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_target') }}</label>
+                <template v-if="goalMode === 'production'">
                     <input id="strat-target" type="text" v-model="formTarget" @focus="$event.target.select()"
-                           class="input-glass w-full px-3 py-2 text-right font-mono text-emerald-300 text-lg bg-black/40">
-                    <div v-if="profileDailyProd > 0" class="flex gap-1 mt-2">
-                        <button v-for="m in [1.5, 2, 3, 5]" :key="m"
+                           class="input-glass w-full h-10 px-3 text-right tabular-nums text-lg">
+                    <div v-if="profileDailyProd > 0" class="ov-seg ov-seg-full">
+                        <button v-for="m in [1.5, 2, 3, 5]" :key="m" type="button"
                                 @click="target = Math.floor(profileDailyProd * m)"
-                                class="flex-1 py-1 text-[9px] font-bold rounded-lg transition-all duration-150 text-center"
-                                :class="target === Math.floor(profileDailyProd * m)
-                                    ? 'bg-emerald-500/20 border border-emerald-400/30 text-emerald-300'
-                                    : 'text-slate-600 hover:text-slate-400 bg-black/20'">
-                            ×{{ m }}
-                        </button>
+                                :aria-pressed="target === Math.floor(profileDailyProd * m)">×{{ m }}</button>
                     </div>
-                    </template>
-                    <template v-else>
-                        <label for="strat-goal-msu" class="block text-[10px] text-amber-400 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_goal_msu') }}</label>
-                        <input id="strat-goal-msu" type="text" inputmode="numeric" v-model="formGoalMSU" @focus="$event.target.select()" placeholder="0"
-                               class="input-glass w-full px-3 py-2 text-right font-mono text-amber-200 text-lg bg-black/40">
-                        <div v-if="goalMSU > 0 && currentProd > 0" class="text-[10px] font-mono text-amber-300/70 mt-1 text-right">
-                            ≈ {{ formatNum(Math.ceil(goalMSU / currentProd)) }} {{ t('strategy_goal_packs_today') }}
-                        </div>
-                        <button @click="useQueueAsGoal" :disabled="packQueue.length === 0"
-                                class="mt-2 w-full py-1.5 text-[10px] font-bold rounded-lg border transition-colors"
-                                :class="packQueue.length === 0
-                                    ? 'border-slate-700/30 text-slate-600 cursor-not-allowed'
-                                    : 'border-amber-500/30 text-amber-300 hover:bg-amber-500/10'">
+                    <p v-if="target <= profileDailyProd && target > 0" class="text-[11px] text-amber-400">{{ t('strategy_target_too_low') }}</p>
+                </template>
+                <template v-else>
+                    <input id="strat-goal-msu" type="text" inputmode="numeric" v-model="formGoalMSU" @focus="$event.target.select()" placeholder="0"
+                           class="input-glass w-full h-10 px-3 text-right tabular-nums text-lg">
+                    <div class="flex items-center justify-between gap-2">
+                        <button type="button" @click="useQueueAsGoal" :disabled="packQueue.length === 0" class="ov-btn ov-btn-tint ov-btn-sm" style="--tc:#fbbf24">
                             {{ t('strategy_goal_use_queue').replace('{n}', packQueue.length) }}
                         </button>
-                    </template>
+                        <span v-if="goalMSU > 0 && currentProd > 0" class="text-[11px] text-slate-400 tabular-nums">
+                            ≈ {{ formatNum(Math.ceil(goalMSU / currentProd)) }} {{ t('strategy_goal_packs_today') }}
+                        </span>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Step massimi -->
+            <div class="grid gap-2 min-w-0">
+                <label for="strat-maxsteps" class="ov-label">{{ t('strategy_max_steps') }}</label>
+                <input id="strat-maxsteps" type="number" inputmode="numeric" v-model.number="maxSteps" @focus="$event.target.select()" min="1" max="2000"
+                       class="input-glass w-24 h-10 px-3 text-center tabular-nums">
+                <span class="text-[11px] text-slate-400">{{ t('strategy_max_steps_desc') }}</span>
+            </div>
+
+            <!-- Bonus LifeForms (letto dal profilo) -->
+            <div class="grid gap-2 min-w-0">
+                <span class="ov-label">{{ t('lbl_lf_bonus') }}</span>
+                <div class="input-glass h-10 px-3 flex items-center justify-between !border-dashed cursor-default">
+                    <span class="tabular-nums text-emerald-300 font-semibold">
+                        +{{ hasLfResearchData ? formatPct(lfResearchPct.metal, 2) : formatPct(currentSimState?.settings?.lfBonus || 0, 1) }}%
+                    </span>
+                    <span v-if="hasLfResearchData" class="ov-tag ov-tag-ok">{{ t('lbl_auto') }}</span>
                 </div>
-                <!-- Step massimi -->
-                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
-                    <label for="strat-maxsteps" class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">{{ t('strategy_max_steps') }}</label>
-                    <input id="strat-maxsteps" type="number" v-model.number="maxSteps" @focus="$event.target.select()" min="1" max="2000"
-                           class="input-glass w-full px-3 py-2 text-right font-mono">
-                    <div class="text-[10px] text-slate-600 mt-1">{{ t('strategy_max_steps_desc') }}</div>
+            </div>
+        </div>
+
+        <!-- Gruppo: cosa può costruire (categorie + cap di livello) -->
+        <details class="ov-acc" open>
+            <summary><b>{{ t('strategy_categories') }}</b><span class="ov-acc-sum">{{ buildSummary }}</span></summary>
+            <div class="grid gap-4">
+                <div class="flex flex-wrap gap-x-6 gap-y-2.5">
+                    <label v-for="c in [['includeMines', 'lbl_mine_metal'], ['includeCrawlerMines', 'strategy_crawler_mines'], ['includePlasma', 'plasma_technology'], ['includeLf', 'strategy_lf_buildings'], ['includeLfResearch', 'strategy_lf_research']]"
+                           :key="c[0]" class="flex items-center gap-2 cursor-pointer text-[13px] text-slate-200">
+                        <input type="checkbox" v-model="categoryModels[c[0]].value" class="w-4 h-4 accent-cyan-400 rounded flex-shrink-0">
+                        {{ t(c[1]) }}
+                    </label>
                 </div>
-                <!-- Bonus LF Research -->
-                <div class="bg-ogame-surface rounded-xl p-4 border transition-colors"
-                     :class="hasLfResearchData ? 'border-purple-500/25' : 'border-slate-700/15'">
-                    <div class="text-[10px] uppercase tracking-wider font-semibold mb-1"
-                         :class="hasLfResearchData ? 'text-purple-400/80' : 'text-slate-500'">
-                        {{ t('lbl_lf_bonus') }}
-                    </div>
-                    <div v-if="hasLfResearchData" class="text-2xl font-black text-purple-300 font-mono">
-                        +{{ lfResearchPct.metal.toFixed(2) }}%
-                    </div>
-                    <div v-else class="text-2xl font-black text-slate-400 font-mono">
-                        +{{ (currentSimState?.settings?.lfBonus || 0).toFixed(1) }}%
-                    </div>
-                    <div class="text-[10px] mt-1" :class="hasLfResearchData ? 'text-purple-500/60' : 'text-slate-600'">
-                        {{ hasLfResearchData ? t('lbl_auto') : t('strategy_per_day').replace('met / ', '') }}
+                <p v-if="includeLfResearch" class="text-[11px] text-slate-400 -mt-2">{{ t('strategy_lf_research_select_hint') }}</p>
+                <div class="grid gap-1.5">
+                    <span class="ov-label">{{ t('strategy_caps') }} <span class="text-slate-500 font-normal">({{ t('strategy_caps_hint') }})</span></span>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <label v-for="c in [['capMine', 'lbl_mine_metal'], ['capPlasma', 'plasma_technology'], ['capLf', 'strategy_lf_buildings'], ['capLfResearch', 'strategy_lf_research']]"
+                               :key="c[0]" class="grid gap-1 min-w-0">
+                            <span class="text-[11px] text-slate-400 truncate">{{ t(c[1]) }}</span>
+                            <input type="number" v-model.number="capModels[c[0]].value" min="0" @focus="$event.target.select()"
+                                   class="input-glass w-full h-9 px-2 text-center tabular-nums text-sm">
+                        </label>
                     </div>
                 </div>
             </div>
+        </details>
 
-            <!-- Riga 2: categorie / cap / pack mode / classe -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-5 pt-4 border-t border-slate-700/20 items-start">
-                <!-- Categorie upgrade -->
-                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
-                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">{{ t('strategy_categories') }}</div>
-                    <div class="flex flex-col gap-2.5">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" v-model="includeMines" class="w-4 h-4 accent-sky-500 rounded flex-shrink-0">
-                            <span class="text-[12px] text-slate-300">{{ t('lbl_mine_metal') }}</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" v-model="includeCrawlerMines" class="w-4 h-4 accent-cyan-500 rounded flex-shrink-0">
-                            <span class="text-[12px] text-slate-300">{{ t('strategy_crawler_mines') }}</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" v-model="includePlasma" class="w-4 h-4 accent-violet-500 rounded flex-shrink-0">
-                            <span class="text-[12px] text-slate-300">{{ t('plasma_technology') }}</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" v-model="includeLf" class="w-4 h-4 accent-orange-500 rounded flex-shrink-0">
-                            <span class="text-[12px] text-slate-300">{{ t('strategy_lf_buildings') }}</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" v-model="includeLfResearch" class="w-4 h-4 accent-emerald-500 rounded flex-shrink-0">
-                            <span class="text-[12px] text-slate-300">{{ t('strategy_lf_research') }}</span>
-                        </label>
-                        <p v-if="includeLfResearch" class="pl-6 text-[9px] text-slate-600 leading-tight">
-                            {{ t('strategy_lf_research_select_hint') }}
-                        </p>
-                    </div>
-                </div>
-                <!-- Cap livello -->
-                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
-                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">
-                        {{ t('strategy_caps') }} <span class="text-slate-700 normal-case font-normal text-[9px]">({{ t('strategy_caps_hint') }})</span>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="block">
-                            <span class="block text-[10px] text-sky-500/70 uppercase font-semibold mb-1.5 truncate">Min.</span>
-                            <input type="number" v-model.number="capMine" min="0"
-                                   class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
-                        </label>
-                        <label class="block">
-                            <span class="block text-[10px] text-violet-400/70 uppercase font-semibold mb-1.5 truncate">Plasma</span>
-                            <input type="number" v-model.number="capPlasma" min="0"
-                                   class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
-                        </label>
-                        <label class="block">
-                            <span class="block text-[10px] text-orange-400/70 uppercase font-semibold mb-1.5 truncate">LF</span>
-                            <input type="number" v-model.number="capLf" min="0"
-                                   class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
-                        </label>
-                        <label class="block">
-                            <span class="block text-[10px] text-emerald-500/70 uppercase font-semibold mb-1.5 truncate">Ric.LF</span>
-                            <input type="number" v-model.number="capLfResearch" min="0"
-                                   class="input-glass w-full px-2 py-2 text-center font-mono text-sm">
-                        </label>
-                    </div>
-                </div>
+        <!-- Gruppo: ipotesi di simulazione -->
+        <details class="ov-acc" open>
+            <summary><b>{{ t('strategy_sim_title') }}</b><span class="ov-acc-sum">{{ simSummary }}</span></summary>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                 <!-- Valore pacchetto -->
-                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
-                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">{{ t('strategy_pack_mode') }}</div>
-                    <div class="flex gap-1 bg-black/30 p-1 rounded-xl border border-slate-700/20">
-                        <button @click="packMode = 'dynamic'"
-                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                :class="packMode === 'dynamic' ? 'bg-slate-700/70 text-slate-100' : 'text-slate-600 hover:text-slate-400'">
-                            {{ t('strategy_pack_dynamic') }}
-                        </button>
-                        <button @click="packMode = 'fixed'"
-                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                :class="packMode === 'fixed' ? 'bg-emerald-500/20 border border-emerald-400/35 text-emerald-200' : 'text-slate-600 hover:text-slate-400'">
-                            {{ t('strategy_pack_fixed') }}
-                        </button>
+                <div class="grid gap-1.5 content-start">
+                    <span class="ov-label">{{ t('strategy_pack_mode') }}</span>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="ov-seg">
+                            <button type="button" @click="packMode = 'dynamic'" :aria-pressed="packMode === 'dynamic'">{{ t('strategy_pack_dynamic') }}</button>
+                            <button type="button" @click="packMode = 'fixed'" :aria-pressed="packMode === 'fixed'">{{ t('strategy_pack_fixed') }}</button>
+                        </div>
+                        <template v-if="packMode === 'dynamic'">
+                            <label for="strat-pack-batch" class="text-xs text-slate-400 whitespace-nowrap">{{ t('strategy_pack_batch') }}</label>
+                            <input id="strat-pack-batch" type="number" v-model.number="packBatch" min="1" max="500" @focus="$event.target.select()"
+                                   class="input-glass w-16 h-8 px-2 text-center tabular-nums text-sm">
+                        </template>
                     </div>
-                    <div v-if="packMode === 'dynamic'" class="mt-2 flex items-center gap-2">
-                        <label for="strat-pack-batch" class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold whitespace-nowrap">{{ t('strategy_pack_batch') }}</label>
-                        <input id="strat-pack-batch" type="number" v-model.number="packBatch" min="1" max="500" @focus="$event.target.select()"
-                               class="input-glass w-full px-2 py-1 text-center font-mono text-sm">
-                    </div>
-                    <p v-else class="text-[9px] text-slate-700 mt-2 leading-tight">{{ t('strategy_pack_fixed_desc') }}</p>
+                    <p v-if="packMode === 'fixed'" class="text-[11px] text-slate-400 leading-snug">{{ t('strategy_pack_fixed_desc') }}</p>
                 </div>
                 <!-- Classe giocatore -->
-                <div class="bg-ogame-surface rounded-xl p-4 border border-slate-700/15">
-                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">{{ t('lbl_player_class') }}</div>
-                    <div class="flex gap-1 bg-black/30 p-1 rounded-xl border border-slate-700/20">
-                        <button @click="chooseClassOverride('inherit')"
-                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                :class="playerClassOverride === 'inherit' ? 'bg-slate-700/70 text-slate-100' : 'text-slate-600 hover:text-slate-400'">
-                            {{ t('strategy_lf_inherit') }}
+                <div class="grid gap-1.5 content-start">
+                    <span class="ov-label">{{ t('lbl_player_class') }}</span>
+                    <div class="ov-seg self-start justify-self-start max-w-full [&>button]:whitespace-normal [&>button]:text-left">
+                        <button type="button" @click="chooseClassOverride('inherit')" :aria-pressed="playerClassOverride === 'inherit'">
+                            {{ t('strategy_lf_inherit') }} · {{ t(playerClassLabelKey) }}
                         </button>
-                        <button @click="chooseClassOverride('collector')"
-                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                :class="playerClassOverride === 'collector' ? 'bg-amber-500/20 border border-amber-400/35 text-amber-200' : 'text-slate-600 hover:text-slate-400'">
-                            Collezionista
-                        </button>
+                        <button type="button" @click="chooseClassOverride('collector')" :aria-pressed="playerClassOverride === 'collector'">{{ t('opt_collector') }}</button>
                     </div>
-                    <p class="text-[9px] text-slate-700 mt-2 leading-tight">
-                        {{ playerClassOverride === 'inherit'
-                            ? t(playerClassLabelKey)
-                            : t('opt_collector') }}
-                    </p>
+                </div>
+                <!-- Crawler, sovraccarico, item, amplificatore: su "Profilo" la partenza coincide col Production Core -->
+                <div v-for="opt in simOptions" :key="opt.key" class="grid gap-1.5 content-start">
+                    <span class="ov-label">{{ t(opt.label) }}</span>
+                    <div class="ov-seg self-start justify-self-start">
+                        <button v-for="c in opt.choices" :key="String(c.value)" type="button"
+                                @click="opt.model.value = c.value" :aria-pressed="opt.model.value === c.value">{{ c.text }}</button>
+                    </div>
+                    <p v-if="opt.hint" class="text-[11px] text-slate-400 leading-snug">{{ opt.hint }}</p>
                 </div>
             </div>
+        </details>
 
-            <!-- Ipotesi di simulazione: su "Profilo" la partenza coincide col Production Core -->
-            <div class="pt-4 pb-1 border-t border-slate-700/20">
-                <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">{{ t('strategy_sim_title') }}</div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                    <div v-for="opt in simOptions" :key="opt.key" class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
-                        <div class="text-[10px] text-slate-400 font-semibold mb-2">{{ t(opt.label) }}</div>
-                        <div class="flex flex-wrap gap-1">
-                            <button v-for="c in opt.choices" :key="String(c.value)"
-                                    @click="opt.model.value = c.value"
-                                    class="px-2 py-1 text-[10px] font-semibold rounded-md border transition-colors"
-                                    :class="opt.model.value === c.value
-                                        ? 'bg-emerald-500/15 border-emerald-400/35 text-emerald-200'
-                                        : 'border-slate-700/30 text-slate-500 hover:text-slate-300'">
-                                {{ c.text }}
-                            </button>
-                        </div>
-                        <p v-if="opt.hint" class="text-[9px] text-slate-600 mt-1.5 leading-tight">{{ opt.hint }}</p>
+        <!-- Gruppo: ricerche LF da considerare -->
+        <details v-if="includeLfResearch" class="ov-acc">
+            <summary><b>{{ t('strategy_lf_research_select') }}</b><span class="ov-acc-sum">{{ lfResearchIds.length }} / {{ ALL_LF_IDS.length }}</span></summary>
+            <div class="grid gap-3">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <p class="text-[11px] text-slate-400 leading-snug max-w-[70ch]">{{ t('strategy_lf_activate_hint') }}</p>
+                    <div class="flex gap-1.5">
+                        <button type="button" @click="setLfResAll(true)" class="ov-btn ov-btn-tint ov-btn-sm" style="--tc:#34d399">{{ t('strategy_lf_activate_all') }}</button>
+                        <button type="button" @click="setLfResAll(false)" class="ov-btn ov-btn-ghost ov-btn-sm">{{ t('strategy_lf_deactivate_all') }}</button>
                     </div>
                 </div>
-            </div>
-
-            <!-- Selezione ricerche LF da considerare (per-ricerca) -->
-            <div v-if="includeLfResearch" class="pt-4 border-t border-slate-700/20">
-                <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
-                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold flex items-center gap-2">
-                        {{ t('strategy_lf_research_select') }}
-                        <span class="text-slate-700 normal-case font-normal">({{ lfResearchIds.length }}/{{ ALL_LF_IDS.length }})</span>
-                    </div>
-                    <div class="grid grid-cols-2 gap-1">
-                        <button @click="setLfResAll(true)"
-                                class="w-full px-2 py-1 text-[9px] font-bold rounded-md text-center bg-emerald-500/15 text-emerald-300 border border-emerald-400/25 hover:bg-emerald-500/25 transition-colors">
-                            {{ t('strategy_lf_activate_all') }}
-                        </button>
-                        <button @click="setLfResAll(false)"
-                                class="w-full px-2 py-1 text-[9px] font-bold rounded-md text-center bg-black/20 text-slate-500 border border-slate-700/30 hover:text-slate-300 transition-colors">
-                            {{ t('strategy_lf_deactivate_all') }}
-                        </button>
-                    </div>
-                </div>
-                <p class="text-[10px] text-slate-500 -mt-1 mb-2 leading-snug">{{ t('strategy_lf_activate_hint') }}</p>
-                <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15">
-                    <!-- Griglia a colonne fisse invece di flex-wrap: i nomi hanno
-                         lunghezze molto diverse e a capo libero le chip risultavano
-                         sfalsate. Le colonne allineano sia i tagliandi T che i nomi. -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-1.5">
-                        <button v-for="r in LF_RESEARCH_ALL" :key="r.id"
-                                @click="toggleLfRes(r.id)"
-                                :title="r.indirect ? r.name + ' — ' + t('strategy_lf_indirect_hint') : r.name"
-                                class="w-full min-w-0 px-2.5 py-1.5 text-[11px] font-semibold rounded-md border transition-all duration-150 flex items-center gap-1.5 text-left"
-                                :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[r.species].on : LF_SPECIES_CHIP[r.species].off">
-                            <span class="font-mono font-bold text-[11px] w-7 shrink-0">T{{ r.tier }}</span>
-                            <span class="flex-1 min-w-0 truncate">{{ r.name }}</span>
-                            <!-- Nessun bonus metallo diretto: rende solo amplificando
-                                 la classe Collezionista (bonus classe + crawler). -->
-                            <span v-if="r.indirect" class="shrink-0 px-1 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">%</span>
-                        </button>
-                    </div>
+                <!-- Griglia a colonne fisse invece di flex-wrap: i nomi hanno
+                     lunghezze molto diverse e a capo libero le chip risultavano
+                     sfalsate. Le colonne allineano sia i tagliandi T che i nomi. -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-1.5">
+                    <button v-for="r in LF_RESEARCH_ALL" :key="r.id" type="button"
+                            @click="toggleLfRes(r.id)"
+                            :title="r.indirect ? r.name + ' — ' + t('strategy_lf_indirect_hint') : r.name"
+                            class="w-full min-w-0 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors duration-150 flex items-center gap-1.5 text-left"
+                            :class="isLfResSelected(r.id) ? LF_SPECIES_CHIP[r.species].on : LF_SPECIES_CHIP[r.species].off">
+                        <span class="font-mono font-bold text-[11px] w-7 shrink-0">T{{ r.tier }}</span>
+                        <span class="flex-1 min-w-0 truncate">{{ r.name }}</span>
+                        <!-- Nessun bonus metallo diretto: rende solo amplificando
+                             la classe Collezionista (bonus classe + crawler). -->
+                        <span v-if="r.indirect" class="shrink-0 ov-tag ov-tag-warn">%</span>
+                    </button>
                 </div>
                 <!-- Il campo manuale "Potenziamento Collezionista" di Production Core e
                      questa ricerca si sommano nello stesso collFactor: se sono entrambi
                      valorizzati il bonus viene contato due volte. -->
-                <p v-if="collectorDoubleCount" class="mt-2 text-[10px] text-amber-400/80 leading-snug">
-                    {{ t('strategy_collector_double_warn') }}
-                </p>
+                <p v-if="collectorDoubleCount" class="text-[11px] text-amber-400 leading-snug">{{ t('strategy_collector_double_warn') }}</p>
             </div>
+        </details>
 
-            <!-- LF override per pianeta -->
-            <div class="pt-4 border-t border-slate-700/20">
-                <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
-                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold flex items-center gap-2">
-                        {{ t('strategy_lf_override') }}
-                        <span class="text-slate-700 normal-case font-normal">({{ t('strategy_lf_override_hint') }})</span>
-                    </div>
-                    <!-- Modifica massiva -->
+        <!-- Gruppo: lifeform per pianeta (cambia solo la simulazione) -->
+        <details class="ov-acc">
+            <summary><b>{{ t('strategy_lf_override') }}</b><span class="ov-acc-sum">{{ lfOverrideSummary }}</span></summary>
+            <div class="grid gap-3">
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                    <p class="text-[11px] text-slate-400">{{ t('strategy_lf_override_hint') }} · <b class="text-slate-300">=</b> {{ t('strategy_lf_inherit') }} · U R M K = {{ t('opt_humans') }}, {{ t('opt_rocktal') }}, {{ t('opt_mecha') }}, {{ t('opt_kaelesh') }}</p>
                     <div class="flex items-center gap-2">
-                        <span class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold">{{ t('strategy_lf_set_all') }}:</span>
-                        <div class="flex gap-0.5">
-                            <button v-for="opt in lfOpts" :key="opt.v"
-                                    @click="lfChoice = planets.map(() => opt.v)"
-                                    class="px-2 py-1 text-[9px] font-bold rounded-md transition-all duration-150"
-                                    :class="opt.ac">
-                                {{ opt.l }}
-                            </button>
+                        <span class="text-xs text-slate-400">{{ t('strategy_lf_set_all') }}</span>
+                        <div class="ov-seg">
+                            <button v-for="opt in lfOpts" :key="opt.v" type="button" @click="lfChoice = planets.map(() => opt.v)"
+                                    :title="opt.v === 'inherit' ? t('strategy_lf_inherit') : t('opt_' + opt.v)"
+                                    :aria-label="opt.v === 'inherit' ? t('strategy_lf_inherit') : t('opt_' + opt.v)"
+                                    :aria-pressed="lfChoice.length > 0 && lfChoice.every(v => v === opt.v)" class="!px-2 min-w-[1.75rem]">{{ opt.l }}</button>
                         </div>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                <!-- Una riga per pianeta: nome, livelli, forma di vita attuale → simulata.
+                     "=" mantiene quella del profilo; U/R/M/K la sostituiscono nella simulazione. -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-6 border-t border-ogame-line">
                     <div v-for="(p, idx) in planets" :key="idx"
-                         class="bg-ogame-surface rounded-xl border p-3 transition-colors"
-                         :class="lfBorderColor(effectiveLf(p, idx))">
-                        <!-- Nome pianeta + badge LF attiva -->
-                        <div class="flex items-start justify-between gap-1 mb-1.5">
-                            <span class="text-[11px] font-semibold text-slate-200 truncate leading-tight" :title="p.name">
-                                {{ p.name || `#${idx+1}` }}
-                            </span>
-                            <span class="text-[10px] font-bold px-1 py-0.5 rounded tracking-wider uppercase flex-shrink-0 leading-tight"
-                                  :class="lfBadgeClass(effectiveLf(p, idx))">
-                                {{ t('opt_' + effectiveLf(p, idx)) }}
-                            </span>
-                        </div>
-                        <!-- Livelli edifici: miniera + edificio LF -->
-                        <div class="flex gap-1.5 mb-2.5 text-[9px] text-slate-700 font-mono">
+                         class="flex items-center gap-3 py-1.5 border-b border-ogame-line min-w-0">
+                        <span class="w-5 text-right text-[11px] text-slate-500 tabular-nums flex-none">{{ idx + 1 }}</span>
+                        <span class="flex-1 min-w-0 truncate text-[13px] font-semibold text-slate-100" :title="p.name">{{ p.name || `#${idx+1}` }}</span>
+                        <span class="hidden sm:flex gap-1.5 text-[11px] text-slate-400 tabular-nums flex-none w-24">
                             <span>M.{{ p.metal || 0 }}</span>
-                            <span v-if="p.magma" class="text-orange-800">FM.{{ p.magma }}</span>
-                            <span v-if="p.human" class="text-blue-900">FAE.{{ p.human }}</span>
+                            <span v-if="p.magma">FM.{{ p.magma }}</span>
+                            <span v-else-if="p.human">FAE.{{ p.human }}</span>
+                        </span>
+                        <span class="text-[11px] font-medium px-1.5 py-0.5 rounded flex-none w-16 text-center"
+                              :class="[lfBadgeClass(effectiveLf(p, idx)), lfChoice[idx] && lfChoice[idx] !== 'inherit' ? '' : 'opacity-70']">{{ t('opt_' + effectiveLf(p, idx)) }}</span>
+                        <div class="ov-seg flex-none">
+                            <button v-for="opt in lfOpts" :key="opt.v" type="button" @click="lfChoice[idx] = opt.v"
+                                    :aria-pressed="(lfChoice[idx] || 'inherit') === opt.v"
+                                    :title="opt.v === 'inherit' ? t('strategy_lf_inherit') : t('opt_' + opt.v)"
+                                    :aria-label="opt.v === 'inherit' ? t('strategy_lf_inherit') : t('opt_' + opt.v)"
+                                    class="!px-2 min-w-[1.75rem]">{{ opt.l }}</button>
                         </div>
-                        <!-- Toggle LF (≡=inherit, U=humans, R=rocktal, M=mecha, K=kaelesh) -->
-                        <div class="flex gap-0.5">
-                            <button v-for="opt in lfOpts" :key="opt.v"
-                                    @click="lfChoice[idx] = opt.v"
-                                    class="flex-1 py-1 text-[9px] font-bold rounded-md transition-all duration-150 text-center leading-none"
-                                    :class="lfChoice[idx] === opt.v ? opt.ac : 'text-slate-700 hover:text-slate-400 bg-black/10'">
-                                {{ opt.l }}
-                            </button>
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <!-- Gruppo: risorse possedute + sconto shop + bonus MO. Scalano i pacchetti come in
+             Pack Exchange; il piano non cambia, pacchetti/MO/euro si ricalcolano al volo. -->
+        <details class="ov-acc">
+            <summary><b>{{ t('lbl_stock') }} · {{ t('lbl_cost_dm') }}</b><span class="ov-acc-sum">{{ resourcesSummary }}</span></summary>
+            <div class="grid gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <label v-for="r in [['stockMet', 'res_metal'], ['stockCry', 'res_crystal'], ['stockDeu', 'res_deuterium']]" :key="r[0]" class="grid gap-1">
+                        <span class="ov-label">{{ t(r[1]) }}</span>
+                        <input type="text" inputmode="numeric" v-model="stockModels[r[0]].value" @focus="$event.target.select()" placeholder="0"
+                               class="input-glass w-full h-9 px-3 text-right tabular-nums text-sm">
+                    </label>
+                </div>
+                <p v-if="stockMSU > 0" class="text-[11px] text-emerald-400 tabular-nums -mt-2">–{{ formatNum(stockMSU) }} MSU</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="grid gap-1.5">
+                        <span class="ov-label">{{ t('lbl_shop_discount') }}</span>
+                        <div class="ov-seg ov-seg-full">
+                            <button v-for="d in SHOP_PACK_DISCOUNTS" :key="d" type="button" @click="shopDiscount = d" :aria-pressed="shopDiscount === d">{{ d === 0 ? t('opt_none') : '–' + d + '%' }}</button>
+                        </div>
+                    </div>
+                    <div class="grid gap-1.5">
+                        <span class="ov-label">{{ t('lbl_event_bonus') }}</span>
+                        <div class="ov-seg ov-seg-full !grid grid-cols-4">
+                            <button v-for="b in DM_EVENT_BONUSES" :key="b" type="button" @click="moBonus = b" :aria-pressed="moBonus === b">{{ b === 0 ? '–' : '+' + b + '%' }}</button>
                         </div>
                     </div>
                 </div>
+                <p class="text-[11px] text-slate-400 flex items-center gap-1.5"><svg class="w-3 h-3 flex-none" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.8 10.2a4 4 0 00-5.6 0l-3 3a4 4 0 005.6 5.6l1.1-1.1m-.7-4.5a4 4 0 005.6 0l3-3a4 4 0 00-5.6-5.6l-1.1 1.1"/></svg>{{ t('shared_purchase_hint') }}</p>
             </div>
+        </details>
 
-            <!-- Risorse possedute: scalano i pacchetti come in Pack Exchange. Stanno nel form
-             perché sono un dato di partenza; il piano non cambia, i pacchetti si
-             ricalcolano al volo anche dopo il calcolo. -->
-            <div class="mt-5 pt-4 border-t border-slate-700/20">
-                <div class="flex items-baseline justify-between gap-2 mb-2">
-                    <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold">{{ t('lbl_stock') }}</div>
-                    <div v-if="stockMSU > 0" class="text-[10px] font-mono text-emerald-400/70">
-                        –{{ formatNum(stockMSU) }} MSU
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <label class="block">
-                        <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_metal') }}</span>
-                        <input type="text" inputmode="numeric" v-model="stockMet" @focus="$event.target.select()" placeholder="0"
-                               class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
-                    </label>
-                    <label class="block">
-                        <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_crystal') }}</span>
-                        <input type="text" inputmode="numeric" v-model="stockCry" @focus="$event.target.select()" placeholder="0"
-                               class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
-                    </label>
-                    <label class="block">
-                        <span class="block text-[10px] text-slate-500 mb-1">{{ t('res_deuterium') }}</span>
-                        <input type="text" inputmode="numeric" v-model="stockDeu" @focus="$event.target.select()" placeholder="0"
-                               class="input-glass w-full px-3 py-1.5 text-right font-mono text-sm">
-                    </label>
-                </div>
+        <!-- Calcolo -->
+        <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
+            <p class="flex-1 min-w-[16rem] text-[11px] text-slate-400">{{ t('strategy_perf_hint') }}</p>
+            <!-- Con un piano in corso: "Nuovo piano" (secondario, con conferma) e
+                 "Ricalcola il resto" (tiene gli step fatti). Senza piano: "Calcola". -->
+            <button v-if="result" @click="computePlan('new')" :disabled="isComputing || !canCompute"
+                    :title="t('strategy_new_plan_hint')" class="ov-btn ov-btn-ghost">
+                {{ t('strategy_new_plan') }}
+            </button>
+            <button @click="computePlan(result ? 'rest' : 'new')" :disabled="isComputing || !canCompute"
+                    :title="result ? t('strategy_recompute_rest_hint') : null" class="ov-btn ov-btn-primary">
+                <svg v-if="isComputing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                {{ isComputing ? t('strategy_computing') : (result ? t('strategy_recompute_rest') : t('strategy_compute')) }}
+            </button>
+        </div>
+        <!-- Progresso calcolo (dal worker): % verso il target + step correnti -->
+        <div v-if="isComputing && progress">
+            <div class="flex items-center justify-between text-[11px] tabular-nums mb-1">
+                <span class="text-slate-400">{{ progress.step }} / {{ progress.maxSteps }} step</span>
+                <span class="text-emerald-400">{{ formatNum(progress.currentProd) }} · {{ computePct }}%</span>
             </div>
-
-            <!-- Sconto shop + bonus MO: dati di partenza come lo stock. MO ed euro si
-             ricalcolano al volo (planEuro/goalSummary), senza rieseguire il planner. -->
-            <div class="mt-4 pt-4 border-t border-slate-700/20 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <!-- Sconto shop -->
-                <div>
-                    <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_shop_discount') }}</div>
-                    <div class="flex gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
-                        <button @click="shopDiscount = 0"
-                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                :class="shopDiscount === 0 ? 'bg-slate-700/70 text-slate-100' : 'text-slate-600 hover:text-slate-400'">
-                            {{ t('opt_none') }}
-                        </button>
-                        <button @click="shopDiscount = 20"
-                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                :class="shopDiscount === 20 ? 'bg-violet-500/20 border border-violet-400/35 text-violet-200' : 'text-slate-600 hover:text-slate-400'">
-                            –20%
-                        </button>
-                        <button @click="shopDiscount = 30"
-                                class="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150"
-                                :class="shopDiscount === 30 ? 'bg-violet-500/20 border border-violet-400/35 text-violet-200' : 'text-slate-600 hover:text-slate-400'">
-                            –30%
-                        </button>
-                    </div>
-                </div>
-                <!-- Bonus MO evento -->
-                <div>
-                    <div class="text-[9px] text-slate-600 uppercase tracking-widest font-semibold mb-2">{{ t('lbl_event_bonus') }}</div>
-                    <div class="grid grid-cols-4 sm:grid-cols-7 gap-1 bg-ogame-bg/70 p-1 rounded-xl border border-slate-700/20">
-                        <button v-for="b in [0, 30, 40, 50, 60, 100, 130]" :key="b"
-                                @click="moBonus = b"
-                                class="py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 text-center"
-                                :class="moBonus === b ? 'bg-amber-500/15 border border-amber-400/35 text-amber-200' : 'text-slate-600 hover:text-slate-400'">
-                            <template v-if="b === 0">–</template>
-                            <template v-else>+{{ b }}%</template>
-                        </button>
-                    </div>
-                </div>
+            <div class="h-1.5 bg-ogame-line rounded-full overflow-hidden"
+                 role="progressbar" :aria-valuenow="computePct" aria-valuemin="0" aria-valuemax="100">
+                <div class="h-full bg-emerald-500/70 rounded-full transition-[width] duration-200" :style="{ width: computePct + '%' }"></div>
             </div>
-
-            <!-- Bottone calcolo -->
-            <div class="mt-5 pt-4 border-t border-slate-700/20 flex justify-end gap-2">
-                <!-- Con un piano in corso: "Nuovo piano" (secondario, con conferma) e
-                     "Ricalcola il resto" (tiene gli step fatti). Senza piano: "Calcola". -->
-                <button v-if="result" @click="computePlan('new')" :disabled="isComputing || !canCompute"
-                        :title="t('strategy_new_plan_hint')"
-                        class="px-4 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wider transition-all border"
-                        :class="isComputing || !canCompute
-                                ? 'border-slate-700/40 text-slate-600 cursor-not-allowed'
-                                : 'border-slate-600/50 text-slate-300 hover:border-slate-500 hover:text-slate-100'">
-                    {{ t('strategy_new_plan') }}
-                </button>
-                <button @click="computePlan(result ? 'rest' : 'new')" :disabled="isComputing || !canCompute"
-                        :title="result ? t('strategy_recompute_rest_hint') : null"
-                        class="px-6 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wider transition-all flex items-center gap-2"
-                        :class="isComputing || !canCompute
-                                ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-lg'">
-                    <svg v-if="isComputing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
-                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    {{ isComputing ? t('strategy_computing') : (result ? t('strategy_recompute_rest') : t('strategy_compute')) }}
-                </button>
-            </div>
-            <!-- Progresso calcolo (dal worker): % verso il target + step correnti -->
-            <div v-if="isComputing && progress" class="mt-3">
-                <div class="flex items-center justify-between text-[10px] font-mono mb-1">
-                    <span class="text-slate-500">{{ progress.step }} / {{ progress.maxSteps }} step</span>
-                    <span class="text-emerald-400">{{ formatNum(progress.currentProd) }} · {{ computePct }}%</span>
-                </div>
-                <div class="h-1.5 bg-black/40 rounded-full overflow-hidden border border-slate-700/20"
-                     role="progressbar" :aria-valuenow="computePct" aria-valuemin="0" aria-valuemax="100">
-                    <div class="h-full bg-emerald-500/70 rounded-full transition-all duration-200" :style="{ width: computePct + '%' }"></div>
-                </div>
-            </div>
-            <div v-if="goalMode === 'production' && target <= profileDailyProd && target > 0" class="mt-2 text-right text-[11px] text-amber-400/80">
-                {{ t('strategy_target_too_low') }}
-            </div>
-            <div class="mt-2 flex items-start gap-1.5 text-[10px] text-slate-600">
-                <svg class="w-3 h-3 mt-px shrink-0 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span>{{ t('strategy_perf_hint') }}</span>
-            </div>
+        </div>
         </div>
 
         <!-- ────── RISULTATI ────── -->
-        <div v-if="result" class="space-y-6">
+        <div v-if="result" id="strategy-results" class="space-y-6 scroll-mt-20">
 
             <!-- Il piano resta visibile anche se il Production Core è cambiato:
                  si avvisa soltanto, senza cancellare il lavoro dell'utente. -->
@@ -1641,37 +1503,37 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 </div>
                 <button @click="computePlan('rest')" :disabled="isComputing"
                         :title="t('strategy_recompute_rest_hint')"
-                        class="shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-200 border border-amber-400/35 hover:bg-amber-500/30 transition-colors disabled:opacity-40">
+                        class="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-200 border border-amber-400/35 hover:bg-amber-500/30 transition-colors disabled:opacity-40">
                     {{ t('strategy_recompute_rest') }}
                 </button>
             </div>
 
             <!-- Sommario top -->
-            <div class="card-glass p-5">
+            <div class="ov-panel p-5">
                 <!-- ═══ Modalità SPESA: tutto ruota attorno al costo complessivo dell'obiettivo ═══ -->
                 <template v-if="goalSummary">
                     <!-- 1) Quanto costa in tutto, contro comprarlo subito -->
                     <div class="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
                         <div class="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
-                            <div class="text-[10px] text-amber-400 uppercase tracking-widest font-bold">{{ t('strategy_goal_title') }}</div>
+                            <h2 class="ov-sh ov-sh-noline" style="--tc:#fbbf24">{{ t('strategy_goal_title') }}</h2>
                             <div class="text-[11px] font-mono text-amber-200/80">{{ formatNum(goalSummary.msu) }} MSU</div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div class="rounded-lg bg-black/25 p-3 text-center">
-                                <div class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_direct_title') }}</div>
-                                <div class="text-xl font-black font-mono text-slate-300">{{ formatNum(goalSummary.direct) }} <span class="text-[11px] font-semibold text-slate-500">{{ t('strategy_goal_packs_unit') }}</span></div>
-                                <div class="text-[11px] font-mono text-slate-500 mt-0.5">{{ formatNum(goalSummary.directEuro.totalMO) }} MO · €{{ formatNum(goalSummary.directEuro.totalEuro) }}</div>
+                                <div class="ov-stat-k">{{ t('strategy_goal_direct_title') }}</div>
+                                <div class="text-xl font-bold font-mono text-slate-300">{{ formatNum(goalSummary.direct) }} <span class="text-[11px] font-semibold text-slate-400">{{ t('strategy_goal_packs_unit') }}</span></div>
+                                <div class="text-[11px] font-mono text-slate-400 mt-0.5">{{ formatNum(goalSummary.directEuro.totalMO) }} MO · {{ formatNum(goalSummary.directEuro.totalEuro) }} €</div>
                             </div>
                             <div class="rounded-lg bg-amber-500/10 border border-amber-400/30 p-3 text-center">
-                                <div class="text-[9px] text-amber-300 uppercase tracking-wider font-bold mb-1">{{ t('strategy_goal_total') }}</div>
-                                <div class="text-2xl font-black font-mono text-amber-100">{{ formatNum(goalSummary.total) }} <span class="text-[11px] font-semibold text-amber-300/70">{{ t('strategy_goal_packs_unit') }}</span></div>
-                                <div class="text-[11px] font-mono text-amber-200/80 mt-0.5">{{ formatNum(goalSummary.totalEuro.totalMO) }} MO · €{{ formatNum(goalSummary.totalEuro.totalEuro) }}</div>
+                                <div class="text-[11px] text-amber-300 uppercase tracking-wider font-bold mb-1">{{ t('strategy_goal_total') }}</div>
+                                <div class="text-2xl font-bold font-mono text-amber-100">{{ formatNum(goalSummary.total) }} <span class="text-[11px] font-semibold text-amber-300/70">{{ t('strategy_goal_packs_unit') }}</span></div>
+                                <div class="text-[11px] font-mono text-amber-200/80 mt-0.5">{{ formatNum(goalSummary.totalEuro.totalMO) }} MO · {{ formatNum(goalSummary.totalEuro.totalEuro) }} €</div>
                             </div>
                             <div class="rounded-lg bg-emerald-500/[0.07] border border-emerald-500/25 p-3 text-center">
-                                <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-bold mb-1">{{ t('strategy_goal_saving') }}</div>
-                                <div class="text-xl font-black font-mono text-emerald-300">{{ formatNum(Math.max(0, goalSummary.saving)) }} <span class="text-[11px] font-semibold text-emerald-400/70">{{ t('strategy_goal_packs_unit') }}</span></div>
+                                <div class="text-[11px] text-emerald-400 uppercase tracking-wider font-bold mb-1">{{ t('strategy_goal_saving') }}</div>
+                                <div class="text-xl font-bold font-mono text-emerald-300">{{ formatNum(Math.max(0, goalSummary.saving)) }} <span class="text-[11px] font-semibold text-emerald-400/70">{{ t('strategy_goal_packs_unit') }}</span></div>
                                 <div class="text-[11px] font-mono text-emerald-300/80 mt-0.5">
-                                    −{{ Math.max(0, goalSummary.savingPct).toFixed(1) }}% · €{{ formatNum(Math.max(0, goalSummary.directEuro.totalEuro - goalSummary.totalEuro.totalEuro)) }}
+                                    −{{ formatPct(Math.max(0, goalSummary.savingPct), 1) }}% · {{ formatNum(Math.max(0, goalSummary.directEuro.totalEuro - goalSummary.totalEuro.totalEuro)) }}
                                 </div>
                             </div>
                         </div>
@@ -1683,16 +1545,16 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                     <!-- 2) Le due fasi: prima gli upgrade, poi l'obiettivo -->
                     <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div class="bg-ogame-surface rounded-xl p-4 border border-sky-500/20">
-                            <div class="text-[10px] text-sky-400 uppercase tracking-widest font-bold mb-2">1 · {{ t('strategy_goal_phase_upgrade') }}</div>
+                            <div class="ov-sh ov-sh-noline mb-2" style="--tc:#38bdf8">1 · {{ t('strategy_goal_phase_upgrade') }}</div>
                             <div class="flex items-baseline justify-between gap-2">
-                                <span class="text-xl font-black font-mono text-sky-200">{{ formatNum(goalSummary.upgradePacks) }} <span class="text-[11px] font-semibold text-sky-400/70">{{ t('strategy_goal_packs_unit') }}</span></span>
-                                <span class="text-[11px] font-mono text-slate-500">€{{ formatNum(goalSummary.upgradeEuro.totalEuro) }}</span>
+                                <span class="text-xl font-bold font-mono text-sky-200">{{ formatNum(goalSummary.upgradePacks) }} <span class="text-[11px] font-semibold text-sky-400/70">{{ t('strategy_goal_packs_unit') }}</span></span>
+                                <span class="text-[11px] font-mono text-slate-400">{{ formatNum(goalSummary.upgradeEuro.totalEuro) }} €</span>
                             </div>
                             <div class="mt-2 text-[11px] font-mono text-slate-400 space-y-0.5">
-                                <div class="flex justify-between"><span class="text-slate-500">MSU<template v-if="planCost?.hasProgress"> ({{ t('strategy_goal_remaining') }})</template></span><span class="text-amber-200">{{ formatNum(planCost?.msu || 0) }}</span></div>
-                                <div class="flex justify-between"><span class="text-slate-500">{{ t('res_metal') }}</span><span>{{ formatNum(planCost?.metal || 0) }}</span></div>
-                                <div class="flex justify-between"><span class="text-slate-500">{{ t('res_crystal') }}</span><span class="text-sky-300">{{ formatNum(planCost?.crystal || 0) }}</span></div>
-                                <div class="flex justify-between"><span class="text-slate-500">{{ t('res_deuterium') }}</span><span class="text-ogame-success">{{ formatNum(planCost?.deuterium || 0) }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">MSU<template v-if="planCost?.hasProgress"> ({{ t('strategy_goal_remaining') }})</template></span><span class="text-amber-200">{{ formatNum(planCost?.msu || 0) }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">{{ t('res_metal') }}</span><span>{{ formatNum(planCost?.metal || 0) }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">{{ t('res_crystal') }}</span><span class="text-sky-300">{{ formatNum(planCost?.crystal || 0) }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">{{ t('res_deuterium') }}</span><span class="text-ogame-success">{{ formatNum(planCost?.deuterium || 0) }}</span></div>
                                 <!-- Lo stock paga per primo gli upgrade: senza questa riga "MSU > 0 ma 0 pacchi" sembra un errore -->
                                 <div v-if="stockMSU > 0" class="flex justify-between text-emerald-400/80">
                                     <span>{{ t('strategy_goal_stock_covers') }}</span>
@@ -1700,128 +1562,128 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                 </div>
                             </div>
                             <div class="mt-2 pt-2 border-t border-slate-700/20 text-[11px] font-mono text-slate-400 flex justify-between gap-2 flex-wrap">
-                                <span class="text-slate-500">{{ t('strategy_goal_prod_change') }}</span>
+                                <span class="text-slate-400">{{ t('strategy_goal_prod_change') }}</span>
                                 <span>{{ formatNum(result.initialProd) }} → <span class="text-emerald-300">{{ formatNum(result.finalProd) }}</span></span>
                             </div>
                         </div>
                         <div class="bg-ogame-surface rounded-xl p-4 border border-amber-500/20">
-                            <div class="text-[10px] text-amber-400 uppercase tracking-widest font-bold mb-2">2 · {{ t('strategy_goal_phase_goal') }}</div>
+                            <div class="ov-sh ov-sh-noline mb-2" style="--tc:#fbbf24">2 · {{ t('strategy_goal_phase_goal') }}</div>
                             <div class="flex items-baseline justify-between gap-2">
-                                <span class="text-xl font-black font-mono text-amber-200">{{ formatNum(goalSummary.goalAfter) }} <span class="text-[11px] font-semibold text-amber-400/70">{{ t('strategy_goal_packs_unit') }}</span></span>
-                                <span class="text-[11px] font-mono text-slate-500">€{{ formatNum(goalSummary.goalEuro.totalEuro) }}</span>
+                                <span class="text-xl font-bold font-mono text-amber-200">{{ formatNum(goalSummary.goalAfter) }} <span class="text-[11px] font-semibold text-amber-400/70">{{ t('strategy_goal_packs_unit') }}</span></span>
+                                <span class="text-[11px] font-mono text-slate-400">{{ formatNum(goalSummary.goalEuro.totalEuro) }} €</span>
                             </div>
                             <div class="mt-2 text-[11px] font-mono text-slate-400 space-y-0.5">
-                                <div class="flex justify-between"><span class="text-slate-500">MSU</span><span class="text-amber-200">{{ formatNum(goalSummary.msu) }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">MSU</span><span class="text-amber-200">{{ formatNum(goalSummary.msu) }}</span></div>
                                 <template v-if="goalSummary.res">
-                                    <div class="flex justify-between"><span class="text-slate-500">{{ t('res_metal') }}</span><span>{{ formatNum(goalSummary.res[0]) }}</span></div>
-                                    <div class="flex justify-between"><span class="text-slate-500">{{ t('res_crystal') }}</span><span class="text-sky-300">{{ formatNum(goalSummary.res[1]) }}</span></div>
-                                    <div class="flex justify-between"><span class="text-slate-500">{{ t('res_deuterium') }}</span><span class="text-ogame-success">{{ formatNum(goalSummary.res[2]) }}</span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">{{ t('res_metal') }}</span><span>{{ formatNum(goalSummary.res[0]) }}</span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">{{ t('res_crystal') }}</span><span class="text-sky-300">{{ formatNum(goalSummary.res[1]) }}</span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">{{ t('res_deuterium') }}</span><span class="text-ogame-success">{{ formatNum(goalSummary.res[2]) }}</span></div>
                                 </template>
-                                <div v-else class="text-[10px] text-slate-600 italic pt-1">{{ t('strategy_goal_res_unknown') }}</div>
+                                <div v-else class="text-[11px] text-slate-400 italic pt-1">{{ t('strategy_goal_res_unknown') }}</div>
                             </div>
                             <div class="mt-2 pt-2 border-t border-slate-700/20 text-[11px] font-mono text-slate-400 flex justify-between gap-2 flex-wrap">
-                                <span class="text-slate-500">{{ t('strategy_goal_pack_value') }}</span>
+                                <span class="text-slate-400">{{ t('strategy_goal_pack_value') }}</span>
                                 <span>{{ formatNum(result.finalProd) }} {{ t('strategy_goal_per_pack') }}</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- 3) Totale risorse da procurare (upgrade + obiettivo) -->
-                    <div class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div class="bg-ogame-surface rounded-xl p-3 border border-amber-500/20 text-center">
-                            <div class="text-[9px] text-amber-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_goal_total_msu') }}</div>
-                            <div class="text-base font-black text-amber-200 font-mono">{{ formatNum(goalSummary.totalMSU) }}</div>
+                    <div class="mt-2 grid grid-cols-1 min-[400px]:grid-cols-2 lg:grid-cols-4 gap-2">
+                        <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                            <div class="ov-stat-k">{{ t('strategy_goal_total_msu') }}</div>
+                            <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(goalSummary.totalMSU) }}</div>
                         </div>
                         <template v-if="goalSummary.totalRes">
-                            <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                                <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_metal') }}</div>
-                                <div class="text-base font-black text-slate-300 font-mono">{{ formatNum(goalSummary.totalRes[0]) }}</div>
+                            <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                                <div class="ov-stat-k">{{ t('res_metal') }}</div>
+                                <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(goalSummary.totalRes[0]) }}</div>
                             </div>
-                            <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                                <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_crystal') }}</div>
-                                <div class="text-base font-black text-sky-300 font-mono">{{ formatNum(goalSummary.totalRes[1]) }}</div>
+                            <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                                <div class="ov-stat-k">{{ t('res_crystal') }}</div>
+                                <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(goalSummary.totalRes[1]) }}</div>
                             </div>
-                            <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                                <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_deuterium') }}</div>
-                                <div class="text-base font-black text-ogame-success font-mono">{{ formatNum(goalSummary.totalRes[2]) }}</div>
+                            <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                                <div class="ov-stat-k">{{ t('res_deuterium') }}</div>
+                                <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(goalSummary.totalRes[2]) }}</div>
                             </div>
                         </template>
                     </div>
 
                     <!-- 4) Produzione: dove sei rispetto al piano -->
                     <div class="mt-3 grid grid-cols-3 gap-3">
-                        <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                            <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_initial') }}</div>
-                            <div class="text-base font-black text-slate-200 font-mono">{{ formatNum(result.initialProd) }}</div>
+                        <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                            <div class="ov-stat-k">{{ t('strategy_initial') }}</div>
+                            <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(result.initialProd) }}</div>
                         </div>
-                        <div class="bg-ogame-surface rounded-xl p-3 border border-sky-500/20 text-center">
-                            <div class="text-[9px] text-sky-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_current_prod') }}</div>
-                            <div class="text-base font-black text-sky-200 font-mono">{{ formatNum(currentProd) }}</div>
-                            <div v-if="planProgressPct > 0" class="text-[10px] font-mono text-sky-300/70 mt-0.5">{{ t('strategy_progress_pct').replace('{n}', planProgressPct) }}</div>
+                        <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                            <div class="ov-stat-k">{{ t('strategy_current_prod') }}</div>
+                            <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(currentProd) }}</div>
+                            <div v-if="planProgressPct > 0" class="text-[11px] font-mono text-sky-300/70 mt-0.5">{{ t('strategy_progress_pct').replace('{n}', planProgressPct) }}</div>
                         </div>
-                        <div class="bg-ogame-surface rounded-xl p-3 border border-emerald-500/25 text-center">
-                            <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_final') }}</div>
-                            <div class="text-base font-black text-emerald-300 font-mono">{{ formatNum(result.finalProd) }}</div>
+                        <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                            <div class="ov-stat-k">{{ t('strategy_final') }}</div>
+                            <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(result.finalProd) }}</div>
                         </div>
                     </div>
-                    <div class="mt-3 text-[10px] text-slate-500 leading-snug">{{ t('strategy_goal_check_hint') }}</div>
+                    <div class="mt-3 text-[11px] text-slate-400 leading-snug">{{ t('strategy_goal_check_hint') }}</div>
                 </template>
 
                 <!-- ═══ Modalità PRODUZIONE: riepilogo classico ═══ -->
                 <template v-else>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_initial') }}</div>
-                        <div class="text-lg font-black text-slate-200 font-mono">{{ formatNum(result.initialProd) }}</div>
+                <div class="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">{{ t('strategy_initial') }}</div>
+                        <div class="text-base sm:text-lg font-bold tabular-nums text-slate-100">{{ formatNum(result.initialProd) }}</div>
                     </div>
                     <!-- Produzione attuale (dati del core di adesso) e avanzamento verso la finale -->
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-sky-500/20 text-center">
-                        <div class="text-[9px] text-sky-400/80 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_current_prod') }}</div>
-                        <div class="text-lg font-black text-sky-200 font-mono">{{ formatNum(currentProd) }}</div>
-                        <div v-if="planProgressPct > 0" class="text-[10px] font-mono text-sky-300/70 mt-0.5">
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">{{ t('strategy_current_prod') }}</div>
+                        <div class="text-base sm:text-lg font-bold tabular-nums text-slate-100">{{ formatNum(currentProd) }}</div>
+                        <div v-if="planProgressPct > 0" class="text-[11px] font-mono text-sky-300/70 mt-0.5">
                             {{ t('strategy_progress_pct').replace('{n}', planProgressPct) }}
                         </div>
                     </div>
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-emerald-500/25 text-center">
-                        <div class="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold mb-1">{{ t('strategy_final') }}</div>
-                        <div class="text-lg font-black text-emerald-300 font-mono">{{ formatNum(result.finalProd) }}</div>
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">{{ t('strategy_final') }}</div>
+                        <div class="text-base sm:text-lg font-bold tabular-nums text-slate-100">{{ formatNum(result.finalProd) }}</div>
                     </div>
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ planCost?.hasProgress ? t('strategy_remaining_packs') : t('strategy_total_packs') }}</div>
-                        <div class="text-lg font-black text-amber-300 font-mono">{{ formatNum(totalPacks) }}</div>
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">{{ planCost?.hasProgress ? t('strategy_remaining_packs') : t('strategy_total_packs') }}</div>
+                        <div class="text-base sm:text-lg font-bold tabular-nums text-slate-100">{{ formatNum(totalPacks) }}</div>
                     </div>
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ planCost?.hasProgress ? t('strategy_remaining_mo') : t('strategy_total_mo') }}</div>
-                        <div class="text-lg font-black text-purple-300 font-mono">{{ formatNum(planEuro.totalMO) }}</div>
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">{{ planCost?.hasProgress ? t('strategy_remaining_mo') : t('strategy_total_mo') }}</div>
+                        <div class="text-base sm:text-lg font-bold tabular-nums text-slate-100">{{ formatNum(planEuro.totalMO) }}</div>
                     </div>
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ planCost?.hasProgress ? t('strategy_remaining_euro') : t('strategy_total_euro') }}</div>
-                        <div class="text-lg font-black text-green-300 font-mono">€{{ formatNum(planEuro.totalEuro) }}</div>
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">{{ planCost?.hasProgress ? t('strategy_remaining_euro') : t('strategy_total_euro') }}</div>
+                        <div class="text-base sm:text-lg font-bold tabular-nums text-slate-100">{{ formatNum(planEuro.totalEuro) }} €</div>
                     </div>
                 </div>
 
                 <!-- Costo del piano: MSU totali e ripartizione per risorsa -->
-                <div v-if="planCost" class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-amber-500/20 text-center">
-                        <div class="text-[9px] text-amber-400/80 uppercase tracking-wider font-semibold mb-1">
+                <div v-if="planCost" class="mt-2 grid grid-cols-1 min-[400px]:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">
                             {{ planCost.hasProgress ? t('strategy_remaining_msu') : t('strategy_total_msu') }}
                         </div>
-                        <div class="text-base font-black text-amber-200 font-mono">{{ formatNum(planCost.msu) }}</div>
-                        <div v-if="planCost.hasProgress" class="text-[10px] font-mono text-amber-300/70 mt-0.5">
+                        <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(planCost.msu) }}</div>
+                        <div v-if="planCost.hasProgress" class="text-[11px] font-mono text-amber-300/70 mt-0.5">
                             {{ t('strategy_of_total').replace('{n}', formatNum(planCost.totalMSU)) }}
                         </div>
                     </div>
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_metal') }}</div>
-                        <div class="text-base font-black text-slate-300 font-mono">{{ formatNum(planCost.metal) }}</div>
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">{{ t('res_metal') }}</div>
+                        <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(planCost.metal) }}</div>
                     </div>
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_crystal') }}</div>
-                        <div class="text-base font-black text-sky-300 font-mono">{{ formatNum(planCost.crystal) }}</div>
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">{{ t('res_crystal') }}</div>
+                        <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(planCost.crystal) }}</div>
                     </div>
-                    <div class="bg-ogame-surface rounded-xl p-3 border border-slate-700/15 text-center">
-                        <div class="text-[9px] text-slate-600 uppercase tracking-wider font-semibold mb-1">{{ t('res_deuterium') }}</div>
-                        <div class="text-base font-black text-ogame-success font-mono">{{ formatNum(planCost.deuterium) }}</div>
+                    <div class="min-w-0 rounded-lg px-3 py-2.5 bg-ogame-surface">
+                        <div class="ov-stat-k">{{ t('res_deuterium') }}</div>
+                        <div class="text-sm sm:text-base font-bold tabular-nums text-slate-100">{{ formatNum(planCost.deuterium) }}</div>
                     </div>
                 </div>
 
@@ -1829,41 +1691,30 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
 
                 <!-- Reason chip -->
                 <div class="mt-3 flex items-center justify-between flex-wrap gap-2">
-                    <div class="text-[10px] uppercase tracking-wider">
-                        <span v-if="result.reachedTarget" class="px-2 py-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">{{ result.goal ? t('strategy_goal_done') : t('strategy_target_reached') }}</span>
-                        <span v-else class="px-2 py-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">{{ t('strategy_stop_' + result.stoppedReason) }}</span>
+                    <div class="text-[11px] uppercase tracking-wider">
+                        <span v-if="result.reachedTarget" class="ov-tag ov-tag-ok !text-[11px] !px-2 !py-1">{{ result.goal ? t('strategy_goal_done') : t('strategy_target_reached') }}</span>
+                        <span v-else class="ov-tag ov-tag-warn !text-[11px] !px-2 !py-1">{{ t('strategy_stop_' + result.stoppedReason) }}</span>
                     </div>
-                    <button @click="importToPackQueue"
-                            class="px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 text-white text-[11px] font-semibold uppercase tracking-wider transition-colors">
+                    <button @click="importToPackQueue" class="ov-btn ov-btn-tint ov-btn-sm" style="--tc:#fbbf24">
                         {{ t('strategy_import_to_pack') }}
                     </button>
                 </div>
             </div>
 
             <!-- Riepilogo contributi per categoria -->
-            <div v-if="typeSummary" class="card-glass p-5">
-                <h3 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2.5 uppercase tracking-wider">
-                    <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
+            <div v-if="typeSummary" class="ov-panel p-5">
+                <h2 class="ov-sh mb-4">
                     {{ t('strategy_contrib_title') }}
-                </h3>
+                </h2>
                 <div class="space-y-3">
-                    <div v-for="cat in typeSummary" :key="cat.key" class="flex items-center gap-3">
+                    <div v-for="cat in typeSummary" :key="cat.key" class="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <!-- Label + badge -->
-                        <div class="w-36 flex-shrink-0 flex items-center gap-2">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border flex-shrink-0"
-                                  :class="{
-                                      'bg-sky-500/10 text-sky-300 border-sky-500/30':       cat.key === 'mine',
-                                      'bg-cyan-500/10 text-cyan-300 border-cyan-500/30':    cat.key === 'crawler',
-                                      'bg-violet-500/10 text-violet-300 border-violet-500/30': cat.key === 'plasma',
-                                      'bg-orange-500/10 text-orange-300 border-orange-500/30': cat.key === 'lf_build',
-                                      'bg-emerald-500/10 text-emerald-300 border-emerald-500/30': cat.key === 'lf_research',
-                                  }">
-                                {{ t('strategy_contrib_' + cat.key) }}
-                            </span>
+                        <div class="w-28 sm:w-36 flex-shrink-0 flex items-center gap-2">
+                            <span class="text-[13px] text-slate-200">{{ t('strategy_contrib_' + cat.key) }}</span>
                         </div>
                         <!-- Barra progresso -->
-                        <div class="flex-1 bg-black/30 rounded-full h-2 overflow-hidden">
-                            <div class="h-full rounded-full transition-all duration-500"
+                        <div class="order-last basis-full sm:order-none sm:basis-0 flex-1 bg-ogame-line rounded-full h-1.5 overflow-hidden">
+                            <div class="h-full rounded-full"
                                  :style="{ width: cat.pct + '%' }"
                                  :class="{
                                      'bg-sky-500/70':     cat.key === 'mine',
@@ -1875,8 +1726,8 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             </div>
                         </div>
                         <!-- Percentuale + dettaglio -->
-                        <div class="w-28 flex-shrink-0 flex items-baseline gap-2 justify-end">
-                            <span class="text-base font-black font-mono"
+                        <div class="ml-auto sm:ml-0 sm:w-56 flex-shrink-0 flex items-baseline gap-2 justify-end">
+                            <span class="text-sm font-semibold tabular-nums"
                                   :class="{
                                       'text-sky-300':     cat.key === 'mine',
                                       'text-cyan-300':    cat.key === 'crawler',
@@ -1886,7 +1737,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                   }">
                                 {{ cat.pct }}%
                             </span>
-                            <span class="text-[10px] text-slate-600 font-mono whitespace-nowrap">
+                            <span class="text-xs text-slate-400 tabular-nums whitespace-nowrap">
                                 +{{ formatNum(cat.delta) }}
                                 <template v-if="cat.key === 'mine'"> ({{ cat.levels }}↑)</template>
                                 <template v-else-if="cat.key === 'plasma'"> (L+{{ cat.levels }})</template>
@@ -1897,68 +1748,66 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
             </div>
 
             <!-- Riepilogo per pianeta -->
-            <div class="card-glass p-5">
-                <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2.5 uppercase tracking-wider">
-                    <span class="w-[2px] h-4 bg-sky-400/60 rounded-full flex-shrink-0"></span>
+            <div class="ov-panel p-5">
+                <h2 class="ov-sh mb-4">
                     {{ t('strategy_summary_planet') }}
-                </h3>
+                </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     <div v-for="row in perPlanetSummary.planets" :key="row.idx"
-                         class="bg-ogame-surface rounded-lg border border-slate-700/20 px-3 py-2 flex items-center justify-between text-[12px]">
-                        <span class="font-mono text-slate-300 truncate">{{ row.name }}</span>
+                         class="rounded-md border border-ogame-line px-3 py-2 flex items-center justify-between text-[13px]">
+                        <span class="text-slate-200 truncate">{{ row.name }}</span>
                         <div class="flex gap-2 flex-shrink-0">
-                            <span v-if="row.metalMine" class="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 font-mono text-[10px]">M+{{ row.metalMine }}</span>
-                            <span v-if="row.crystalMine" class="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono text-[10px]">C+{{ row.crystalMine }}</span>
-                            <span v-if="row.deutMine" class="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-mono text-[10px]">D+{{ row.deutMine }}</span>
-                            <span v-if="row.lfMagma" class="px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30 font-mono text-[10px]">FM+{{ row.lfMagma }}</span>
-                            <span v-if="row.lfHuman" class="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 font-mono text-[10px]">FAE+{{ row.lfHuman }}</span>
+                            <span v-if="row.metalMine" class="text-xs font-semibold tabular-nums text-sky-300">M+{{ row.metalMine }}</span>
+                            <span v-if="row.crystalMine" class="text-xs font-semibold tabular-nums text-cyan-300">C+{{ row.crystalMine }}</span>
+                            <span v-if="row.deutMine" class="text-xs font-semibold tabular-nums text-indigo-300">D+{{ row.deutMine }}</span>
+                            <span v-if="row.lfMagma" class="text-xs font-semibold tabular-nums text-orange-300">FM+{{ row.lfMagma }}</span>
+                            <span v-if="row.lfHuman" class="text-xs font-semibold tabular-nums text-blue-300">FAE+{{ row.lfHuman }}</span>
                         </div>
                     </div>
-                    <div v-if="perPlanetSummary.plasma" class="bg-ogame-surface rounded-lg border border-violet-500/30 px-3 py-2 flex items-center justify-between text-[12px]">
-                        <span class="font-mono text-violet-300">{{ t('plasma_technology') }}</span>
-                        <span class="px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30 font-mono text-[10px]">+{{ perPlanetSummary.plasma }}</span>
+                    <div v-if="perPlanetSummary.plasma" class="rounded-md border border-ogame-line px-3 py-2 flex items-center justify-between text-[13px]">
+                        <span class="text-slate-200">{{ t('plasma_technology') }}</span>
+                        <span class="text-xs font-semibold tabular-nums text-violet-300">+{{ perPlanetSummary.plasma }}</span>
                     </div>
-                    <div v-if="perPlanetSummary.lfResearch" class="bg-ogame-surface rounded-lg border border-emerald-500/30 px-3 py-2 flex items-center justify-between text-[12px]">
-                        <span class="font-mono text-emerald-300">{{ t('strategy_lf_research') }}</span>
-                        <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[10px]">+{{ perPlanetSummary.lfResearch }}</span>
+                    <div v-if="perPlanetSummary.lfResearch" class="rounded-md border border-ogame-line px-3 py-2 flex items-center justify-between text-[13px]">
+                        <span class="text-slate-200">{{ t('strategy_lf_research') }}</span>
+                        <span class="text-xs font-semibold tabular-nums text-emerald-300">+{{ perPlanetSummary.lfResearch }}</span>
                     </div>
                 </div>
             </div>
 
             <!-- Roadmap step-by-step -->
-            <div class="overflow-hidden rounded-xl border border-slate-700/25 bg-ogame-panel">
-                <div class="px-5 py-3 border-b border-slate-700/25 bg-ogame-surface">
+            <div class="overflow-hidden rounded-xl border border-ogame-line bg-ogame-panel">
+                <div class="px-5 py-3 border-b border-ogame-line">
                     <div class="flex justify-between items-center flex-wrap gap-2">
                         <div class="flex items-center gap-2.5">
-                            <span class="w-[2px] h-4 bg-emerald-400/60 rounded-full flex-shrink-0"></span>
-                            <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">{{ t('strategy_roadmap') }}</h3>
+                            <h2 class="ov-sh ov-sh-noline">{{ t('strategy_roadmap') }}</h2>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-[10px] font-mono text-emerald-300 border border-emerald-500/25">
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-[11px] tabular-nums text-emerald-300 border border-emerald-500/25">
                                 {{ doneCount }}/{{ groupedSteps.length }} {{ t('lbl_done') }}
                             </span>
-                            <span class="px-2 py-0.5 rounded bg-white/[0.04] text-[10px] font-mono text-slate-500 border border-slate-700/20">
+                            <span class="px-2 py-0.5 rounded bg-white/[0.04] text-[11px] tabular-nums text-slate-400 border border-slate-700/20">
                                 {{ groupedSteps.length }} {{ t('lbl_blocks') }}
-                                <span v-if="groupedSteps.length !== result.steps.length" class="text-slate-700">({{ result.steps.length }} step)</span>
+                                <span v-if="groupedSteps.length !== result.steps.length" class="text-slate-400">({{ result.steps.length }} step)</span>
                             </span>
                         </div>
                     </div>
                     <!-- Avanzamento esecuzione del piano (blocchi spuntati) -->
                     <div class="mt-2 h-1 bg-black/40 rounded-full overflow-hidden">
-                        <div class="h-full bg-emerald-500/60 rounded-full transition-all duration-300"
+                        <div class="h-full bg-emerald-500/60 rounded-full "
                              :style="{ width: (groupedSteps.length ? Math.round(doneCount / groupedSteps.length * 100) : 0) + '%' }"></div>
                     </div>
                     <!-- Filtro per tipo -->
                     <div v-if="presentTypes.length > 1" class="mt-2.5 flex items-center gap-1 flex-wrap">
                         <button @click="typeFilter = 'all'"
-                                class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border transition-colors duration-150"
-                                :class="typeFilter === 'all' ? 'bg-slate-600/40 text-slate-100 border-slate-500/40' : 'bg-transparent text-slate-600 border-slate-700/30 hover:text-slate-400'">
+                                class="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border transition-colors duration-150"
+                                :class="typeFilter === 'all' ? 'bg-slate-600/40 text-slate-100 border-slate-500/40' : 'bg-transparent text-slate-400 border-slate-700/30 hover:text-slate-400'">
                             {{ t('lbl_all') }}
                         </button>
                         <button v-for="tp in presentTypes" :key="tp"
                                 @click="typeFilter = typeFilter === tp ? 'all' : tp"
-                                class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border transition-colors duration-150"
-                                :class="typeFilter === tp ? stepBadgeClass(tp) : 'bg-transparent text-slate-600 border-slate-700/30 hover:text-slate-400'">
+                                class="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border transition-colors duration-150"
+                                :class="typeFilter === tp ? stepBadgeClass(tp) : 'bg-transparent text-slate-400 border-slate-700/30 hover:text-slate-400'">
                             {{ stepTypeLabel(tp) }}
                         </button>
                     </div>
@@ -1967,7 +1816,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                 <!-- Desktop table -->
                 <div class="hidden md:block overflow-x-auto overflow-y-auto max-h-[70vh] custom-scrollbar">
                     <table class="w-full text-xs">
-                        <thead class="sticky top-0 z-10 bg-ogame-surface text-slate-500 uppercase text-[9px] tracking-wider shadow-[0_1px_0_rgba(51,65,85,0.4)]">
+                        <thead class="sticky top-0 z-10 bg-ogame-surface text-slate-400 uppercase text-[11px] tracking-wider shadow-[0_1px_0_rgba(51,65,85,0.4)]">
                             <tr>
                                 <th class="px-3 py-2 text-center font-semibold w-8"><span class="sr-only">{{ t('lbl_done') }}</span>✓</th>
                                 <th class="px-3 py-2 text-left font-semibold">#</th>
@@ -1998,28 +1847,28 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                            class="w-3.5 h-3.5 accent-emerald-500 rounded cursor-pointer disabled:cursor-default">
                                     <div v-if="s.autoCount > 0 && !s.autoDone"
                                          :title="t('strategy_partial_done_hint')"
-                                         class="mt-0.5 text-[9px] font-mono font-bold text-emerald-400/80">{{ s.autoCount }}/{{ s.count }}</div>
+                                         class="mt-0.5 text-[11px] font-mono font-bold text-emerald-400/80">{{ s.autoCount }}/{{ s.count }}</div>
                                 </td>
-                                <td class="px-3 py-2 font-mono text-slate-600 text-[10px] whitespace-nowrap">
+                                <td class="px-3 py-2 tabular-nums text-slate-400 text-[11px] whitespace-nowrap">
                                     {{ s.n }}
-                                    <span v-if="s.n === nextStepN" class="ml-1 px-1 py-px rounded bg-emerald-500/15 text-emerald-300 text-[8px] font-bold uppercase tracking-wider">{{ t('lbl_next') }}</span>
+                                    <span v-if="s.n === nextStepN" class="ml-1 px-1 py-px rounded bg-emerald-500/15 text-emerald-300 text-[11px] font-bold uppercase tracking-wider">{{ t('lbl_next') }}</span>
                                 </td>
                                 <td class="px-3 py-2 whitespace-nowrap">
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
+                                    <span class="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border"
                                           :class="[stepBadgeClass(s), s.isDone ? 'line-through' : '']">
                                         {{ stepTypeLabel(s) }}
                                     </span>
                                     <span v-if="s.count > 1" class="ml-1.5 text-[11px] text-slate-400 font-mono font-bold">&times;{{ s.count }}</span>
                                 </td>
-                                <td class="px-3 py-2 font-mono text-slate-400 align-top min-w-[180px] whitespace-normal">
+                                <td class="px-3 py-2 tabular-nums text-slate-400 align-top min-w-[180px] whitespace-normal">
                                     <div v-if="s.type === 'lf_research' && s.researchName" class="text-[11px] text-slate-400 leading-snug mb-1 flex items-center gap-1.5 flex-wrap">
-                                        <span class="px-1.5 py-px rounded bg-slate-700/60 text-slate-300 font-mono font-bold text-[11px]">T{{ parseInt(s.researchId) % 100 }}</span>
+                                        <span class="px-1.5 py-px rounded bg-slate-700/60 text-slate-300 tabular-nums font-bold text-[11px]">T{{ parseInt(s.researchId) % 100 }}</span>
                                         <span class="font-semibold">{{ s.researchName }}</span>
                                         <!-- Δ positivo senza bonus metallo diretto: senza questo
                                              badge la riga sembra un errore del planner. -->
                                         <span v-if="s.indirectBonus"
                                               :title="t('strategy_lf_indirect_hint')"
-                                              class="px-1 rounded bg-amber-500/15 text-amber-300/90 text-[9px] font-bold uppercase tracking-wider">
+                                              class="px-1 rounded bg-amber-500/15 text-amber-300/90 text-[11px] font-bold uppercase tracking-wider">
                                             {{ t('strategy_lf_indirect_badge') }}
                                         </span>
                                     </div>
@@ -2030,7 +1879,7 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                         <div class="flex flex-wrap gap-1">
                                             <span v-for="pd in s.planetDetails" :key="pd.idx"
                                                   :title="pd.done ? t('strategy_planet_done_hint') : null"
-                                                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[12px] leading-snug whitespace-nowrap"
+                                                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[12px] leading-snug whitespace-nowrap max-w-full truncate"
                                                   :class="pd.done
                                                       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
                                                       : 'border-slate-700/50 bg-black/30 text-slate-200'">
@@ -2040,18 +1889,18 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                     </template>
                                     <template v-else><span class="text-[12px] text-slate-200">{{ s.planetName || '—' }}</span></template>
                                 </td>
-                                <td class="px-3 py-2 text-center font-mono text-slate-300 whitespace-nowrap">{{ s.from }} &rarr; {{ s.to }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-slate-300">{{ formatNum(s.costMSU) }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-amber-300/90">{{ s.packs }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-emerald-300">+{{ formatNum(s.deltaProd) }}</td>
-                                <td class="px-3 py-2 text-right font-mono font-semibold" :class="roiColor(s.costMSU, s.deltaProd)">{{ formatROI(s.costMSU, s.deltaProd) }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-slate-200 font-bold">
+                                <td class="px-3 py-2 text-center tabular-nums text-slate-300 whitespace-nowrap">{{ s.from }} &rarr; {{ s.to }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums text-slate-300">{{ formatNum(s.costMSU) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums text-amber-300/90">{{ s.packs }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums text-emerald-300">+{{ formatNum(s.deltaProd) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums font-semibold" :class="roiColor(s.costMSU, s.deltaProd)">{{ formatROI(s.costMSU, s.deltaProd) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums text-slate-200 font-bold">
                                     {{ formatNum(s.cumulativeProd) }}
                                     <div class="mt-0.5 h-[3px] w-16 ml-auto bg-black/40 rounded-full overflow-hidden">
                                         <div class="h-full bg-emerald-500/50 rounded-full" :style="{ width: rowProgressPct(s.cumulativeProd) + '%' }"></div>
                                     </div>
                                 </td>
-                                <td class="px-3 py-2 text-right font-mono text-amber-400">{{ s.cumulativePacks }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums text-amber-400">{{ s.cumulativePacks }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -2074,27 +1923,27 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                                        :title="s.autoDone ? t('strategy_auto_done_hint') : null"
                                        :aria-label="t('lbl_done') + ' #' + s.n"
                                        class="w-4 h-4 accent-emerald-500 rounded cursor-pointer disabled:cursor-default">
-                                <span class="text-[10px] font-mono text-slate-600">#{{ s.n }}</span>
+                                <span class="text-[11px] tabular-nums text-slate-400">#{{ s.n }}</span>
                                 <span v-if="s.autoCount > 0 && !s.autoDone" :title="t('strategy_partial_done_hint')"
-                                      class="text-[10px] font-mono font-bold text-emerald-400/80">{{ s.autoCount }}/{{ s.count }}</span>
+                                      class="text-[11px] font-mono font-bold text-emerald-400/80">{{ s.autoCount }}/{{ s.count }}</span>
                                 <span v-if="s.count > 1" class="text-[11px] font-mono font-bold text-slate-400">&times;{{ s.count }}</span>
-                                <span v-if="s.n === nextStepN" class="px-1 py-px rounded bg-emerald-500/15 text-emerald-300 text-[8px] font-bold uppercase tracking-wider">{{ t('lbl_next') }}</span>
+                                <span v-if="s.n === nextStepN" class="px-1 py-px rounded bg-emerald-500/15 text-emerald-300 text-[11px] font-bold uppercase tracking-wider">{{ t('lbl_next') }}</span>
                             </div>
-                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
+                            <span class="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border"
                                   :class="stepBadgeClass(s)">{{ stepTypeLabel(s) }}</span>
                         </div>
                         <div class="text-[12px] text-slate-400 mb-2">
                             <div v-if="s.type === 'lf_research' && s.researchName" class="text-[11px] text-slate-400 font-semibold leading-snug mb-1 flex items-center gap-1.5 flex-wrap">
-                                <span class="px-1.5 py-px rounded bg-slate-700/60 text-slate-300 font-mono font-bold text-[10px]">T{{ parseInt(s.researchId) % 100 }}</span>
+                                <span class="px-1.5 py-px rounded bg-slate-700/60 text-slate-300 tabular-nums font-bold text-[11px]">T{{ parseInt(s.researchId) % 100 }}</span>
                                 <span>{{ s.researchName }}</span>
                             </div>
-                            <span v-if="s.planetName" class="font-mono">{{ s.planetName }}</span>
-                            <span class="ml-2 font-mono text-slate-500">L{{ s.from }} → L{{ s.to }}</span>
+                            <span v-if="s.planetName" class="tabular-nums">{{ s.planetName }}</span>
+                            <span class="ml-2 tabular-nums text-slate-400">L{{ s.from }} → L{{ s.to }}</span>
                             <!-- Elenco esplicito dei pianeti del blocco raggruppato -->
                             <div v-if="s.planetDetails && s.planetDetails.length > 1" class="flex flex-wrap gap-1 mt-1.5">
                                 <span v-for="pd in s.planetDetails" :key="pd.idx"
                                       :title="pd.done ? t('strategy_planet_done_hint') : null"
-                                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[12px] font-mono leading-snug whitespace-nowrap"
+                                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[12px] tabular-nums leading-snug whitespace-nowrap max-w-full truncate"
                                       :class="pd.done
                                           ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
                                           : 'border-slate-700/50 bg-black/30 text-slate-200'">
@@ -2103,17 +1952,29 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                            <div class="flex justify-between"><span class="text-slate-600">MSU</span><span class="font-mono text-slate-300">{{ formatNum(s.costMSU) }}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-600">Pack</span><span class="font-mono text-amber-300">{{ s.packs }}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-600">Δ</span><span class="font-mono text-emerald-300">+{{ formatNum(s.deltaProd) }}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-600">ROI</span><span class="font-mono font-semibold" :class="roiColor(s.costMSU, s.deltaProd)">{{ formatROI(s.costMSU, s.deltaProd) }}</span></div>
-                            <div class="flex justify-between col-span-2"><span class="text-slate-600">Tot</span><span class="font-mono text-slate-200 font-bold">{{ formatNum(s.cumulativeProd) }}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">MSU</span><span class="tabular-nums text-slate-300">{{ formatNum(s.costMSU) }}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Pack</span><span class="tabular-nums text-amber-300">{{ s.packs }}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Δ</span><span class="text-slate-200">+{{ formatNum(s.deltaProd) }}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">ROI</span><span class="tabular-nums font-semibold" :class="roiColor(s.costMSU, s.deltaProd)">{{ formatROI(s.costMSU, s.deltaProd) }}</span></div>
+                            <div class="flex justify-between col-span-2"><span class="text-slate-400">Tot</span><span class="tabular-nums text-slate-200 font-bold">{{ formatNum(s.cumulativeProd) }}</span></div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </template>
+  </div>
+
+  <!-- Barra fissa dei risultati -->
+  <div v-if="result && activeProfile && planets.length" class="ov-resultbar">
+    <div class="ov-resultbar-in">
+      <div class="ov-stat"><span class="ov-stat-k">{{ t('strategy_current_prod') }} → {{ t('strategy_final') }}</span><span class="ov-stat-v !text-base sm:!text-xl">{{ formatNum(currentProd) }} <span class="text-slate-400 font-medium">→</span> <span class="text-emerald-300">{{ formatNum(result.finalProd) }}</span></span></div>
+      <div class="ov-stat hidden sm:grid"><span class="ov-stat-k">{{ planCost?.hasProgress ? t('strategy_remaining_packs') : t('strategy_total_packs') }}</span><span class="ov-stat-v text-amber-300">{{ formatNum(totalPacks) }}</span></div>
+      <div class="ov-stat hidden sm:grid"><span class="ov-stat-k">{{ planCost?.hasProgress ? t('strategy_remaining_euro') : t('strategy_total_euro') }}</span><span class="ov-stat-v">{{ formatNum(planEuro.totalEuro) }} €</span></div>
+      <button @click="computePlan('rest')" :disabled="isComputing || !canCompute" class="ov-btn ov-btn-primary ov-btn-sm ml-auto">
+        {{ isComputing ? t('strategy_computing') : t('strategy_recompute_rest') }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -2122,7 +1983,4 @@ const setLfResAll = (on) => { lfResearchIds.value = on ? [...ALL_LF_IDS] : []; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.2); border-radius: 3px; }
 
-@media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-}
 </style>

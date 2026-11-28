@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OValue Exporter
 // @namespace    https://greasyfork.org/it/users/1546037-nicolagalassi
-// @version      4.7.0
+// @version      4.7.1
 // @description  Raccoglie i dati dell'impero, li sincronizza con OValue e mostra la produzione di metallo 24h con simulatore di classe (Production Core)
 // @author       OValue
 // @license      MIT
@@ -940,6 +940,7 @@
         '05294270032e5dc968672425ab5611998c409166': ['metal', 30],
         '21c1a65ca6aecf54ffafb94c01d0c60d821b325d': ['metal', 30],
         '6fecb993169fe918d9c63cd37a2e541cc067664e': ['metal', 30],
+        'ca34cab42a4d7ad7e6e6f6a78da60c15b93ee12d': ['metal', 30],
         'a83cfdc15b8dba27c82962d57e50d8101d263cfb': ['metal', 40],
         'ca7f903a65467b70411e513b0920d66c417aa3a2': ['metal', 40],
         'c690f492cffe5f9f2952337e8eed307a8a62d6cf': ['metal', 40],
@@ -954,6 +955,9 @@
         '4fa71c28e076fd5a5f1fdba2d83b9537e7557295': ['resource', 25],
         'be06b5c24ec29aadfe9e348ec022e698a5367dd0': ['resource', 30],
         '98fb2c053a8bd8608e9a307fe6f94e9b87754504': ['resource', 30],
+        // 30% da 7 giorni (fuori dallo Shop: pacchi/eventi). Verificato sulla produzione
+        // reale di accountInfo: +30% della base miniera sul pianeta.
+        'c2448fc38c14bbf92ef5f072ff73117301d604e9': ['resource', 30],
         '8cc0f382c3e6bb0751b42b8e9b9a0d3648313f25': ['resource', 40],
         '370a7d4f976480fa054ef23068c442fc6e476301': ['resource', 40]
     };

@@ -96,6 +96,13 @@ export const applyExportToProduction = (production, raw) => {
         }
     }
 
+    // Copia dei valori letti dal gioco: Production Core la usa per "Ripristina dal gioco"
+    // dopo una modifica manuale delle impostazioni account.
+    production.gameSettings = {
+        ecoSpeed: s.ecoSpeed, playerClass: s.playerClass, allyClass: s.allyClass,
+        plasma: s.plasma, geologist: s.geologist, staff: s.staff, lfBonus: s.lfBonus,
+    };
+
     if (Array.isArray(raw.planets) && raw.planets.length > 0) {
         production.planets = planetsFromExport(raw);
     }

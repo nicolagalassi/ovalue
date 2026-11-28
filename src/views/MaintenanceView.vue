@@ -222,4 +222,7 @@ const messageLines = computed(() => t('maintenance_message').split('\n'));
 .sep {
   color: theme('colors.ogame.border');
 }
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; }
+}
 </style>

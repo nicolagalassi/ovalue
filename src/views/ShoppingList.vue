@@ -655,10 +655,10 @@ const getSwipeStyle = (idx) => {
 
           <div v-if="dmPanelOpen" class="px-4 pb-4 border-t border-violet-500/10 pt-3">
             <!-- Controlli bonus -->
-            <div class="flex flex-col sm:flex-row sm:items-end gap-3 mb-3">
-              <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-end gap-x-4 gap-y-3 mb-3">
+              <div class="flex-1 basis-[26rem] min-w-0">
                 <div class="ov-label mb-1.5">{{ t('lbl_event_bonus') }}</div>
-                <div class="grid grid-cols-4 gap-1">
+                <div class="grid grid-cols-[repeat(auto-fit,minmax(4rem,1fr))] gap-1">
                   <button v-for="b in DM_EVENT_BONUSES" :key="b" @click="dmEventBonus = b"
                           class="px-1 py-1.5 text-[11px] font-bold rounded-lg transition-colors duration-150 border tabular-nums"
                           :class="dmEventBonus === b ? 'bg-amber-500/15 border-amber-400/35 text-amber-200' : 'text-slate-400 hover:text-slate-300 border-transparent'">
@@ -671,11 +671,11 @@ const getSwipeStyle = (idx) => {
                 <span class="text-[11px] font-medium text-slate-300">{{ t('lbl_payment_bonus') }}</span>
                 <span class="hidden sm:inline text-[11px] text-violet-400/50 font-mono">PayPal · Carta · Amazon</span>
               </label>
-              <p class="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5"><svg class="w-3 h-3 flex-none" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.8 10.2a4 4 0 00-5.6 0l-3 3a4 4 0 005.6 5.6l1.1-1.1m-.7-4.5a4 4 0 005.6 0l3-3a4 4 0 00-5.6-5.6l-1.1 1.1"/></svg>{{ t('shared_purchase_hint') }}</p>
             </div>
+            <p class="-mt-1 mb-3 text-[11px] text-slate-400 flex items-center gap-1.5"><svg class="w-3 h-3 flex-none" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.8 10.2a4 4 0 00-5.6 0l-3 3a4 4 0 005.6 5.6l1.1-1.1m-.7-4.5a4 4 0 005.6 0l3-3a4 4 0 00-5.6-5.6l-1.1 1.1"/></svg>{{ t('shared_purchase_hint') }}</p>
 
             <!-- Griglia tagli: il taglio selezionato guida la stima in € del carrello -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <button v-for="pkg in dmPackages" :key="pkg.cost" type="button"
                       @click="dmSelectedCost = pkg.cost"
                       :aria-pressed="dmSelectedPackage?.cost === pkg.cost"
